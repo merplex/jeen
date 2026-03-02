@@ -76,26 +76,44 @@ def batch_generate_metadata(words: list[dict]) -> list[dict]:
         return []
 
 
-def generate_daily_words(count: int, existing_chinese: set) -> list[str]:
+def generate_daily_words(count: int, existing_chinese: set, category: str = None) -> list[dict]:
     """
-    Ask Gemini to suggest `count` common Chinese words not in existing_chinese.
-    Returns list of Chinese characters.
+    Ask Gemini to suggest `count` Chinese words.
+    Returns list of {"chinese": "...", "category": "..."}
     """
     if not _has_api_key():
         return []
     try:
         existing_sample = '、'.join(list(existing_chinese)[:300])
+        if category:
+            cat_instruction = f'สร้างเฉพาะคำศัพท์หมวด "{category}" เท่านั้น'
+            cat_field = f'"category":"{category}"'
+        else:
+            cat_instruction = (
+                "Mix: daily life, food, travel, emotions, family, body, colors, time, "
+                "numbers, verbs, adjectives. Avoid specialized medical/technical/legal terms."
+            )
+            cat_field = '"category":"<Thai category e.g. ทั่วไป อาหาร ครอบครัว>"'
+
         prompt = (
-            f"Generate exactly {count} common Chinese words (simplified characters) for Thai learners.\n"
-            "Focus on HSK 1-4 vocabulary. Mix categories: daily life, food, travel, work, "
-            "emotions, nature, time, family, body, colors, numbers, verbs, adjectives.\n"
-            f"These words already exist — do NOT include them: {existing_sample}\n"
-            "Return a JSON array of Chinese characters only, no pinyin, no explanation:\n"
-            '["你好","谢谢","再见",...]'
+            f"Generate exactly {count} common Chinese words (simplified) for Thai learners.\n"
+            f"{cat_instruction}\n"
+            f"Do NOT include: {existing_sample}\n"
+            "Return JSON array only, no explanation:\n"
+            f'[{{"chinese":"你好",{cat_field}}},...]\n'
+            "category must be a short Thai word."
         )
         response = _model.generate_content(prompt)
         data = json.loads(_strip_markdown(response.text))
-        return [w for w in data if isinstance(w, str) and w.strip() and w not in existing_chinese]
+        result = []
+        for w in data:
+            if isinstance(w, dict) and w.get("chinese"):
+                chinese = w["chinese"].strip()
+                if chinese and chinese not in existing_chinese:
+                    result.append({"chinese": chinese, "category": w.get("category") or category or ""})
+            elif isinstance(w, str) and w.strip() and w.strip() not in existing_chinese:
+                result.append({"chinese": w.strip(), "category": category or ""})
+        return result
     except Exception:
         return []
 

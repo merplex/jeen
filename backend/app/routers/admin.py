@@ -34,6 +34,8 @@ def list_pending(
 
 class ApproveRequest(BaseModel):
     thai_meaning: Optional[str] = None
+    pinyin: Optional[str] = None
+    category: Optional[str] = None
 
 
 @router.post("/pending/{pending_id}/approve", response_model=WordOut)
@@ -47,31 +49,32 @@ def approve_pending(
     if not pending:
         raise HTTPException(status_code=404, detail="ไม่พบคำที่รอ approve")
 
-    # ถ้าส่ง thai_meaning มาใน body ให้ override
     thai = body.thai_meaning or pending.thai_meaning
     if not thai:
         raise HTTPException(status_code=400, detail="กรุณาใส่ความหมายภาษาไทยก่อน approve")
 
-    # auto-generate english ถ้ายังไม่มี
     english = pending.english_meaning
     if not english and pending.chinese and thai:
         english = generate_english_meaning(pending.chinese, thai)
 
-    # ใช้ pinyin_plain จาก pending ถ้ามี, fallback lazy_pinyin
+    # ใช้ค่าที่ admin แก้ไข หรือ fallback จาก pending
+    pinyin_val = body.pinyin or pending.pinyin or ""
+    category_val = body.category if body.category is not None else pending.category
+
     if pending.pinyin_plain:
         pinyin_plain = pending.pinyin_plain
     elif pending.chinese:
         pinyin_plain = ' '.join(lazy_pinyin(pending.chinese))
     else:
-        pinyin_plain = pending.pinyin
+        pinyin_plain = pinyin_val
 
     word = Word(
         chinese=pending.chinese,
-        pinyin=pending.pinyin or "",
+        pinyin=pinyin_val,
         pinyin_plain=pinyin_plain,
         thai_meaning=thai,
         english_meaning=english,
-        category=pending.category,
+        category=category_val,
         status="verified",
     )
     db.add(word)
@@ -214,6 +217,7 @@ def generate_examples(
 
 class GenerateDailyRequest(BaseModel):
     count: int = 100
+    category: Optional[str] = None
 
 
 @router.post("/generate-daily-words")
@@ -222,24 +226,24 @@ def generate_daily(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    """Ask Gemini to generate N common Chinese words, auto-gen pinyin, insert to words_pending."""
+    """Ask Gemini to generate N Chinese words, auto-gen pinyin+category, insert to words_pending."""
     count = min(max(body.count, 10), 200)
 
-    # รวม existing chinese จาก words + words_pending
     existing = {w[0] for w in db.query(Word.chinese).all()}
     existing |= {w[0] for w in db.query(WordPending.chinese).all()}
 
-    suggestions = generate_daily_words(count, existing)
+    suggestions = generate_daily_words(count, existing, category=body.category)
 
     inserted = 0
-    for chinese in suggestions:
-        chinese = chinese.strip()
+    for item in suggestions:
+        chinese = item["chinese"]
         if not chinese or chinese in existing:
             continue
         db.add(WordPending(
             chinese=chinese,
             pinyin=_gen_pinyin(chinese),
             pinyin_plain=_gen_pinyin_plain(chinese),
+            category=item.get("category") or None,
             source="ai_daily",
         ))
         existing.add(chinese)

@@ -37,8 +37,12 @@ export const deleteNote = (id) => api.delete(`/notes/${id}`)
 
 export const adminGetPending = (skip = 0, limit = 50) =>
   api.get('/admin/pending', { params: { skip, limit } })
-export const adminApprove = (id, thaiMeaning = null) =>
-  api.post(`/admin/pending/${id}/approve`, thaiMeaning ? { thai_meaning: thaiMeaning } : {})
+export const adminApprove = (id, thaiMeaning = null, pinyin = null, category = null) =>
+  api.post(`/admin/pending/${id}/approve`, {
+    ...(thaiMeaning && { thai_meaning: thaiMeaning }),
+    ...(pinyin && { pinyin }),
+    ...(category && { category }),
+  })
 export const adminReject = (id) => api.delete(`/admin/pending/${id}`)
 export const adminMissed = () => api.get('/admin/missed-searches')
 export const adminDeleteMissed = (id) => api.delete(`/admin/missed-searches/${id}`)
@@ -47,7 +51,7 @@ export const adminImport = (formData) =>
 export const adminCreateWord = (data) => api.post('/words', data)
 export const adminUpdateWord = (id, data) => api.put(`/words/${id}`, data)
 export const adminDeleteWord = (id) => api.delete(`/words/${id}`)
-export const adminGenerateDailyWords = (count) =>
-  api.post('/admin/generate-daily-words', { count })
+export const adminGenerateDailyWords = (count, category = null) =>
+  api.post('/admin/generate-daily-words', { count, ...(category && { category }) })
 
 export default api
