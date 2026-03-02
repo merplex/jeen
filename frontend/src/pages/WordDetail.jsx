@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getWord, addFlashcard, removeFlashcard, getFlashcards, getNotes, createNote, updateNote, adminUpdateWord } from '../services/api'
+import { getWord, addFlashcard, removeFlashcard, getFlashcards, getNotes, createNote, updateNote, adminUpdateWord, recordSearchHistory } from '../services/api'
 import useAuthStore from '../stores/authStore'
 
 export default function WordDetail() {
@@ -16,7 +16,14 @@ export default function WordDetail() {
   const [editSaving, setEditSaving] = useState(false)
 
   useEffect(() => {
-    getWord(id).then((r) => setWord(r.data)).catch(() => navigate('/'))
+    getWord(id)
+      .then((r) => {
+        setWord(r.data)
+        if (user) {
+          recordSearchHistory(r.data.chinese, Number(id), true).catch(() => {})
+        }
+      })
+      .catch(() => navigate('/'))
     if (user) {
       getFlashcards().then((r) => {
         setIsFav(r.data.some((f) => f.word_id === Number(id)))
