@@ -107,70 +107,97 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
         return {"success": False, "error": "ไม่พบคอลัมน์ภาษาจีน"}
 
     # โหลด existing เพื่อ skip ซ้ำ
-    # verified: ตรวจด้วย (chinese, pinyin_plain) เพื่อรองรับ polyphonic (คำเดียวหลายเสียง)
     existing_words = {(w[0], w[1] or "") for w in db.query(Word.chinese, Word.pinyin_plain).all()}
     existing_pending = {w[0] for w in db.query(WordPending.chinese).all()}
 
-    verified = 0   # มีคำแปลไทย → เข้า words โดยตรง
-    pending = 0    # ไม่มีคำแปล → เข้า words_pending รอแปล
-    skipped = 0    # ซ้ำหรือว่าง
+    # ─── Phase 1: รวม rows ที่มี chinese เดียวกัน (pinyin เดียวกัน) ───────────
+    # key = (chinese, pinyin_plain)  →  กรณี polyphonic ที่ระบุ pinyin ต่างกัน แยกเป็นคนละ entry
+    from collections import OrderedDict
+    groups = OrderedDict()
 
     for _, row in df.iterrows():
         chinese = str(row.get("chinese", "")).strip()
         if not chinese:
-            skipped += 1
             continue
 
         raw_pinyin = str(row.get("pinyin", "")).strip()
         gen_pinyin = raw_pinyin if raw_pinyin else _gen_pinyin(chinese)
         gen_pinyin_plain = _gen_pinyin_plain(chinese)
+        key = (chinese, gen_pinyin_plain)
+
+        thai_raw = str(row.get("thai_meaning", "")).strip()
         english = str(row.get("english_meaning", "")).strip() or None
         category_col = str(row.get("category", "")).strip() or None
 
-        # Parse Thai meaning: แยก sense, ดึง category
-        thai_raw = str(row.get("thai_meaning", "")).strip()
         if thai_raw:
             senses = _parse_thai_meaning(thai_raw)
-            # รวม sense ด้วย "; "  ถ้า parse ได้ว่าง fallback ใช้ raw text
-            thai = "; ".join(m for m, _ in senses if m) or thai_raw
-            # ใช้ category จากคอลัมน์ก่อน, ถ้าไม่มีใช้จาก parse
-            parsed_category = next((c for _, c in senses if c), None)
-            category = category_col or parsed_category
+            thai_line = "; ".join(m for m, _ in senses if m) or thai_raw
+            parsed_cat = next((c for _, c in senses if c), None)
         else:
-            thai = ""
-            category = category_col
+            thai_line = ""
+            parsed_cat = None
+
+        cat = category_col or parsed_cat
+
+        if key not in groups:
+            groups[key] = {
+                "chinese": chinese,
+                "pinyin": gen_pinyin,
+                "pinyin_plain": gen_pinyin_plain,
+                "thai_lines": [],
+                "english": None,
+                "category": None,
+                "row_count": 0,
+            }
+
+        g = groups[key]
+        g["row_count"] += 1
+        # เพิ่ม thai_line ถ้ายังไม่มี (dedup ภายใน group)
+        if thai_line and thai_line not in g["thai_lines"]:
+            g["thai_lines"].append(thai_line)
+        if not g["english"] and english:
+            g["english"] = english
+        if not g["category"] and cat:
+            g["category"] = cat
+
+    # ─── Phase 2: insert ─────────────────────────────────────────────────────
+    verified = 0
+    pending = 0
+    skipped = 0
+
+    for key, g in groups.items():
+        chinese = g["chinese"]
+        # รวมความหมายหลายบรรทัด คั่นด้วย \n
+        thai = "\n".join(g["thai_lines"])
 
         if thai:
-            # มีคำแปลไทย → ตรวจซ้ำด้วย (chinese, pinyin_plain)
-            key = (chinese, gen_pinyin_plain)
             if key in existing_words:
-                skipped += 1
+                skipped += g["row_count"]
                 continue
             db.add(Word(
                 chinese=chinese,
-                pinyin=gen_pinyin,
-                pinyin_plain=gen_pinyin_plain,
+                pinyin=g["pinyin"],
+                pinyin_plain=g["pinyin_plain"],
                 thai_meaning=thai,
-                english_meaning=english,
-                category=category,
+                english_meaning=g["english"],
+                category=g["category"],
                 status="verified",
             ))
             existing_words.add(key)
             verified += 1
         elif chinese not in existing_pending:
-            # ไม่มีคำแปล + ไม่ซ้ำใน pending → รอแปล
             db.add(WordPending(
                 chinese=chinese,
-                pinyin=gen_pinyin,
-                pinyin_plain=gen_pinyin_plain,
-                english_meaning=english,
-                category=category,
+                pinyin=g["pinyin"],
+                pinyin_plain=g["pinyin_plain"],
+                english_meaning=g["english"],
+                category=g["category"],
                 source=source,
             ))
             existing_pending.add(chinese)
             pending += 1
         else:
-            skipped += 1
+            skipped += g["row_count"]
 
     db.commit()
     return {"success": True, "verified": verified, "pending": pending, "skipped": skipped}

@@ -210,15 +210,15 @@ export default function PendingWords() {
                     {w.source === 'ai_daily' && <span className="text-xs text-orange-300">🤖</span>}
                   </div>
 
-                  {/* Thai input — หลักที่ต้องกรอก */}
-                  <input
-                    type="text"
+                  {/* Thai input — หลักที่ต้องกรอก (textarea รองรับหลายความหมาย) */}
+                  <textarea
                     data-thai-input="true"
+                    rows={Math.min(4, Math.max(1, (thai.match(/\n/g) || []).length + 1))}
                     value={thai}
                     onChange={(e) => setThaiInputs((t) => ({ ...t, [w.id]: e.target.value }))}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && canApprove) approve(w, index) }}
-                    placeholder="ความหมายภาษาไทย..."
-                    className={`w-full text-sm border rounded-lg px-2.5 py-1.5 outline-none focus:border-chinese-red transition-colors ${
+                    onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey && canApprove) approve(w, index) }}
+                    placeholder={"ความหมายภาษาไทย...\n(หลายความหมาย: กด Enter แยกบรรทัด)"}
+                    className={`w-full text-sm border rounded-lg px-2.5 py-1.5 outline-none focus:border-chinese-red transition-colors resize-none ${
                       thai.trim() ? 'border-green-300 bg-green-50' : 'border-gray-200'
                     }`}
                     disabled={isBusy}

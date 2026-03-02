@@ -21,7 +21,7 @@ export default function WordCard({ word }) {
         )}
       </div>
       <div className="text-sm text-gray-500 mt-0.5">{word.pinyin}</div>
-      <div className="text-gray-800 mt-1 line-clamp-2">{word.thai_meaning}</div>
+      <div className="text-gray-800 mt-1 line-clamp-3 whitespace-pre-line">{word.thai_meaning}</div>
       {word.english_meaning && (
         <div className="text-xs text-gray-400 mt-0.5">{word.english_meaning}</div>
       )}
