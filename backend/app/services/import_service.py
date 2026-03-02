@@ -65,24 +65,46 @@ def _parse_thai_meaning(raw: str) -> list[tuple[str, str | None]]:
     return result if result else [("", None)]
 
 
+def _load_df(file_path: str, suffix: str) -> pd.DataFrame:
+    """อ่านไฟล์ — รองรับทั้งมี header และไม่มี header (auto-detect)"""
+    read_kw = {"dtype": str}
+    if suffix == ".csv":
+        read_kw["encoding"] = "utf-8-sig"
+
+    # ลองอ่านแบบมี header ก่อน
+    if suffix in (".xlsx", ".xls"):
+        df = pd.read_excel(file_path, **read_kw)
+    else:
+        df = pd.read_csv(file_path, **read_kw)
+
+    df = _normalize_columns(df)
+
+    # ถ้าหา chinese column ไม่เจอ → ไฟล์ไม่มี header → อ่านใหม่แบบ no header
+    if "chinese" not in df.columns:
+        if suffix in (".xlsx", ".xls"):
+            df = pd.read_excel(file_path, header=None, **read_kw)
+        else:
+            df = pd.read_csv(file_path, header=None, **read_kw)
+        # กำหนด column ตาม index: 0=chinese, 1=thai_meaning
+        df = df.rename(columns={0: "chinese", 1: "thai_meaning"})
+
+    return df
+
+
 def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
     path = Path(file_path)
     if not path.exists():
         return {"success": False, "error": f"ไม่พบไฟล์: {file_path}"}
 
     suffix = path.suffix.lower()
-    if suffix in (".xlsx", ".xls"):
-        df = pd.read_excel(file_path, dtype=str)
-    elif suffix == ".csv":
-        df = pd.read_csv(file_path, dtype=str, encoding='utf-8-sig')
-    else:
+    if suffix not in (".xlsx", ".xls", ".csv"):
         return {"success": False, "error": "รองรับเฉพาะไฟล์ .xlsx, .xls, .csv"}
 
-    df = _normalize_columns(df)
+    df = _load_df(file_path, suffix)
     df = df.fillna("")
 
     if "chinese" not in df.columns:
-        return {"success": False, "error": "ไม่พบคอลัมน์ภาษาจีน (chinese / จีน / ภาษาจีน)"}
+        return {"success": False, "error": "ไม่พบคอลัมน์ภาษาจีน"}
 
     # โหลด existing เพื่อ skip ซ้ำ
     # verified: ตรวจด้วย (chinese, pinyin_plain) เพื่อรองรับ polyphonic (คำเดียวหลายเสียง)
