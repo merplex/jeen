@@ -62,8 +62,10 @@ export default function Search() {
       } else {
         enterPressedRef.current = false
       }
-      // บันทึก history หลังหยุดพิมพ์ 3 วิ
-      scheduleHistory(q.trim(), firstWordId, res.data.found)
+      // บันทึก history เฉพาะเมื่อเจอคำ (มีคำแปล)
+      if (res.data.found) {
+        scheduleHistory(q.trim(), firstWordId, true)
+      }
     } catch {
       if (q !== currentQueryRef.current) return
       setResult({ prefix_group: [], inner_group: [], found: false, query: q, total: 0 })
@@ -88,8 +90,9 @@ export default function Search() {
       const firstWordId = result.prefix_group?.[0]?.id ?? result.inner_group?.[0]?.id ?? null
       if (!result.found) {
         reportMissedSearch(query.trim()).catch(() => {})
+      } else {
+        recordHistoryNow(query.trim(), firstWordId, true)
       }
-      recordHistoryNow(query.trim(), firstWordId, result.found)
     } else {
       // API ยังโหลดอยู่ → ตั้ง flag
       enterPressedRef.current = true
