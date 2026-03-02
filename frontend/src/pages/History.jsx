@@ -50,7 +50,11 @@ export default function History() {
               >
                 <button
                   className="flex-1 text-left"
-                  onClick={() => navigate(`/?q=${encodeURIComponent(h.query)}`)}
+                  onClick={() =>
+                    h.result_word_id
+                      ? navigate(`/word/${h.result_word_id}`)
+                      : navigate(`/?q=${encodeURIComponent(h.query)}`)
+                  }
                 >
                   <div className="font-medium text-gray-800">{h.query}</div>
                   <div className="text-xs text-gray-400">

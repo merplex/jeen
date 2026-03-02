@@ -14,8 +14,8 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.post("/login", response_model=Token)
 def login(data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.identifier == data.identifier).first()
+    is_admin = data.identifier in settings.admin_list
     if not user:
-        is_admin = data.identifier in settings.admin_list
         user = User(
             identifier=data.identifier,
             id_type=data.id_type,
@@ -23,8 +23,11 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
             is_admin=is_admin,
         )
         db.add(user)
-        db.commit()
-        db.refresh(user)
+    else:
+        # sync is_admin ทุกครั้ง เผื่อ ADMIN_IDENTIFIERS เพิ่ง update
+        user.is_admin = is_admin
+    db.commit()
+    db.refresh(user)
     token = create_token(user.id)
     return Token(access_token=token, user=user)
 

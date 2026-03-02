@@ -63,7 +63,13 @@ export default function WordDetail() {
   const saveEdit = async () => {
     setEditSaving(true)
     try {
-      const r = await adminUpdateWord(id, editData)
+      const payload = {
+        pinyin: editData.pinyin || undefined,
+        thai_meaning: editData.thai_meaning || undefined,
+        english_meaning: editData.english_meaning || null,
+        category: editData.category || null,
+      }
+      const r = await adminUpdateWord(id, payload)
       setWord(r.data)
       setEditData(null)
     } catch (e) {

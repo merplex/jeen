@@ -134,10 +134,13 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
 
         if thai_raw:
             senses = _parse_thai_meaning(thai_raw)
-            thai_line = "; ".join(m for m, _ in senses if m) or thai_raw
+            # แต่ละ sense (แยกด้วย ;) → บรรทัดแยกกัน
+            sense_lines = [m for m, _ in senses if m]
+            if not sense_lines:
+                sense_lines = [thai_raw]
             parsed_cat = next((c for _, c in senses if c), None)
         else:
-            thai_line = ""
+            sense_lines = []
             parsed_cat = None
 
         cat = category_col or parsed_cat
@@ -155,9 +158,10 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
 
         g = groups[key]
         g["row_count"] += 1
-        # เพิ่ม thai_line ถ้ายังไม่มี (dedup ภายใน group)
-        if thai_line and thai_line not in g["thai_lines"]:
-            g["thai_lines"].append(thai_line)
+        # เพิ่มแต่ละ sense เป็นบรรทัดแยก (dedup ภายใน group)
+        for sense_line in sense_lines:
+            if sense_line not in g["thai_lines"]:
+                g["thai_lines"].append(sense_line)
         if not g["english"] and english:
             g["english"] = english
         if not g["category"] and cat:
