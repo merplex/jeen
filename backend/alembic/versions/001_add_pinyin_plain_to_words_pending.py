@@ -15,7 +15,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column('words_pending', sa.Column('pinyin_plain', sa.String(100), nullable=True))
+    op.execute(sa.text(
+        "ALTER TABLE words_pending ADD COLUMN IF NOT EXISTS pinyin_plain VARCHAR(100)"
+    ))
 
 
 def downgrade() -> None:

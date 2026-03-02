@@ -11,46 +11,63 @@ export default function Search() {
   const [category, setCategory] = useState('ทั้งหมด')
 
   const missedTimerRef = useRef(null)
+  const currentQueryRef = useRef('')   // ป้องกัน stale response ยิง timer ผิด
+  const enterPressedRef = useRef(false) // user กด Enter → report ทันทีแทน 10s
 
   // ยกเลิก timer เมื่อ unmount
   useEffect(() => () => clearTimeout(missedTimerRef.current), [])
 
   const scheduleMissedReport = useCallback((q) => {
     clearTimeout(missedTimerRef.current)
-    missedTimerRef.current = setTimeout(() => {
+    if (enterPressedRef.current) {
+      enterPressedRef.current = false
       reportMissedSearch(q).catch(() => {})
-    }, 10000)
+    } else {
+      missedTimerRef.current = setTimeout(() => {
+        reportMissedSearch(q).catch(() => {})
+      }, 10000)
+    }
   }, [])
 
   const doSearch = useCallback(async (q) => {
-    if (!q.trim()) { setResult(null); clearTimeout(missedTimerRef.current); return }
+    currentQueryRef.current = q
+    clearTimeout(missedTimerRef.current)
+    if (!q.trim()) { setResult(null); return }
     setLoading(true)
     try {
       const res = await searchWords(q.trim())
+      // ถ้า query เปลี่ยนไปแล้ว (user พิมพ์ต่อ) → ทิ้ง response นี้
+      if (q !== currentQueryRef.current) return
       setResult(res.data)
       if (!res.data.found) {
         scheduleMissedReport(q.trim())
       } else {
-        clearTimeout(missedTimerRef.current)
+        enterPressedRef.current = false
       }
     } catch {
+      if (q !== currentQueryRef.current) return
       setResult({ prefix_group: [], inner_group: [], found: false, query: q, total: 0 })
     } finally {
-      setLoading(false)
+      if (q === currentQueryRef.current) setLoading(false)
     }
   }, [scheduleMissedReport])
 
   const handleChange = (e) => {
     const v = e.target.value
     setQuery(v)
-    clearTimeout(missedTimerRef.current)
+    enterPressedRef.current = false
     doSearch(v)
   }
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && result && !result.found && query.trim()) {
-      clearTimeout(missedTimerRef.current)
+    if (e.key !== 'Enter' || !query.trim()) return
+    clearTimeout(missedTimerRef.current)
+    // ถ้า result พร้อมแล้ว → report ทันที
+    if (result && result.query === query.trim() && !result.found) {
       reportMissedSearch(query.trim()).catch(() => {})
+    } else {
+      // API ยังโหลดอยู่ → ตั้ง flag ให้ report ทันทีที่ผลมา
+      enterPressedRef.current = true
     }
   }
 
