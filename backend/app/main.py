@@ -1,4 +1,11 @@
 import os
+import time
+os.environ.setdefault("TZ", "Asia/Bangkok")
+try:
+    time.tzset()  # ใช้ได้บน Linux/macOS
+except AttributeError:
+    pass  # Windows ไม่มี tzset
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import Base, engine

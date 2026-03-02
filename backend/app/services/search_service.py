@@ -1,25 +1,16 @@
+from collections import Counter
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, func
+from sqlalchemy import or_
 from ..models.word import Word
 from ..models.missed_search import MissedSearch
 from ..schemas.search import SearchResult
 
 
-def _mark_multiple_readings(db: Session, words: list) -> None:
-    """Set has_multiple_readings=True on Word instances that share chinese with another entry."""
-    if not words:
-        return
-    chinese_set = {w.chinese for w in words}
-    multi = {
-        row[0]
-        for row in db.query(Word.chinese)
-        .filter(Word.status == "verified", Word.chinese.in_(chinese_set))
-        .group_by(Word.chinese)
-        .having(func.count(Word.id) > 1)
-        .all()
-    }
+def _mark_multiple_readings(words: list) -> None:
+    """Mark words whose chinese character appears more than once in the result set."""
+    counts = Counter(w.chinese for w in words)
     for w in words:
-        w.has_multiple_readings = w.chinese in multi
+        w.has_multiple_readings = counts[w.chinese] > 1
 
 
 def detect_language(query: str) -> str:
@@ -79,7 +70,7 @@ def search_words(db: Session, query: str) -> SearchResult:
     found = total > 0
 
     all_results = prefix_results + inner_results
-    _mark_multiple_readings(db, all_results)
+    _mark_multiple_readings(all_results)
 
     return SearchResult(
         query=q,
@@ -116,7 +107,7 @@ def _search_english(db: Session, query: str) -> SearchResult:
     # คำที่ Gemini แนะนำแต่ยังไม่อยู่ใน DB → ใส่ inner_group เป็น placeholder ไม่ได้
     # ดังนั้นแค่คืนสิ่งที่เจอใน DB เท่านั้น
     found = len(results) > 0
-    _mark_multiple_readings(db, results)
+    _mark_multiple_readings(results)
     return SearchResult(
         query=query,
         prefix_group=results,
