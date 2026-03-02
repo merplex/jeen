@@ -1,0 +1,187 @@
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { getWord, addFlashcard, removeFlashcard, getFlashcards, getNotes, createNote, updateNote } from '../services/api'
+import useAuthStore from '../stores/authStore'
+
+export default function WordDetail() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const user = useAuthStore((s) => s.user)
+  const [word, setWord] = useState(null)
+  const [isFav, setIsFav] = useState(false)
+  const [note, setNote] = useState(null)
+  const [noteText, setNoteText] = useState('')
+  const [editingNote, setEditingNote] = useState(false)
+
+  useEffect(() => {
+    getWord(id).then((r) => setWord(r.data)).catch(() => navigate('/'))
+    if (user) {
+      getFlashcards().then((r) => {
+        setIsFav(r.data.some((f) => f.word_id === Number(id)))
+      })
+      getNotes().then((r) => {
+        const n = r.data.find((n) => n.word_id === Number(id))
+        if (n) { setNote(n); setNoteText(n.note_text) }
+      })
+    }
+  }, [id, user])
+
+  const toggleFav = async () => {
+    if (!user) return navigate('/login')
+    if (isFav) {
+      await removeFlashcard(id)
+      setIsFav(false)
+    } else {
+      await addFlashcard(id)
+      setIsFav(true)
+    }
+  }
+
+  const saveNote = async () => {
+    if (!noteText.trim()) return
+    if (note) {
+      const r = await updateNote(note.id, { note_text: noteText })
+      setNote(r.data)
+    } else {
+      const r = await createNote({ word_id: Number(id), note_text: noteText })
+      setNote(r.data)
+    }
+    setEditingNote(false)
+  }
+
+  const speak = (text) => {
+    const u = new SpeechSynthesisUtterance(text)
+    u.lang = 'zh-CN'
+    speechSynthesis.speak(u)
+  }
+
+  if (!word) return (
+    <div className="flex items-center justify-center min-h-screen bg-chinese-cream">
+      <div className="text-gray-400">กำลังโหลด...</div>
+    </div>
+  )
+
+  const EXAMPLE_LABELS = { common: 'ทั่วไป', formal: 'ทางการ', spoken: 'พูด' }
+
+  return (
+    <div className="min-h-screen bg-chinese-cream pb-24">
+      {/* Header */}
+      <div className="bg-chinese-red px-4 pt-12 pb-6 relative">
+        <button
+          onClick={() => navigate(-1)}
+          className="absolute left-4 top-12 text-white text-2xl"
+        >
+          ←
+        </button>
+        <div className="text-center">
+          <div className="font-chinese text-5xl text-white mb-2">{word.chinese}</div>
+          <div className="text-chinese-gold text-lg">{word.pinyin}</div>
+        </div>
+        <div className="absolute right-4 top-12 flex gap-3">
+          <button onClick={() => speak(word.chinese)} className="text-white text-2xl" title="ออกเสียง">
+            🔊
+          </button>
+          <button onClick={toggleFav} className="text-2xl" title="เพิ่ม Flashcard">
+            {isFav ? '⭐' : '☆'}
+          </button>
+        </div>
+      </div>
+
+      <div className="px-4 py-6 space-y-4">
+        {/* Meanings */}
+        <div className="bg-white rounded-xl p-4 shadow-sm">
+          {word.category && (
+            <span className="text-xs bg-chinese-gold/20 text-chinese-gold px-2 py-0.5 rounded-full mb-3 inline-block">
+              {word.category}
+            </span>
+          )}
+          <div className="mb-3">
+            <div className="text-xs text-gray-400 mb-1">ภาษาไทย</div>
+            <div className="text-gray-800 text-base">{word.thai_meaning}</div>
+          </div>
+          {word.english_meaning && (
+            <div>
+              <div className="text-xs text-gray-400 mb-1">English</div>
+              <div className="text-gray-600">{word.english_meaning}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Examples */}
+        {word.examples && word.examples.length > 0 && (
+          <div className="bg-white rounded-xl p-4 shadow-sm">
+            <h3 className="text-sm font-semibold text-gray-500 mb-3">ประโยคตัวอย่าง</h3>
+            <div className="space-y-4">
+              {[...word.examples]
+                .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+                .map((ex) => (
+                  <div key={ex.id} className="border-l-2 border-chinese-gold pl-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs text-gray-400">
+                        {EXAMPLE_LABELS[ex.type] || ex.type}
+                      </span>
+                      <button
+                        onClick={() => speak(ex.chinese)}
+                        className="text-gray-400 text-sm"
+                      >
+                        🔊
+                      </button>
+                    </div>
+                    <div className="font-chinese text-lg text-gray-800">{ex.chinese}</div>
+                    {ex.pinyin && <div className="text-sm text-gray-500">{ex.pinyin}</div>}
+                    {ex.thai && <div className="text-sm text-gray-700">{ex.thai}</div>}
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Notes */}
+        {user && (
+          <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-500">โน้ตส่วนตัว</h3>
+              {note && !editingNote && (
+                <button
+                  onClick={() => setEditingNote(true)}
+                  className="text-xs text-chinese-red"
+                >
+                  แก้ไข
+                </button>
+              )}
+            </div>
+            {editingNote || !note ? (
+              <div>
+                <textarea
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  placeholder="เขียนโน้ตของคุณที่นี่..."
+                  className="w-full border border-gray-200 rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-chinese-red"
+                  rows={3}
+                />
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={saveNote}
+                    className="flex-1 bg-chinese-red text-white rounded-lg py-2 text-sm font-medium"
+                  >
+                    บันทึก
+                  </button>
+                  {editingNote && (
+                    <button
+                      onClick={() => { setNoteText(note?.note_text || ''); setEditingNote(false) }}
+                      className="px-4 border border-gray-200 rounded-lg text-sm"
+                    >
+                      ยกเลิก
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-700 text-sm whitespace-pre-wrap">{note.note_text}</p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
