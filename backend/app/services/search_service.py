@@ -86,10 +86,16 @@ def search_words(db: Session, query: str) -> SearchResult:
 
 
 def _search_by_pinyin(db: Session, q: str) -> SearchResult:
-    """ค้นด้วย pinyin_plain (ไม่มีวรรณยุกต์) เช่น 'cong', 'ni hao'"""
+    """ค้นด้วย pinyin_plain รองรับทั้ง 'cong' และ 'ni hao' และ 'niha' (ไม่มีวรรค)"""
+    from sqlalchemy import func as sqlfunc
+    # strip spaces ทั้งฝั่ง query และ pinyin_plain ก่อน compare
+    # → 'chukou' จับคู่กับ 'chu kou' ได้
+    q_ns = q.replace(' ', '')
+    pinyin_ns = sqlfunc.replace(Word.pinyin_plain, ' ', '')
+
     prefix = (
         db.query(Word)
-        .filter(Word.status == "verified", Word.pinyin_plain.ilike(f"{q}%"))
+        .filter(Word.status == "verified", pinyin_ns.ilike(f"{q_ns}%"))
         .order_by(Word.char_count.asc())
         .all()
     )
@@ -99,7 +105,7 @@ def _search_by_pinyin(db: Session, q: str) -> SearchResult:
         .filter(
             Word.status == "verified",
             Word.id.notin_(prefix_ids),
-            Word.pinyin_plain.ilike(f"%{q}%"),
+            pinyin_ns.ilike(f"%{q_ns}%"),
         )
         .order_by(Word.char_count.asc())
         .all()
