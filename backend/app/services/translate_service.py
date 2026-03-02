@@ -100,6 +100,26 @@ def generate_daily_words(count: int, existing_chinese: set) -> list[str]:
         return []
 
 
+def validate_word_exists(word: str, lang: str) -> bool:
+    """ตรวจว่า word เป็นคำที่มีอยู่จริง ไม่ใช่พิมพ์ค้างหรือพิมพ์ผิด"""
+    if not _has_api_key():
+        return True
+    try:
+        if lang == "thai":
+            prompt = (
+                f'คำว่า "{word}" เป็นคำภาษาไทยที่มีอยู่จริงและมีความหมายหรือไม่? '
+                "ตอบเฉพาะ yes หรือ no เท่านั้น"
+            )
+        elif lang == "chinese":
+            prompt = f'Is "{word}" a valid Chinese word or phrase that exists in dictionaries? Answer only yes or no.'
+        else:
+            prompt = f'Is "{word}" a valid English word or common phrase? Answer only yes or no.'
+        response = _model.generate_content(prompt)
+        return response.text.strip().lower().startswith("yes")
+    except Exception:
+        return True  # fallback: assume valid
+
+
 def generate_examples_for_word(chinese: str, pinyin: str, thai: str) -> list[dict]:
     """
     คืน 3 ประโยคตัวอย่าง: common, formal, spoken

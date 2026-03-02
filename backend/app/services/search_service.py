@@ -61,10 +61,6 @@ def search_words(db: Session, query: str) -> SearchResult:
     total = len(prefix_results) + len(inner_results)
     found = total > 0
 
-    # STEP 3: ไม่เจอ → บันทึก missed_searches
-    if not found:
-        _record_missed(db, q)
-
     return SearchResult(
         query=q,
         prefix_group=prefix_results,
@@ -80,13 +76,11 @@ def _search_english(db: Session, query: str) -> SearchResult:
 
     suggestions = search_by_english(query)
     if not suggestions:
-        _record_missed(db, query)
         return SearchResult(query=query, found=False)
 
     # ค้น DB ด้วย chinese จาก Gemini suggestions
     chinese_candidates = [s["chinese"] for s in suggestions if s.get("chinese")]
     if not chinese_candidates:
-        _record_missed(db, query)
         return SearchResult(query=query, found=False)
 
     results = (
@@ -102,9 +96,6 @@ def _search_english(db: Session, query: str) -> SearchResult:
     # คำที่ Gemini แนะนำแต่ยังไม่อยู่ใน DB → ใส่ inner_group เป็น placeholder ไม่ได้
     # ดังนั้นแค่คืนสิ่งที่เจอใน DB เท่านั้น
     found = len(results) > 0
-    if not found:
-        _record_missed(db, query)
-
     return SearchResult(
         query=query,
         prefix_group=results,
@@ -112,6 +103,16 @@ def _search_english(db: Session, query: str) -> SearchResult:
         total=len(results),
         found=found,
     )
+
+
+def validate_and_record_missed(db: Session, query: str) -> bool:
+    """ตรวจว่า query เป็นคำจริง → ถ้าใช่ บันทึก missed_search"""
+    from ..services.translate_service import validate_word_exists
+    lang = detect_language(query)
+    if validate_word_exists(query, lang):
+        _record_missed(db, query)
+        return True
+    return False
 
 
 def _record_missed(db: Session, query: str):

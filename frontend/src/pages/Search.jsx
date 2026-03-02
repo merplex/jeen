@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { searchWords } from '../services/api'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { searchWords, reportMissedSearch } from '../services/api'
 import WordCard from '../components/WordCard'
 
 const CATEGORIES = ['ทั้งหมด', 'สัตว์', 'แพทย์', 'วิศวกรรม', 'สถานที่', 'กีฬา', 'ทั่วไป']
@@ -10,23 +10,48 @@ export default function Search() {
   const [loading, setLoading] = useState(false)
   const [category, setCategory] = useState('ทั้งหมด')
 
+  const missedTimerRef = useRef(null)
+
+  // ยกเลิก timer เมื่อ unmount
+  useEffect(() => () => clearTimeout(missedTimerRef.current), [])
+
+  const scheduleMissedReport = useCallback((q) => {
+    clearTimeout(missedTimerRef.current)
+    missedTimerRef.current = setTimeout(() => {
+      reportMissedSearch(q).catch(() => {})
+    }, 10000)
+  }, [])
+
   const doSearch = useCallback(async (q) => {
-    if (!q.trim()) { setResult(null); return }
+    if (!q.trim()) { setResult(null); clearTimeout(missedTimerRef.current); return }
     setLoading(true)
     try {
       const res = await searchWords(q.trim())
       setResult(res.data)
+      if (!res.data.found) {
+        scheduleMissedReport(q.trim())
+      } else {
+        clearTimeout(missedTimerRef.current)
+      }
     } catch {
       setResult({ prefix_group: [], inner_group: [], found: false, query: q, total: 0 })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [scheduleMissedReport])
 
   const handleChange = (e) => {
     const v = e.target.value
     setQuery(v)
+    clearTimeout(missedTimerRef.current)
     doSearch(v)
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && result && !result.found && query.trim()) {
+      clearTimeout(missedTimerRef.current)
+      reportMissedSearch(query.trim()).catch(() => {})
+    }
   }
 
   const filterByCategory = (words) =>
@@ -47,6 +72,7 @@ export default function Search() {
             type="text"
             value={query}
             onChange={handleChange}
+            onKeyDown={handleKeyDown}
             placeholder="ค้นหาภาษาจีน พินอิน หรือไทย..."
             className="w-full rounded-xl px-4 py-3 pr-10 text-gray-800 bg-white shadow-lg text-base focus:outline-none focus:ring-2 focus:ring-chinese-gold"
             autoFocus

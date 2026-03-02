@@ -6,6 +6,7 @@ const LIMIT = 50
 export default function PendingWords() {
   const [words, setWords] = useState([])
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState('')
   const [page, setPage] = useState(0)
 
   // thai_meaning ที่พิมพ์ใหม่ per word: { id: string }
@@ -24,9 +25,14 @@ export default function PendingWords() {
 
   const fetchPage = useCallback(async (skip) => {
     setLoading(true)
-    const r = await adminGetPending(skip, LIMIT)
-    setWords(r.data)
-    setThaiInputs({})
+    setFetchError('')
+    try {
+      const r = await adminGetPending(skip, LIMIT)
+      setWords(r.data)
+      setThaiInputs({})
+    } catch (e) {
+      setFetchError(e.response?.data?.detail || 'โหลดข้อมูลไม่ได้ — ลองรัน alembic upgrade head หรือ restart backend')
+    }
     setLoading(false)
   }, [])
 
@@ -122,6 +128,12 @@ export default function PendingWords() {
           </p>
         )}
       </div>
+
+      {fetchError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-3 text-sm text-red-600">
+          ⚠️ {fetchError}
+        </div>
+      )}
 
       {/* Stats + Bulk Approve */}
       <div className="flex items-center justify-between mb-3">

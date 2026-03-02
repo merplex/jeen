@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..services.search_service import search_words
+from ..services.search_service import search_words, validate_and_record_missed
 from ..services.translate_service import search_by_english
 from ..schemas.search import SearchResult
 from ..auth import get_current_user
@@ -53,3 +53,14 @@ def search(
 def search_english(q: str = Query(..., min_length=1)):
     results = search_by_english(q)
     return {"query": q, "results": results}
+
+
+@router.post("/report-missed")
+def report_missed(
+    q: str = Query(..., min_length=1),
+    db: Session = Depends(get_db),
+):
+    """รับรายงาน missed search จาก frontend (หลัง debounce 10s หรือกด Enter)
+    ตรวจกับ Gemini ก่อนว่าเป็นคำจริง แล้วจึงบันทึก"""
+    recorded = validate_and_record_missed(db, q)
+    return {"recorded": recorded, "query": q}
