@@ -97,7 +97,7 @@ export default function WordDetail() {
           )}
           <div className="mb-3">
             <div className="text-xs text-gray-400 mb-1">ภาษาไทย</div>
-            <div className="text-gray-800 text-base">{word.thai_meaning}</div>
+            <div className="text-gray-800 text-base whitespace-pre-line">{word.thai_meaning}</div>
           </div>
           {word.english_meaning && (
             <div>

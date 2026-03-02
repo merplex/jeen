@@ -29,8 +29,12 @@ def search_words(db: Session, query: str) -> SearchResult:
 
     lang = detect_language(q)
 
-    # English query → Gemini แปลก่อน แล้วค้นใน DB
+    # ASCII query → ลอง pinyin ก่อนเสมอ (ครอบคลุม cong, ni hao, shang ฯลฯ)
+    # ถ้าไม่เจอค่อย fallback Gemini English
     if lang == 'english':
+        pinyin_result = _search_by_pinyin(db, q)
+        if pinyin_result.found:
+            return pinyin_result
         return _search_english(db, q)
 
     # STEP 1: PREFIX — chinese / pinyin_plain / thai_meaning ขึ้นต้นด้วย query
@@ -79,6 +83,30 @@ def search_words(db: Session, query: str) -> SearchResult:
         total=total,
         found=found,
     )
+
+
+def _search_by_pinyin(db: Session, q: str) -> SearchResult:
+    """ค้นด้วย pinyin_plain (ไม่มีวรรณยุกต์) เช่น 'cong', 'ni hao'"""
+    prefix = (
+        db.query(Word)
+        .filter(Word.status == "verified", Word.pinyin_plain.ilike(f"{q}%"))
+        .order_by(Word.char_count.asc())
+        .all()
+    )
+    prefix_ids = {w.id for w in prefix}
+    inner = (
+        db.query(Word)
+        .filter(
+            Word.status == "verified",
+            Word.id.notin_(prefix_ids),
+            Word.pinyin_plain.ilike(f"%{q}%"),
+        )
+        .order_by(Word.char_count.asc())
+        .all()
+    )
+    total = len(prefix) + len(inner)
+    _mark_multiple_readings(prefix + inner)
+    return SearchResult(query=q, prefix_group=prefix, inner_group=inner, total=total, found=total > 0)
 
 
 def _search_english(db: Session, query: str) -> SearchResult:
