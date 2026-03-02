@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getWord, addFlashcard, removeFlashcard, getFlashcards, getNotes, createNote, updateNote } from '../services/api'
+import { getWord, addFlashcard, removeFlashcard, getFlashcards, getNotes, createNote, updateNote, adminUpdateWord } from '../services/api'
 import useAuthStore from '../stores/authStore'
 
 export default function WordDetail() {
@@ -12,6 +12,8 @@ export default function WordDetail() {
   const [note, setNote] = useState(null)
   const [noteText, setNoteText] = useState('')
   const [editingNote, setEditingNote] = useState(false)
+  const [editData, setEditData] = useState(null) // null = ไม่ได้ edit
+  const [editSaving, setEditSaving] = useState(false)
 
   useEffect(() => {
     getWord(id).then((r) => setWord(r.data)).catch(() => navigate('/'))
@@ -47,6 +49,27 @@ export default function WordDetail() {
       setNote(r.data)
     }
     setEditingNote(false)
+  }
+
+  const startEdit = () => {
+    setEditData({
+      pinyin: word.pinyin || '',
+      thai_meaning: word.thai_meaning || '',
+      english_meaning: word.english_meaning || '',
+      category: word.category || '',
+    })
+  }
+
+  const saveEdit = async () => {
+    setEditSaving(true)
+    try {
+      const r = await adminUpdateWord(id, editData)
+      setWord(r.data)
+      setEditData(null)
+    } catch (e) {
+      alert(e.response?.data?.detail || 'บันทึกไม่สำเร็จ')
+    }
+    setEditSaving(false)
   }
 
   const speak = (text) => {
@@ -97,7 +120,11 @@ export default function WordDetail() {
           )}
           <div className="mb-3">
             <div className="text-xs text-gray-400 mb-1">ภาษาไทย</div>
-            <div className="text-gray-800 text-base whitespace-pre-line">{word.thai_meaning}</div>
+            <div className="text-gray-800 text-base space-y-1">
+              {word.thai_meaning.split('\n').filter((l) => l.trim()).map((line, i) => (
+                <div key={i}>{line}</div>
+              ))}
+            </div>
           </div>
           {word.english_meaning && (
             <div>
@@ -133,6 +160,74 @@ export default function WordDetail() {
                   </div>
                 ))}
             </div>
+          </div>
+        )}
+
+        {/* Admin Edit */}
+        {user?.is_admin && (
+          <div className="bg-white rounded-xl p-4 shadow-sm border border-orange-100">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-orange-600">แก้ไข (Admin)</h3>
+              {!editData && (
+                <button onClick={startEdit} className="text-xs text-chinese-red">
+                  แก้ไข
+                </button>
+              )}
+            </div>
+            {editData ? (
+              <div className="space-y-3">
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">พินอิน</div>
+                  <input
+                    value={editData.pinyin}
+                    onChange={(e) => setEditData({ ...editData, pinyin: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-chinese-red"
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">ความหมายไทย</div>
+                  <textarea
+                    value={editData.thai_meaning}
+                    onChange={(e) => setEditData({ ...editData, thai_meaning: e.target.value })}
+                    rows={4}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-chinese-red resize-none"
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">English</div>
+                  <input
+                    value={editData.english_meaning}
+                    onChange={(e) => setEditData({ ...editData, english_meaning: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-chinese-red"
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">หมวดหมู่</div>
+                  <input
+                    value={editData.category}
+                    onChange={(e) => setEditData({ ...editData, category: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-chinese-red"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={saveEdit}
+                    disabled={editSaving}
+                    className="flex-1 bg-chinese-red text-white rounded-lg py-2 text-sm font-medium disabled:opacity-60"
+                  >
+                    {editSaving ? 'กำลังบันทึก...' : 'บันทึก'}
+                  </button>
+                  <button
+                    onClick={() => setEditData(null)}
+                    className="px-4 border border-gray-200 rounded-lg text-sm"
+                  >
+                    ยกเลิก
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">กดแก้ไขเพื่อแก้ไขคำศัพท์นี้</p>
+            )}
           </div>
         )}
 

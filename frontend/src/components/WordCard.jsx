@@ -21,7 +21,21 @@ export default function WordCard({ word }) {
         )}
       </div>
       <div className="text-sm text-gray-500 mt-0.5">{word.pinyin}</div>
-      <div className="text-gray-800 mt-1 line-clamp-3 whitespace-pre-line">{word.thai_meaning}</div>
+      <div className="text-gray-800 mt-1">
+        {(() => {
+          const lines = word.thai_meaning.split('\n').filter((l) => l.trim())
+          return (
+            <>
+              {lines.slice(0, 2).map((line, i) => (
+                <div key={i} className="text-sm leading-snug">{line}</div>
+              ))}
+              {lines.length > 2 && (
+                <div className="text-xs text-gray-400">+{lines.length - 2} ความหมาย</div>
+              )}
+            </>
+          )
+        })()}
+      </div>
       {word.english_meaning && (
         <div className="text-xs text-gray-400 mt-0.5">{word.english_meaning}</div>
       )}
