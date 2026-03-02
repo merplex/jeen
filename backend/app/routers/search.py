@@ -4,7 +4,7 @@ from ..database import get_db
 from ..services.search_service import search_words, validate_and_record_missed
 from ..services.translate_service import search_by_english
 from ..schemas.search import SearchResult
-from ..auth import get_current_user
+from ..auth import get_current_user, require_user
 from ..models.user import User
 from ..models.search_history import SearchHistory
 from typing import Optional
@@ -16,37 +16,39 @@ router = APIRouter(prefix="/search", tags=["search"])
 def search(
     q: str = Query(..., min_length=1),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
 ):
-    result = search_words(db, q)
+    return search_words(db, q)
 
-    # บันทึก history ถ้า login อยู่
-    if current_user:
-        first_word_id = result.prefix_group[0].id if result.prefix_group else (
-            result.inner_group[0].id if result.inner_group else None
-        )
-        history = SearchHistory(
-            user_id=current_user.id,
-            query=q,
-            result_word_id=first_word_id,
-            found=result.found,
-        )
-        db.add(history)
-        db.commit()
 
-        # trim เหลือ 100 คำล่าสุด
-        old_records = (
-            db.query(SearchHistory)
-            .filter(SearchHistory.user_id == current_user.id)
-            .order_by(SearchHistory.searched_at.desc())
-            .offset(100)
-            .all()
-        )
-        for r in old_records:
-            db.delete(r)
-        db.commit()
+@router.post("/record-history")
+def record_history(
+    q: str = Query(..., min_length=1),
+    word_id: Optional[int] = Query(None),
+    found: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_user),
+):
+    """บันทึกประวัติค้นหา — เรียกเฉพาะเมื่อ user หยุดพิมพ์ หรือกด Enter"""
+    db.add(SearchHistory(
+        user_id=current_user.id,
+        query=q,
+        result_word_id=word_id,
+        found=found,
+    ))
+    db.commit()
 
-    return result
+    # trim เหลือ 100 คำล่าสุด
+    old = (
+        db.query(SearchHistory)
+        .filter(SearchHistory.user_id == current_user.id)
+        .order_by(SearchHistory.searched_at.desc())
+        .offset(100)
+        .all()
+    )
+    for r in old:
+        db.delete(r)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/english")

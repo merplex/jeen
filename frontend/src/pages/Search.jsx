@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { searchWords, reportMissedSearch } from '../services/api'
+import { searchWords, reportMissedSearch, recordSearchHistory } from '../services/api'
 import WordCard from '../components/WordCard'
 
 const CATEGORIES = ['ทั้งหมด', 'สัตว์', 'แพทย์', 'วิศวกรรม', 'สถานที่', 'กีฬา', 'ทั่วไป']
@@ -11,11 +11,15 @@ export default function Search() {
   const [category, setCategory] = useState('ทั้งหมด')
 
   const missedTimerRef = useRef(null)
+  const historyTimerRef = useRef(null)
   const currentQueryRef = useRef('')   // ป้องกัน stale response ยิง timer ผิด
   const enterPressedRef = useRef(false) // user กด Enter → report ทันทีแทน 10s
 
   // ยกเลิก timer เมื่อ unmount
-  useEffect(() => () => clearTimeout(missedTimerRef.current), [])
+  useEffect(() => () => {
+    clearTimeout(missedTimerRef.current)
+    clearTimeout(historyTimerRef.current)
+  }, [])
 
   const scheduleMissedReport = useCallback((q) => {
     clearTimeout(missedTimerRef.current)
@@ -29,9 +33,22 @@ export default function Search() {
     }
   }, [])
 
+  const scheduleHistory = useCallback((q, wordId, found) => {
+    clearTimeout(historyTimerRef.current)
+    historyTimerRef.current = setTimeout(() => {
+      recordSearchHistory(q, wordId, found).catch(() => {})
+    }, 3000)
+  }, [])
+
+  const recordHistoryNow = useCallback((q, wordId, found) => {
+    clearTimeout(historyTimerRef.current)
+    recordSearchHistory(q, wordId, found).catch(() => {})
+  }, [])
+
   const doSearch = useCallback(async (q) => {
     currentQueryRef.current = q
     clearTimeout(missedTimerRef.current)
+    clearTimeout(historyTimerRef.current)
     if (!q.trim()) { setResult(null); return }
     setLoading(true)
     try {
@@ -39,18 +56,21 @@ export default function Search() {
       // ถ้า query เปลี่ยนไปแล้ว (user พิมพ์ต่อ) → ทิ้ง response นี้
       if (q !== currentQueryRef.current) return
       setResult(res.data)
+      const firstWordId = res.data.prefix_group?.[0]?.id ?? res.data.inner_group?.[0]?.id ?? null
       if (!res.data.found) {
         scheduleMissedReport(q.trim())
       } else {
         enterPressedRef.current = false
       }
+      // บันทึก history หลังหยุดพิมพ์ 3 วิ
+      scheduleHistory(q.trim(), firstWordId, res.data.found)
     } catch {
       if (q !== currentQueryRef.current) return
       setResult({ prefix_group: [], inner_group: [], found: false, query: q, total: 0 })
     } finally {
       if (q === currentQueryRef.current) setLoading(false)
     }
-  }, [scheduleMissedReport])
+  }, [scheduleMissedReport, scheduleHistory])
 
   const handleChange = (e) => {
     const v = e.target.value
@@ -62,11 +82,16 @@ export default function Search() {
   const handleKeyDown = (e) => {
     if (e.key !== 'Enter' || !query.trim()) return
     clearTimeout(missedTimerRef.current)
-    // ถ้า result พร้อมแล้ว → report ทันที
-    if (result && result.query === query.trim() && !result.found) {
-      reportMissedSearch(query.trim()).catch(() => {})
+    clearTimeout(historyTimerRef.current)
+    if (result && result.query === query.trim()) {
+      // result พร้อม → บันทึกทันที
+      const firstWordId = result.prefix_group?.[0]?.id ?? result.inner_group?.[0]?.id ?? null
+      if (!result.found) {
+        reportMissedSearch(query.trim()).catch(() => {})
+      }
+      recordHistoryNow(query.trim(), firstWordId, result.found)
     } else {
-      // API ยังโหลดอยู่ → ตั้ง flag ให้ report ทันทีที่ผลมา
+      // API ยังโหลดอยู่ → ตั้ง flag
       enterPressedRef.current = true
     }
   }
