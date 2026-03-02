@@ -2,7 +2,7 @@ import pandas as pd
 from pathlib import Path
 from sqlalchemy.orm import Session
 from pypinyin import pinyin, lazy_pinyin, Style
-from ..models.word import WordPending
+from ..models.word import Word, WordPending
 
 
 COLUMN_ALIASES = {
@@ -26,12 +26,10 @@ def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _gen_pinyin(chinese: str) -> str:
-    """Generate tone-marked pinyin from Chinese characters."""
     return ' '.join([''.join(syllables) for syllables in pinyin(chinese, style=Style.TONE)])
 
 
 def _gen_pinyin_plain(chinese: str) -> str:
-    """Generate plain (no-tone) pinyin from Chinese characters."""
     return ' '.join(lazy_pinyin(chinese))
 
 
@@ -54,31 +52,59 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
     if "chinese" not in df.columns:
         return {"success": False, "error": "ไม่พบคอลัมน์ภาษาจีน (chinese / จีน / ภาษาจีน)"}
 
-    inserted = 0
-    skipped = 0
+    # โหลด existing เพื่อ skip ซ้ำ
+    existing_words = {w[0] for w in db.query(Word.chinese).all()}
+    existing_pending = {w[0] for w in db.query(WordPending.chinese).all()}
+
+    verified = 0   # มีคำแปลไทย → เข้า words โดยตรง
+    pending = 0    # ไม่มีคำแปล → เข้า words_pending รอแปล
+    skipped = 0    # ซ้ำหรือว่าง
+
     for _, row in df.iterrows():
         chinese = str(row.get("chinese", "")).strip()
         if not chinese:
             skipped += 1
             continue
 
-        raw_pinyin = str(row.get("pinyin", "")).strip()
-        # auto-gen pinyin if not provided
-        generated_pinyin = raw_pinyin if raw_pinyin else _gen_pinyin(chinese)
-        # always gen pinyin_plain from chinese
-        generated_pinyin_plain = _gen_pinyin_plain(chinese)
+        # ซ้ำใน words แล้ว → ข้าม
+        if chinese in existing_words:
+            skipped += 1
+            continue
 
-        word = WordPending(
-            chinese=chinese,
-            pinyin=generated_pinyin or None,
-            pinyin_plain=generated_pinyin_plain or None,
-            thai_meaning=str(row.get("thai_meaning", "")).strip() or None,
-            english_meaning=str(row.get("english_meaning", "")).strip() or None,
-            category=str(row.get("category", "")).strip() or None,
-            source=source,
-        )
-        db.add(word)
-        inserted += 1
+        thai = str(row.get("thai_meaning", "")).strip()
+        raw_pinyin = str(row.get("pinyin", "")).strip()
+        gen_pinyin = raw_pinyin if raw_pinyin else _gen_pinyin(chinese)
+        gen_pinyin_plain = _gen_pinyin_plain(chinese)
+        english = str(row.get("english_meaning", "")).strip() or None
+        category = str(row.get("category", "")).strip() or None
+
+        if thai:
+            # มีคำแปลไทย → เข้า words (verified) ทันที
+            db.add(Word(
+                chinese=chinese,
+                pinyin=gen_pinyin,
+                pinyin_plain=gen_pinyin_plain,
+                thai_meaning=thai,
+                english_meaning=english,
+                category=category,
+                status="verified",
+            ))
+            existing_words.add(chinese)
+            verified += 1
+        elif chinese not in existing_pending:
+            # ไม่มีคำแปล + ไม่ซ้ำใน pending → รอแปล
+            db.add(WordPending(
+                chinese=chinese,
+                pinyin=gen_pinyin,
+                pinyin_plain=gen_pinyin_plain,
+                english_meaning=english,
+                category=category,
+                source=source,
+            ))
+            existing_pending.add(chinese)
+            pending += 1
+        else:
+            skipped += 1
 
     db.commit()
-    return {"success": True, "inserted": inserted, "skipped": skipped}
+    return {"success": True, "verified": verified, "pending": pending, "skipped": skipped}

@@ -51,11 +51,21 @@ export default function ImportWords() {
         </form>
         {error && <p className="text-red-500 text-sm mt-4">{error}</p>}
         {result && (
-          <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4">
+          <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4 space-y-1">
             <p className="font-semibold text-green-700">Import สำเร็จ!</p>
-            <p className="text-sm text-green-600">เพิ่ม: {result.inserted} คำ</p>
-            <p className="text-sm text-gray-500">ข้าม: {result.skipped} รายการ</p>
-            <p className="text-sm text-gray-500 mt-2">คำเหล่านี้อยู่ใน "รอ Approve" แล้ว</p>
+            {result.verified > 0 && (
+              <p className="text-sm text-green-600">
+                ✓ เพิ่มลงพจนานุกรมทันที: <strong>{result.verified}</strong> คำ (มีคำแปลไทยแล้ว)
+              </p>
+            )}
+            {result.pending > 0 && (
+              <p className="text-sm text-orange-600">
+                ⏳ รอ Approve: <strong>{result.pending}</strong> คำ (ยังไม่มีคำแปล)
+              </p>
+            )}
+            {result.skipped > 0 && (
+              <p className="text-sm text-gray-400">ข้าม (ซ้ำ): {result.skipped} รายการ</p>
+            )}
           </div>
         )}
       </div>
