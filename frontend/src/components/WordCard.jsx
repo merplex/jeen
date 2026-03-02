@@ -8,7 +8,12 @@ export default function WordCard({ word }) {
       className="w-full text-left bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:border-chinese-red hover:shadow-md transition-all active:scale-95"
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="font-chinese text-2xl text-chinese-red">{word.chinese}</span>
+        <div>
+          <span className="font-chinese text-2xl text-chinese-red">{word.chinese}</span>
+          {word.has_multiple_readings && (
+            <div className="text-[10px] text-gray-400 leading-none -mt-0.5">(1)</div>
+          )}
+        </div>
         {word.category && (
           <span className="text-xs bg-chinese-gold/20 text-chinese-gold px-2 py-0.5 rounded-full whitespace-nowrap">
             {word.category}

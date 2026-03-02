@@ -41,6 +41,7 @@ class WordPublicOut(BaseModel):
     char_count: Optional[int] = None
     status: str
     examples: list[ExampleOut] = []
+    has_multiple_readings: bool = False
 
     class Config:
         from_attributes = True

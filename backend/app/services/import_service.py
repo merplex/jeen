@@ -1,3 +1,4 @@
+import re
 import pandas as pd
 from pathlib import Path
 from sqlalchemy.orm import Session
@@ -33,6 +34,35 @@ def _gen_pinyin_plain(chinese: str) -> str:
     return ' '.join(lazy_pinyin(chinese))
 
 
+def _parse_thai_meaning(raw: str) -> list[tuple[str, str | None]]:
+    """
+    Parse format: "(แพทย์) ยา, เม็ดยา; (เคมี) สารประกอบ"
+    Returns: list of (clean_meaning, category_or_None), one per `;`-separated sense.
+
+    - (หมวด) นำหน้าแต่ละความหมาย → ดึงเป็น category ของ sense นั้น
+    - , คั่นคำแปลอื่นในความหมายเดียวกัน (คง ; ไว้ในผลลัพธ์)
+    - ; คั่นความหมายที่ต่างกันมาก → แยกเป็น sense ใหม่
+    """
+    raw = raw.strip()
+    if not raw:
+        return [("", None)]
+
+    senses = [s.strip() for s in raw.split(';') if s.strip()]
+    result = []
+    for sense in senses:
+        category = None
+        m = re.match(r'^\(([^)]+)\)', sense)
+        if m:
+            category = m.group(1).strip()
+        clean = re.sub(r'\([^)]+\)\s*', '', sense)
+        clean = re.sub(r'\s*,\s*', ', ', clean)
+        clean = clean.strip().strip(',').strip()
+        if clean:
+            result.append((clean, category))
+
+    return result if result else [("", None)]
+
+
 def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
     path = Path(file_path)
     if not path.exists():
@@ -53,7 +83,8 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
         return {"success": False, "error": "ไม่พบคอลัมน์ภาษาจีน (chinese / จีน / ภาษาจีน)"}
 
     # โหลด existing เพื่อ skip ซ้ำ
-    existing_words = {w[0] for w in db.query(Word.chinese).all()}
+    # verified: ตรวจด้วย (chinese, pinyin_plain) เพื่อรองรับ polyphonic (คำเดียวหลายเสียง)
+    existing_words = {(w[0], w[1] or "") for w in db.query(Word.chinese, Word.pinyin_plain).all()}
     existing_pending = {w[0] for w in db.query(WordPending.chinese).all()}
 
     verified = 0   # มีคำแปลไทย → เข้า words โดยตรง
@@ -66,20 +97,31 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
             skipped += 1
             continue
 
-        # ซ้ำใน words แล้ว → ข้าม
-        if chinese in existing_words:
-            skipped += 1
-            continue
-
-        thai = str(row.get("thai_meaning", "")).strip()
         raw_pinyin = str(row.get("pinyin", "")).strip()
         gen_pinyin = raw_pinyin if raw_pinyin else _gen_pinyin(chinese)
         gen_pinyin_plain = _gen_pinyin_plain(chinese)
         english = str(row.get("english_meaning", "")).strip() or None
-        category = str(row.get("category", "")).strip() or None
+        category_col = str(row.get("category", "")).strip() or None
+
+        # Parse Thai meaning: แยก sense, ดึง category
+        thai_raw = str(row.get("thai_meaning", "")).strip()
+        if thai_raw:
+            senses = _parse_thai_meaning(thai_raw)
+            # รวม sense ด้วย "; "
+            thai = "; ".join(m for m, _ in senses if m)
+            # ใช้ category จากคอลัมน์ก่อน, ถ้าไม่มีใช้จาก parse
+            parsed_category = next((c for _, c in senses if c), None)
+            category = category_col or parsed_category
+        else:
+            thai = ""
+            category = category_col
 
         if thai:
-            # มีคำแปลไทย → เข้า words (verified) ทันที
+            # มีคำแปลไทย → ตรวจซ้ำด้วย (chinese, pinyin_plain)
+            key = (chinese, gen_pinyin_plain)
+            if key in existing_words:
+                skipped += 1
+                continue
             db.add(Word(
                 chinese=chinese,
                 pinyin=gen_pinyin,
@@ -89,7 +131,7 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
                 category=category,
                 status="verified",
             ))
-            existing_words.add(chinese)
+            existing_words.add(key)
             verified += 1
         elif chinese not in existing_pending:
             # ไม่มีคำแปล + ไม่ซ้ำใน pending → รอแปล
