@@ -29,6 +29,7 @@ class WordPending(Base):
     id = Column(Integer, primary_key=True, index=True)
     chinese = Column(String(50), nullable=False)
     pinyin = Column(String(100))
+    pinyin_plain = Column(String(100))
     thai_meaning = Column(Text)
     english_meaning = Column(Text)
     category = Column(String(50))

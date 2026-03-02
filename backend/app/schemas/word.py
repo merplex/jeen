@@ -31,6 +31,21 @@ class WordOut(BaseModel):
         from_attributes = True
 
 
+class WordPublicOut(BaseModel):
+    id: int
+    chinese: str
+    pinyin: str
+    pinyin_plain: Optional[str] = None
+    thai_meaning: str
+    category: Optional[str] = None
+    char_count: Optional[int] = None
+    status: str
+    examples: list[ExampleOut] = []
+
+    class Config:
+        from_attributes = True
+
+
 class WordCreate(BaseModel):
     chinese: str
     pinyin: str

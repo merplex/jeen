@@ -1,6 +1,7 @@
 import pandas as pd
 from pathlib import Path
 from sqlalchemy.orm import Session
+from pypinyin import pinyin, lazy_pinyin, Style
 from ..models.word import WordPending
 
 
@@ -22,6 +23,16 @@ def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
                 col_map[lower_cols[alias.lower()]] = field
                 break
     return df.rename(columns=col_map)
+
+
+def _gen_pinyin(chinese: str) -> str:
+    """Generate tone-marked pinyin from Chinese characters."""
+    return ' '.join([''.join(syllables) for syllables in pinyin(chinese, style=Style.TONE)])
+
+
+def _gen_pinyin_plain(chinese: str) -> str:
+    """Generate plain (no-tone) pinyin from Chinese characters."""
+    return ' '.join(lazy_pinyin(chinese))
 
 
 def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
@@ -51,9 +62,16 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
             skipped += 1
             continue
 
+        raw_pinyin = str(row.get("pinyin", "")).strip()
+        # auto-gen pinyin if not provided
+        generated_pinyin = raw_pinyin if raw_pinyin else _gen_pinyin(chinese)
+        # always gen pinyin_plain from chinese
+        generated_pinyin_plain = _gen_pinyin_plain(chinese)
+
         word = WordPending(
             chinese=chinese,
-            pinyin=str(row.get("pinyin", "")).strip() or None,
+            pinyin=generated_pinyin or None,
+            pinyin_plain=generated_pinyin_plain or None,
             thai_meaning=str(row.get("thai_meaning", "")).strip() or None,
             english_meaning=str(row.get("english_meaning", "")).strip() or None,
             category=str(row.get("category", "")).strip() or None,
