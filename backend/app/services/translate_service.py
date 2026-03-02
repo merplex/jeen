@@ -114,8 +114,8 @@ def generate_daily_words(count: int, existing_chinese: set, category: str = None
             elif isinstance(w, str) and w.strip() and w.strip() not in existing_chinese:
                 result.append({"chinese": w.strip(), "category": category or ""})
         return result
-    except Exception:
-        return []
+    except Exception as e:
+        raise RuntimeError(f"Gemini generate_daily_words failed: {e}") from e
 
 
 def validate_word_exists(word: str, lang: str) -> bool:

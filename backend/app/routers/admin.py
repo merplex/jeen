@@ -232,7 +232,10 @@ def generate_daily(
     existing = {w[0] for w in db.query(Word.chinese).all()}
     existing |= {w[0] for w in db.query(WordPending.chinese).all()}
 
-    suggestions = generate_daily_words(count, existing, category=body.category)
+    try:
+        suggestions = generate_daily_words(count, existing, category=body.category)
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
     inserted = 0
     for item in suggestions:
