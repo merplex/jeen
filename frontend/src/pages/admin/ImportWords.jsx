@@ -17,7 +17,11 @@ export default function ImportWords() {
       const fd = new FormData()
       fd.append('file', file)
       const r = await adminImport(fd)
-      setResult(r.data)
+      if (r.data.success === false) {
+        setError(r.data.error || 'Import ไม่สำเร็จ')
+      } else {
+        setResult(r.data)
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'เกิดข้อผิดพลาด')
     } finally {

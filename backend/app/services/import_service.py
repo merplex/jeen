@@ -16,6 +16,8 @@ COLUMN_ALIASES = {
 
 
 def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    # strip whitespace + BOM (\ufeff) ที่อาจติดมาจาก CSV export ของ Excel
+    df.columns = df.columns.str.strip().str.lstrip('\ufeff')
     col_map = {}
     lower_cols = {c.lower().strip(): c for c in df.columns}
     for field, aliases in COLUMN_ALIASES.items():
@@ -72,7 +74,7 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
     if suffix in (".xlsx", ".xls"):
         df = pd.read_excel(file_path, dtype=str)
     elif suffix == ".csv":
-        df = pd.read_csv(file_path, dtype=str)
+        df = pd.read_csv(file_path, dtype=str, encoding='utf-8-sig')
     else:
         return {"success": False, "error": "รองรับเฉพาะไฟล์ .xlsx, .xls, .csv"}
 
@@ -107,8 +109,8 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
         thai_raw = str(row.get("thai_meaning", "")).strip()
         if thai_raw:
             senses = _parse_thai_meaning(thai_raw)
-            # รวม sense ด้วย "; "
-            thai = "; ".join(m for m, _ in senses if m)
+            # รวม sense ด้วย "; "  ถ้า parse ได้ว่าง fallback ใช้ raw text
+            thai = "; ".join(m for m, _ in senses if m) or thai_raw
             # ใช้ category จากคอลัมน์ก่อน, ถ้าไม่มีใช้จาก parse
             parsed_category = next((c for _, c in senses if c), None)
             category = category_col or parsed_category
