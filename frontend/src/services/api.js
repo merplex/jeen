@@ -41,6 +41,7 @@ export const adminApprove = (id, thaiMeaning = null) =>
   api.post(`/admin/pending/${id}/approve`, thaiMeaning ? { thai_meaning: thaiMeaning } : {})
 export const adminReject = (id) => api.delete(`/admin/pending/${id}`)
 export const adminMissed = () => api.get('/admin/missed-searches')
+export const adminDeleteMissed = (id) => api.delete(`/admin/missed-searches/${id}`)
 export const adminImport = (formData) =>
   api.post('/admin/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
 export const adminCreateWord = (data) => api.post('/words', data)

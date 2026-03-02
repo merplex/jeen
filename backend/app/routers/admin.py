@@ -95,6 +95,20 @@ def reject_pending(
     return {"ok": True}
 
 
+@router.delete("/missed-searches/{missed_id}")
+def delete_missed(
+    missed_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    item = db.query(MissedSearch).filter(MissedSearch.id == missed_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="ไม่พบรายการ")
+    db.delete(item)
+    db.commit()
+    return {"ok": True}
+
+
 @router.get("/missed-searches")
 def list_missed(
     skip: int = 0,
