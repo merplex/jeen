@@ -106,8 +106,11 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
     if "chinese" not in df.columns:
         return {"success": False, "error": "ไม่พบคอลัมน์ภาษาจีน"}
 
-    # โหลด existing เพื่อ skip ซ้ำ
-    existing_words = {(w[0], w[1] or "") for w in db.query(Word.chinese, Word.pinyin_plain).all()}
+    # โหลด existing: dict เพื่อ upsert (อัปเดตได้ถ้ามีอยู่แล้ว)
+    existing_words = {
+        (w.chinese, w.pinyin_plain or ""): w
+        for w in db.query(Word).all()
+    }
     existing_pending = {w[0] for w in db.query(WordPending.chinese).all()}
 
     # ─── Phase 1: รวม rows ที่มี chinese เดียวกัน (pinyin เดียวกัน) ───────────
@@ -162,29 +165,34 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
 
     # ─── Phase 2: insert ─────────────────────────────────────────────────────
     verified = 0
+    updated = 0
     pending = 0
     skipped = 0
 
     for key, g in groups.items():
         chinese = g["chinese"]
-        # รวมความหมายหลายบรรทัด คั่นด้วย \n
         thai = "\n".join(g["thai_lines"])
 
         if thai:
             if key in existing_words:
-                skipped += g["row_count"]
-                continue
-            db.add(Word(
-                chinese=chinese,
-                pinyin=g["pinyin"],
-                pinyin_plain=g["pinyin_plain"],
-                thai_meaning=thai,
-                english_meaning=g["english"],
-                category=g["category"],
-                status="verified",
-            ))
-            existing_words.add(key)
-            verified += 1
+                # upsert: อัปเดต thai_meaning ด้วยเวอร์ชัน merge จากไฟล์
+                word = existing_words[key]
+                word.thai_meaning = thai
+                if g["category"]:
+                    word.category = g["category"]
+                updated += 1
+            else:
+                db.add(Word(
+                    chinese=chinese,
+                    pinyin=g["pinyin"],
+                    pinyin_plain=g["pinyin_plain"],
+                    thai_meaning=thai,
+                    english_meaning=g["english"],
+                    category=g["category"],
+                    status="verified",
+                ))
+                existing_words[key] = True  # mark as inserted
+                verified += 1
         elif chinese not in existing_pending:
             db.add(WordPending(
                 chinese=chinese,
@@ -200,4 +208,4 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
             skipped += g["row_count"]
 
     db.commit()
-    return {"success": True, "verified": verified, "pending": pending, "skipped": skipped}
+    return {"success": True, "verified": verified, "updated": updated, "pending": pending, "skipped": skipped}

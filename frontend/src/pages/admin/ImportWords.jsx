@@ -59,7 +59,12 @@ export default function ImportWords() {
             <p className="font-semibold text-green-700">Import สำเร็จ!</p>
             {result.verified > 0 && (
               <p className="text-sm text-green-600">
-                ✓ เพิ่มลงพจนานุกรมทันที: <strong>{result.verified}</strong> คำ (มีคำแปลไทยแล้ว)
+                ✓ เพิ่มใหม่: <strong>{result.verified}</strong> คำ
+              </p>
+            )}
+            {result.updated > 0 && (
+              <p className="text-sm text-blue-600">
+                ↻ อัปเดตคำแปล: <strong>{result.updated}</strong> คำ
               </p>
             )}
             {result.pending > 0 && (
