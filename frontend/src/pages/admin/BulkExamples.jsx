@@ -34,7 +34,7 @@ export default function BulkExamples() {
         const { done, errors, remaining } = r.data
         total += done
         addLog(`✓ อัปเดต ${done} คำ | error ${errors} | เหลือ ${remaining} คำ`)
-        if (remaining === 0 || (done === 0 && errors === 0)) break
+        if (remaining === 0 || (done === 0 && errors > 0)) break
       } catch (e) {
         addLog(`✗ ${e.response?.data?.detail || e.message}`)
         break

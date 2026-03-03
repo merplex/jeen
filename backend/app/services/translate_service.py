@@ -61,16 +61,17 @@ def batch_generate_english(words: list[dict]) -> list[dict]:
         return []
     try:
         items = "\n".join(
-            f'{i+1}. id={w["id"]} chinese={w["chinese"]} thai={w.get("thai","")}'
-            for i, w in enumerate(words)
+            f'id={w["id"]} chinese={w["chinese"]} thai={w.get("thai","")}'
+            for w in words
         )
         prompt = (
             "For each Chinese word below, list ALL common English translations (comma-separated).\n"
             "Be comprehensive — include every meaning the word can have.\n"
-            "Example: 出口 → \"exit, export, way out\"\n"
+            "IMPORTANT: In your response, keep the exact numeric 'id' value from the input.\n"
+            "Example: id=1042 chinese=出口 thai=ทางออก → {\"id\":1042,\"english\":\"exit, export, way out\"}\n"
             f"{items}\n\n"
             "Return a JSON array only, no explanation, no markdown:\n"
-            '[{"id":1,"english":"meaning1, meaning2"},...]'
+            '[{"id":<exact id from input>,"english":"meaning1, meaning2"},...]'
         )
         response = _model.generate_content(prompt)
         return json.loads(_strip_markdown(response.text))

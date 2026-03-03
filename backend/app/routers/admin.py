@@ -9,7 +9,8 @@ from ..database import get_db
 from ..models.word import Word, WordPending
 from ..models.example import Example
 from ..models.missed_search import MissedSearch
-from ..schemas.word import WordOut, WordPendingOut
+from ..models.activity_log import ActivityLog
+from ..schemas.word import WordOut, WordPendingOut, ActivityLogOut
 from ..auth import require_admin
 from ..models.user import User
 from ..services.import_service import import_file, _gen_pinyin, _gen_pinyin_plain
@@ -22,6 +23,11 @@ from ..services.translate_service import (
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def _log(db: Session, action: str, word_id: int = None, chinese: str = None, detail: str = None):
+    db.add(ActivityLog(action=action, word_id=word_id, chinese=chinese, detail=detail))
+    db.flush()
 
 
 @router.get("/pending", response_model=list[WordPendingOut])
@@ -82,6 +88,7 @@ def approve_pending(
     )
     db.add(word)
     db.delete(pending)
+    _log(db, "word_added", chinese=pending.chinese, detail=f"ความหมาย: {thai[:60]}")
     db.commit()
     db.refresh(word)
 
@@ -233,6 +240,7 @@ def generate_examples(
             sort_order=idx,
         ))
 
+    _log(db, "example_added", word_id=word_id, chinese=word.chinese, detail=f"สร้าง {len(examples)} ประโยค")
     db.commit()
     db.refresh(word)
     return word
@@ -278,6 +286,7 @@ def wipe_all_examples(
 ):
     """ลบ examples ทั้งหมดทุกคำ"""
     deleted = db.query(Example).delete()
+    _log(db, "example_deleted", detail=f"ลบทั้งหมด {deleted} ประโยค")
     db.commit()
     return {"deleted": deleted}
 
@@ -323,6 +332,8 @@ def bulk_generate_english(
         if word and item.get("english"):
             word.english_meaning = item["english"]
             done += 1
+    if done > 0:
+        _log(db, "bulk_english", detail=f"อัปเดต {done} คำ")
     db.commit()
 
     remaining = db.query(Word).filter(
@@ -378,6 +389,10 @@ def bulk_generate_examples(
             last_error = str(e)
         time.sleep(0.3)
 
+    if done > 0:
+        _log(db, "bulk_examples", detail=f"สร้างตัวอย่าง {done} คำ")
+        db.commit()
+
     remaining = (
         db.query(Word)
         .filter(Word.status == "verified")
@@ -426,6 +441,22 @@ def generate_daily(
 
     db.commit()
     return {"inserted": inserted, "requested": count}
+
+
+@router.get("/activity-log", response_model=list[ActivityLogOut])
+def activity_log(
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """ประวัติการเปลี่ยนแปลงคำศัพท์ล่าสุด"""
+    limit = min(max(limit, 1), 200)
+    return (
+        db.query(ActivityLog)
+        .order_by(ActivityLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
 
 
 class ImportWordsRequest(BaseModel):

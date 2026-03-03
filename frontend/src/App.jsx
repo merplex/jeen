@@ -15,6 +15,7 @@ import MissedSearches from './pages/admin/MissedSearches'
 import ImportWords from './pages/admin/ImportWords'
 import AddWord from './pages/admin/AddWord'
 import BulkExamples from './pages/admin/BulkExamples'
+import ActivityLog from './pages/admin/ActivityLog'
 
 function AdminGuard({ children }) {
   const user = useAuthStore((s) => s.user)
@@ -55,6 +56,7 @@ export default function App() {
           <Route path="import" element={<ImportWords />} />
           <Route path="add" element={<AddWord />} />
           <Route path="examples" element={<BulkExamples />} />
+          <Route path="activity" element={<ActivityLog />} />
         </Route>
       </Routes>
       <BottomNav />

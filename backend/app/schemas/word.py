@@ -89,3 +89,15 @@ class WordPendingCreate(BaseModel):
     english_meaning: Optional[str] = None
     category: Optional[str] = None
     source: Optional[str] = "manual"
+
+
+class ActivityLogOut(BaseModel):
+    id: int
+    action: str
+    word_id: Optional[int] = None
+    chinese: Optional[str] = None
+    detail: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
