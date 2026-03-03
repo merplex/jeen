@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     LINE_CHANNEL_ID: str = ""
     LINE_CHANNEL_SECRET: str = ""
     LINE_CALLBACK_URL: str = "http://localhost:8000/auth/line/callback"
+    ADMIN_SECRET: str = ""
 
     @property
     def admin_list(self) -> List[str]:

@@ -90,3 +90,16 @@ def line_callback(code: str = None, state: str = None, error: str = None, db: Se
 
     jwt_token = create_token(user.id)
     return RedirectResponse(f"{frontend}/line-callback?token={jwt_token}")
+
+
+@router.post("/set-admin")
+def set_admin(identifier: str, secret: str, db: Session = Depends(get_db)):
+    """Set user เป็น admin โดยใช้ ADMIN_SECRET — ใช้ครั้งแรกตอน bootstrap เท่านั้น"""
+    if not settings.ADMIN_SECRET or secret != settings.ADMIN_SECRET:
+        raise HTTPException(status_code=403, detail="secret ไม่ถูกต้อง")
+    user = db.query(User).filter(User.identifier == identifier).first()
+    if not user:
+        raise HTTPException(status_code=404, detail=f"ไม่พบ user '{identifier}' — กรุณา login ด้วย LINE ก่อน")
+    user.is_admin = True
+    db.commit()
+    return {"ok": True, "identifier": identifier, "display_name": user.display_name}
