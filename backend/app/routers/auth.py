@@ -92,7 +92,7 @@ def line_callback(code: str = None, state: str = None, error: str = None, db: Se
     return RedirectResponse(f"{frontend}/line-callback?token={jwt_token}")
 
 
-@router.post("/set-admin")
+@router.get("/set-admin")
 def set_admin(identifier: str, secret: str, db: Session = Depends(get_db)):
     """Set user เป็น admin โดยใช้ ADMIN_SECRET — ใช้ครั้งแรกตอน bootstrap เท่านั้น"""
     if not settings.ADMIN_SECRET or secret != settings.ADMIN_SECRET:
