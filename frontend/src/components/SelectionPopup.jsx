@@ -1,8 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { searchWords } from '../services/api'
+import { searchWords, reportMissedSearchDirect } from '../services/api'
 
 const CHINESE_RE = /[\u4e00-\u9fff]/
+const THAI_RE = /[\u0e00-\u0e7f]/
+const isSearchable = (t) => CHINESE_RE.test(t) || THAI_RE.test(t)
 
 export default function SelectionPopup() {
   const navigate = useNavigate()
@@ -12,13 +14,12 @@ export default function SelectionPopup() {
   const [open, setOpen] = useState(false)
   const debounceRef = useRef(null)
 
-  // Detect text selection
+  // Detect text selection (จีน หรือ ไทย)
   useEffect(() => {
     const onSelectionChange = () => {
       const sel = window.getSelection()
       const text = sel?.toString().trim()
-      // Only care about Chinese chars, 1–8 chars
-      if (text && CHINESE_RE.test(text) && text.length <= 8) {
+      if (text && isSearchable(text) && text.length <= 20) {
         clearTimeout(debounceRef.current)
         debounceRef.current = setTimeout(() => {
           setQuery(text)
@@ -43,6 +44,10 @@ export default function SelectionPopup() {
       .then((r) => {
         const all = [...(r.data?.prefix_group || []), ...(r.data?.inner_group || [])]
         setResults(all.slice(0, 10))
+        // ไม่เจอคำ → บันทึก missed โดยตรง (ไม่ validate เพราะ user เลือกจากข้อความจริง)
+        if (all.length === 0) {
+          reportMissedSearchDirect(query).catch(() => {})
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false))

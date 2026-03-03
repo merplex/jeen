@@ -60,9 +60,16 @@ def search_english(q: str = Query(..., min_length=1)):
 @router.post("/report-missed")
 def report_missed(
     q: str = Query(..., min_length=1),
+    skip_validate: bool = Query(False),
     db: Session = Depends(get_db),
 ):
-    """รับรายงาน missed search จาก frontend (หลัง debounce 10s หรือกด Enter)
-    ตรวจกับ Gemini ก่อนว่าเป็นคำจริง แล้วจึงบันทึก"""
+    """รับรายงาน missed search จาก frontend
+    - skip_validate=False (default): ตรวจกับ Gemini ก่อนว่าเป็นคำจริง (กรณีพิมพ์เอง)
+    - skip_validate=True: บันทึกตรง ไม่ validate (กรณี long-press เลือกจากข้อความจริง)
+    """
+    if skip_validate:
+        from ..services.search_service import _record_missed
+        _record_missed(db, q)
+        return {"recorded": True, "query": q}
     recorded = validate_and_record_missed(db, q)
     return {"recorded": recorded, "query": q}

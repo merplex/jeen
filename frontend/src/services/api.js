@@ -17,6 +17,7 @@ api.interceptors.request.use((config) => {
 export const searchWords = (q) => api.get('/search', { params: { q } })
 export const searchEnglish = (q) => api.get('/search/english', { params: { q } })
 export const reportMissedSearch = (q) => api.post('/search/report-missed', null, { params: { q } })
+export const reportMissedSearchDirect = (q) => api.post('/search/report-missed', null, { params: { q, skip_validate: true } })
 export const recordSearchHistory = (q, wordId, found) =>
   api.post('/search/record-history', null, { params: { q, word_id: wordId ?? undefined, found } })
 export const getWord = (id) => api.get(`/words/${id}`)
