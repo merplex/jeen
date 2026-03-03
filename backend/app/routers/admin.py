@@ -76,6 +76,7 @@ def approve_pending(
         english_meaning=english,
         category=category_val,
         status="verified",
+        source=pending.source,
     )
     db.add(word)
     db.delete(pending)
@@ -254,3 +255,40 @@ def generate_daily(
 
     db.commit()
     return {"inserted": inserted, "requested": count}
+
+
+class ImportWordsRequest(BaseModel):
+    words: str  # Chinese words one per line (or comma-separated)
+
+
+@router.post("/import-words")
+def import_words_bulk(
+    body: ImportWordsRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Import Chinese words (one per line) into words_pending with source='import'."""
+    existing = {w[0] for w in db.query(Word.chinese).all()}
+    existing |= {w[0] for w in db.query(WordPending.chinese).all()}
+
+    # รองรับทั้ง newline และ comma
+    raw = body.words.replace(',', '\n')
+    lines = [line.strip() for line in raw.splitlines() if line.strip()]
+
+    inserted = 0
+    skipped = 0
+    for chinese in lines:
+        if not chinese or chinese in existing:
+            skipped += 1
+            continue
+        db.add(WordPending(
+            chinese=chinese,
+            pinyin=_gen_pinyin(chinese),
+            pinyin_plain=_gen_pinyin_plain(chinese),
+            source="import",
+        ))
+        existing.add(chinese)
+        inserted += 1
+
+    db.commit()
+    return {"inserted": inserted, "skipped": skipped}

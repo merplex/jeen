@@ -41,6 +41,7 @@ def update_word(
         raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์")
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(word, field, value)
+    word.admin_edited = True
     db.commit()
     db.refresh(word)
     return word

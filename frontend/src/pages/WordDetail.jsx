@@ -126,11 +126,22 @@ export default function WordDetail() {
       <div className="px-4 py-6 space-y-4">
         {/* Meanings */}
         <div className="bg-white rounded-xl p-4 shadow-sm">
-          {word.category && (
-            <span className="text-xs bg-chinese-gold/20 text-chinese-gold px-2 py-0.5 rounded-full mb-3 inline-block">
-              {word.category}
-            </span>
-          )}
+          <div className="flex flex-wrap items-center gap-1.5 mb-3">
+            {word.category && (
+              <span className="text-xs bg-chinese-gold/20 text-chinese-gold px-2 py-0.5 rounded-full">
+                {word.category}
+              </span>
+            )}
+            {user?.is_admin && word.source === 'ai_daily' && (
+              <span className="text-[10px] bg-orange-100 text-orange-500 px-1.5 py-0.5 rounded-full font-medium">🤖 AI</span>
+            )}
+            {user?.is_admin && word.source === 'import' && (
+              <span className="text-[10px] bg-blue-100 text-blue-500 px-1.5 py-0.5 rounded-full font-medium">📥 นำเข้า</span>
+            )}
+            {user?.is_admin && word.admin_edited && (
+              <span className="text-[10px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full font-medium">✓ แก้แล้ว</span>
+            )}
+          </div>
           <div className="mb-3">
             <div className="text-xs text-gray-400 mb-1">ภาษาไทย</div>
             <div className="text-gray-800 text-base space-y-1">

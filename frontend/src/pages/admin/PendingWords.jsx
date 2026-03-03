@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { adminGetPending, adminApprove, adminReject, adminGenerateDailyWords } from '../../services/api'
+import { adminGetPending, adminApprove, adminReject, adminGenerateDailyWords, adminImportWords } from '../../services/api'
 
 const LIMIT = 50
 
@@ -25,6 +25,11 @@ export default function PendingWords() {
   const [genCategory, setGenCategory] = useState('')
   const [generating, setGenerating] = useState(false)
   const [genMsg, setGenMsg] = useState('')
+
+  // import panel
+  const [importText, setImportText] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importMsg, setImportMsg] = useState('')
 
   // bulk approve
   const [bulkLoading, setBulkLoading] = useState(false)
@@ -92,6 +97,22 @@ export default function PendingWords() {
     setGenerating(false)
   }
 
+  const importWordsBulk = async () => {
+    if (!importText.trim()) return
+    setImporting(true)
+    setImportMsg('')
+    try {
+      const r = await adminImportWords(importText)
+      setImportMsg(`✓ นำเข้า ${r.data.inserted} คำ (ข้าม ${r.data.skipped} ซ้ำ)`)
+      setImportText('')
+      await fetchPage(0)
+      setPage(0)
+    } catch (e) {
+      setImportMsg('เกิดข้อผิดพลาด: ' + (e.response?.data?.detail || e.message))
+    }
+    setImporting(false)
+  }
+
   const approveAllFilled = async () => {
     const filled = words.filter((w) => getThai(w).trim())
     if (!filled.length) return
@@ -110,8 +131,15 @@ export default function PendingWords() {
   const filledCount = words.filter((w) => getThai(w).trim()).length
   const allWords = [
     ...words.filter((w) => w.source === 'ai_daily'),
-    ...words.filter((w) => w.source !== 'ai_daily'),
+    ...words.filter((w) => w.source === 'import'),
+    ...words.filter((w) => w.source !== 'ai_daily' && w.source !== 'import'),
   ]
+
+  const sourceBadge = (source) => {
+    if (source === 'ai_daily') return <span className="text-[10px] bg-orange-100 text-orange-500 px-1.5 py-0.5 rounded-full font-medium">🤖 AI</span>
+    if (source === 'import') return <span className="text-[10px] bg-blue-100 text-blue-500 px-1.5 py-0.5 rounded-full font-medium">📥 นำเข้า</span>
+    return <span className="text-[10px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full font-medium">✏️ เพิ่มเอง</span>
+  }
 
   return (
     <div className="px-4 py-4">
@@ -162,6 +190,31 @@ export default function PendingWords() {
         )}
       </div>
 
+      {/* Import Panel */}
+      <div className="bg-white rounded-xl p-4 shadow-sm mb-4 border border-blue-100">
+        <div className="text-sm font-semibold text-gray-700 mb-3">📥 นำเข้าคำศัพท์จากรายการ</div>
+        <textarea
+          value={importText}
+          onChange={(e) => setImportText(e.target.value)}
+          placeholder={"วางคำจีนทีละบรรทัด หรือคั่นด้วยคอมม่า\nเช่น:\n你好\n谢谢\n再见"}
+          rows={5}
+          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-300 resize-none font-chinese"
+          disabled={importing}
+        />
+        <button
+          onClick={importWordsBulk}
+          disabled={importing || !importText.trim()}
+          className="w-full mt-2 bg-blue-500 text-white py-2 px-4 rounded-lg text-sm font-medium disabled:opacity-50"
+        >
+          {importing ? '⏳ กำลังนำเข้า...' : '📥 นำเข้าคำศัพท์'}
+        </button>
+        {importMsg && (
+          <p className={`text-xs mt-2 ${importMsg.startsWith('✓') ? 'text-green-600' : 'text-red-500'}`}>
+            {importMsg}
+          </p>
+        )}
+      </div>
+
       {fetchError && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-3 text-sm text-red-600">
           ⚠️ {fetchError}
@@ -199,7 +252,8 @@ export default function PendingWords() {
             <div
               key={w.id}
               className={`bg-white rounded-xl p-3 shadow-sm border-l-4 ${
-                w.source === 'ai_daily' ? 'border-orange-300' : 'border-gray-100'
+                w.source === 'ai_daily' ? 'border-orange-300' :
+                w.source === 'import' ? 'border-blue-300' : 'border-gray-100'
               }`}
             >
               <div className="flex items-start gap-2">
@@ -207,7 +261,7 @@ export default function PendingWords() {
                   {/* Chinese */}
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <span className="font-chinese text-xl text-chinese-red">{w.chinese}</span>
-                    {w.source === 'ai_daily' && <span className="text-xs text-orange-300">🤖</span>}
+                    {sourceBadge(w.source)}
                   </div>
 
                   {/* Thai input — หลักที่ต้องกรอก (textarea รองรับหลายความหมาย) */}

@@ -53,5 +53,7 @@ export const adminUpdateWord = (id, data) => api.put(`/words/${id}`, data)
 export const adminDeleteWord = (id) => api.delete(`/words/${id}`)
 export const adminGenerateDailyWords = (count, category = null) =>
   api.post('/admin/generate-daily-words', { count, ...(category && { category }) })
+export const adminImportWords = (words) =>
+  api.post('/admin/import-words', { words })
 
 export default api

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, SmallInteger, Computed, DateTime, func
+from sqlalchemy import Column, Integer, String, Text, SmallInteger, Computed, DateTime, Boolean, func
 from sqlalchemy.orm import relationship
 from ..database import Base
 
@@ -15,6 +15,8 @@ class Word(Base):
     category = Column(String(50))
     char_count = Column(SmallInteger, Computed("LENGTH(chinese)"), index=True)
     status = Column(String(20), default="verified")
+    source = Column(String(100), nullable=True)
+    admin_edited = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 

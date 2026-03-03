@@ -25,6 +25,8 @@ class WordOut(BaseModel):
     category: Optional[str] = None
     char_count: Optional[int] = None
     status: str
+    source: Optional[str] = None
+    admin_edited: bool = False
     examples: list[ExampleOut] = []
 
     class Config:
