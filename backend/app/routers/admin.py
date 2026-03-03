@@ -82,6 +82,25 @@ def approve_pending(
     db.delete(pending)
     db.commit()
     db.refresh(word)
+
+    # Auto-generate examples (best effort — ไม่ block approval ถ้า Gemini ล้มเหลว)
+    try:
+        examples = generate_examples_for_word(word.chinese, word.pinyin, word.thai_meaning)
+        for idx, ex in enumerate(examples):
+            db.add(Example(
+                word_id=word.id,
+                chinese=ex.get("chinese", ""),
+                pinyin=ex.get("pinyin"),
+                thai=ex.get("thai"),
+                type=ex.get("type"),
+                meaning_line=ex.get("meaning_line", 0),
+                sort_order=idx,
+            ))
+        db.commit()
+        db.refresh(word)
+    except Exception:
+        pass
+
     return word
 
 
@@ -208,6 +227,7 @@ def generate_examples(
             pinyin=ex.get("pinyin"),
             thai=ex.get("thai"),
             type=ex.get("type"),
+            meaning_line=ex.get("meaning_line", 0),
             sort_order=idx,
         ))
 

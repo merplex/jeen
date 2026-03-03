@@ -140,22 +140,34 @@ def validate_word_exists(word: str, lang: str) -> bool:
 
 def generate_examples_for_word(chinese: str, pinyin: str, thai: str) -> list[dict]:
     """
-    คืน 3 ประโยคตัวอย่าง: common, formal, spoken
-    Format: [{"type":"common","chinese":"...","pinyin":"...","thai":"..."}]
+    For each Thai meaning line, generate 3 examples:
+      - daily_1: ชีวิตประจำวัน สถานการณ์ที่ 1
+      - daily_2: ชีวิตประจำวัน สถานการณ์ที่ 2 (ต่างบริบทจาก daily_1)
+      - written: ภาษาบทความ/หนังสือ
+    Format: [{"meaning_line":0,"type":"daily_1","chinese":"...","pinyin":"...","thai":"..."}]
     """
     if not _has_api_key():
         return []
     try:
+        meaning_lines = [l.strip() for l in thai.split('\n') if l.strip()]
+        if not meaning_lines:
+            meaning_lines = [thai.strip()]
+
+        meanings_text = '\n'.join(
+            f'{i+1}. {m}' for i, m in enumerate(meaning_lines)
+        )
         prompt = (
-            f'Chinese word: {chinese} ({pinyin}) — Thai: {thai}\n'
-            "Generate 3 example sentences using this word:\n"
-            "1. type=common (everyday usage)\n"
-            "2. type=formal (formal/written)\n"
-            "3. type=spoken (casual spoken)\n\n"
-            "Return valid JSON only, no explanation, no markdown:\n"
-            '[{"type":"common","chinese":"...","pinyin":"...","thai":"..."},'
-            '{"type":"formal","chinese":"...","pinyin":"...","thai":"..."},'
-            '{"type":"spoken","chinese":"...","pinyin":"...","thai":"..."}]'
+            f'Chinese word: {chinese} ({pinyin})\n'
+            f'Thai meanings:\n{meanings_text}\n\n'
+            f'For EACH meaning above, generate 3 example sentences using "{chinese}":\n'
+            '- type "daily_1": ประโยคชีวิตประจำวัน สถานการณ์ที่ 1 (สนทนาปกติ)\n'
+            '- type "daily_2": ประโยคชีวิตประจำวัน สถานการณ์ที่ 2 (บริบทต่างจาก daily_1)\n'
+            '- type "written": ประโยคภาษาทางการ สไตล์บทความ/หนังสือ/ข่าว\n\n'
+            'Return ONLY a JSON array, no explanation, no markdown:\n'
+            '[{"meaning_line":0,"type":"daily_1","chinese":"...","pinyin":"...","thai":"..."},'
+            '{"meaning_line":0,"type":"daily_2","chinese":"...","pinyin":"...","thai":"..."},'
+            '{"meaning_line":0,"type":"written","chinese":"...","pinyin":"...","thai":"..."},'
+            '...repeat for each meaning line...]'
         )
         response = _model.generate_content(prompt)
         return json.loads(_strip_markdown(response.text))

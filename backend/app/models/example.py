@@ -12,6 +12,7 @@ class Example(Base):
     pinyin = Column(Text)
     thai = Column(Text)
     type = Column(String(20))
+    meaning_line = Column(SmallInteger, default=0)
     sort_order = Column(SmallInteger)
 
     word = relationship("Word", back_populates="examples")

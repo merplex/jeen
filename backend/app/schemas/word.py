@@ -9,6 +9,7 @@ class ExampleOut(BaseModel):
     pinyin: Optional[str] = None
     thai: Optional[str] = None
     type: Optional[str] = None
+    meaning_line: Optional[int] = 0
     sort_order: Optional[int] = None
 
     class Config:

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getWord, addFlashcard, removeFlashcard, getFlashcards, getNotes, createNote, updateNote, adminUpdateWord, recordSearchHistory } from '../services/api'
+import { getWord, addFlashcard, removeFlashcard, getFlashcards, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, recordSearchHistory } from '../services/api'
 import useAuthStore from '../stores/authStore'
 
 export default function WordDetail() {
@@ -14,6 +14,7 @@ export default function WordDetail() {
   const [editingNote, setEditingNote] = useState(false)
   const [editData, setEditData] = useState(null) // null = ไม่ได้ edit
   const [editSaving, setEditSaving] = useState(false)
+  const [genExLoading, setGenExLoading] = useState(false)
 
   useEffect(() => {
     getWord(id)
@@ -85,6 +86,17 @@ export default function WordDetail() {
     setEditSaving(false)
   }
 
+  const generateExamples = async () => {
+    setGenExLoading(true)
+    try {
+      const r = await adminGenerateExamples(id)
+      setWord(r.data)
+    } catch (e) {
+      alert(e.response?.data?.detail || 'สร้างตัวอย่างไม่สำเร็จ')
+    }
+    setGenExLoading(false)
+  }
+
   const speak = (text) => {
     const u = new SpeechSynthesisUtterance(text)
     u.lang = 'zh-CN'
@@ -97,7 +109,13 @@ export default function WordDetail() {
     </div>
   )
 
-  const EXAMPLE_LABELS = { common: 'ทั่วไป', formal: 'ทางการ', spoken: 'พูด' }
+  const EXAMPLE_LABELS = {
+    daily_1: 'ชีวิตประจำวัน 1',
+    daily_2: 'ชีวิตประจำวัน 2',
+    written: 'บทความ/หนังสือ',
+    // legacy
+    common: 'ทั่วไป', formal: 'ทางการ', spoken: 'พูด',
+  }
 
   return (
     <div className="min-h-screen bg-chinese-cream pb-24">
@@ -159,31 +177,68 @@ export default function WordDetail() {
         </div>
 
         {/* Examples */}
-        {word.examples && word.examples.length > 0 && (
+        {(word.examples?.length > 0 || user?.is_admin) && (
           <div className="bg-white rounded-xl p-4 shadow-sm">
-            <h3 className="text-sm font-semibold text-gray-500 mb-3">ประโยคตัวอย่าง</h3>
-            <div className="space-y-4">
-              {[...word.examples]
-                .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-                .map((ex) => (
-                  <div key={ex.id} className="border-l-2 border-chinese-gold pl-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs text-gray-400">
-                        {EXAMPLE_LABELS[ex.type] || ex.type}
-                      </span>
-                      <button
-                        onClick={() => speak(ex.chinese)}
-                        className="text-gray-400 text-sm"
-                      >
-                        🔊
-                      </button>
-                    </div>
-                    <div className="font-chinese text-lg text-gray-800">{ex.chinese}</div>
-                    {ex.pinyin && <div className="text-sm text-gray-500">{ex.pinyin}</div>}
-                    {ex.thai && <div className="text-sm text-gray-700">{ex.thai}</div>}
-                  </div>
-                ))}
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-500">ประโยคตัวอย่าง</h3>
+              {user?.is_admin && (
+                <button
+                  onClick={generateExamples}
+                  disabled={genExLoading}
+                  className="text-xs text-chinese-red disabled:opacity-50"
+                >
+                  {genExLoading ? '⏳ กำลังสร้าง...' : word.examples?.length > 0 ? '🔄 สุ่มใหม่' : '✨ สร้างตัวอย่าง'}
+                </button>
+              )}
             </div>
+            {word.examples?.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-2">
+                {user?.is_admin ? 'ยังไม่มีตัวอย่าง — กด ✨ สร้างตัวอย่าง' : 'ยังไม่มีตัวอย่าง'}
+              </p>
+            ) : (() => {
+              // จัดกลุ่มตาม meaning_line
+              const meaningLines = word.thai_meaning.split('\n').filter((l) => l.trim())
+              const byLine = {}
+              for (const ex of word.examples) {
+                const line = ex.meaning_line ?? 0
+                if (!byLine[line]) byLine[line] = []
+                byLine[line].push(ex)
+              }
+              return (
+                <div className="space-y-5">
+                  {meaningLines.map((meaning, lineIdx) => {
+                    const exs = (byLine[lineIdx] || []).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+                    if (!exs.length) return null
+                    return (
+                      <div key={lineIdx}>
+                        {meaningLines.length > 1 && (
+                          <div className="text-xs font-medium text-chinese-red mb-2">
+                            ความหมาย: {meaning}
+                          </div>
+                        )}
+                        <div className="space-y-3">
+                          {exs.map((ex) => (
+                            <div key={ex.id} className="border-l-2 border-chinese-gold pl-3">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                                  {EXAMPLE_LABELS[ex.type] || ex.type}
+                                </span>
+                                <button onClick={() => speak(ex.chinese)} className="text-gray-400 text-sm">
+                                  🔊
+                                </button>
+                              </div>
+                              <div className="font-chinese text-lg text-gray-800">{ex.chinese}</div>
+                              {ex.pinyin && <div className="text-sm text-gray-500">{ex.pinyin}</div>}
+                              {ex.thai && <div className="text-sm text-gray-700">{ex.thai}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
         )}
 

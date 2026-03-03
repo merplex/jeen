@@ -55,5 +55,7 @@ export const adminGenerateDailyWords = (count, category = null) =>
   api.post('/admin/generate-daily-words', { count, ...(category && { category }) })
 export const adminImportWords = (words) =>
   api.post('/admin/import-words', { words })
+export const adminGenerateExamples = (id) =>
+  api.post(`/admin/generate-examples/${id}`)
 
 export default api
