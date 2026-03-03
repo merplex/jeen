@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { searchWords, reportMissedSearchDirect } from '../services/api'
 
@@ -12,26 +12,21 @@ export default function SelectionPopup() {
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
-  const debounceRef = useRef(null)
-
-  // Detect text selection (จีน หรือ ไทย)
+  // Detect text selection — mouseup (desktop) + touchend (mobile)
   useEffect(() => {
-    const onSelectionChange = () => {
-      const sel = window.getSelection()
-      const text = sel?.toString().trim()
+    const checkSelection = () => {
+      const text = window.getSelection()?.toString().trim()
       if (text && isSearchable(text) && text.length <= 20) {
-        clearTimeout(debounceRef.current)
-        debounceRef.current = setTimeout(() => {
-          setQuery(text)
-          setOpen(true)
-        }, 300)
+        setQuery(text)
+        setOpen(true)
       }
     }
 
-    document.addEventListener('selectionchange', onSelectionChange)
+    document.addEventListener('mouseup', checkSelection)
+    document.addEventListener('touchend', checkSelection)
     return () => {
-      document.removeEventListener('selectionchange', onSelectionChange)
-      clearTimeout(debounceRef.current)
+      document.removeEventListener('mouseup', checkSelection)
+      document.removeEventListener('touchend', checkSelection)
     }
   }, [])
 
@@ -113,8 +108,10 @@ export default function SelectionPopup() {
                 <span className="font-chinese text-xl text-gray-900">{word.chinese}</span>
                 <span className="text-xs text-gray-400">{word.pinyin}</span>
               </div>
-              <div className="text-sm text-gray-600 mt-0.5 line-clamp-2 whitespace-pre-line">
-                {word.thai_meaning}
+              <div className="text-sm text-gray-600 mt-0.5">
+                {word.thai_meaning.split('\n').filter(l => l.trim()).slice(0, 2).map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
               </div>
             </button>
           ))}
