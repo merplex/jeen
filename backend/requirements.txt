@@ -15,3 +15,4 @@ pandas==2.2.2
 python-multipart==0.0.9
 pypinyin==0.51.0
 apscheduler==3.10.4
+email-validator==2.2.0

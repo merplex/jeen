@@ -1,11 +1,19 @@
 import httpx
+import random
+import smtplib
+from datetime import datetime, timedelta
+from email.mime.text import MIMEText
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.user import User
 from ..auth import create_token
 from ..config import settings
+
+# OTP in-memory store: email → (otp, expires_at)
+_otp_store: dict[str, tuple[str, datetime]] = {}
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -90,6 +98,77 @@ def line_callback(code: str = None, state: str = None, error: str = None, db: Se
 
     jwt_token = create_token(user.id)
     return RedirectResponse(f"{frontend}/line-callback?token={jwt_token}")
+
+
+class EmailRequest(BaseModel):
+    email: EmailStr
+
+
+class OTPVerifyRequest(BaseModel):
+    email: EmailStr
+    otp: str
+
+
+def _send_otp_email(to_email: str, otp: str):
+    """ส่ง OTP ผ่าน Gmail SMTP"""
+    if not settings.GMAIL_USER or not settings.GMAIL_APP_PASSWORD:
+        raise HTTPException(status_code=503, detail="ระบบอีเมลยังไม่ได้ตั้งค่า")
+    msg = MIMEText(
+        f"รหัส OTP ของคุณสำหรับเข้าสู่ระบบ 字典\n\n"
+        f"รหัส: {otp}\n\n"
+        f"รหัสนี้จะหมดอายุใน 10 นาที\n"
+        f"ห้ามแจ้งรหัสนี้แก่ผู้อื่น",
+        "plain",
+        "utf-8",
+    )
+    msg["Subject"] = f"รหัส OTP: {otp} — 字典"
+    msg["From"] = settings.GMAIL_USER
+    msg["To"] = to_email
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as smtp:
+        smtp.login(settings.GMAIL_USER, settings.GMAIL_APP_PASSWORD)
+        smtp.send_message(msg)
+
+
+@router.post("/email/request-otp")
+def email_request_otp(body: EmailRequest):
+    """ขอ OTP ทางอีเมล — ส่ง 6 หลัก หมดอายุ 10 นาที"""
+    email = body.email.lower()
+    otp = f"{random.randint(0, 999999):06d}"
+    expires = datetime.utcnow() + timedelta(minutes=10)
+    _otp_store[email] = (otp, expires)
+    try:
+        _send_otp_email(email, otp)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ส่งอีเมลไม่สำเร็จ: {e}")
+    return {"ok": True, "message": "ส่ง OTP แล้ว กรุณาตรวจสอบอีเมลของคุณ"}
+
+
+@router.post("/email/verify-otp")
+def email_verify_otp(body: OTPVerifyRequest, db: Session = Depends(get_db)):
+    """ตรวจสอบ OTP แล้วออก JWT"""
+    email = body.email.lower()
+    entry = _otp_store.get(email)
+    if not entry:
+        raise HTTPException(status_code=400, detail="ยังไม่ได้ขอ OTP หรือ OTP หมดอายุแล้ว")
+    stored_otp, expires = entry
+    if datetime.utcnow() > expires:
+        del _otp_store[email]
+        raise HTTPException(status_code=400, detail="OTP หมดอายุแล้ว กรุณาขอใหม่")
+    if body.otp.strip() != stored_otp:
+        raise HTTPException(status_code=400, detail="OTP ไม่ถูกต้อง")
+    # OTP ถูก → ลบทิ้ง
+    del _otp_store[email]
+    # สร้างหรือดึง user
+    user = db.query(User).filter(User.identifier == email).first()
+    if not user:
+        user = User(identifier=email, id_type="email", display_name="")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    jwt_token = create_token(user.id)
+    return {"token": jwt_token, "user": {"id": user.id, "display_name": user.display_name, "is_admin": user.is_admin}}
 
 
 @router.get("/set-admin")

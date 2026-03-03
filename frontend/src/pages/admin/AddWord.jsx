@@ -13,6 +13,7 @@ export default function AddWord() {
 
   const [form, setForm] = useState({
     chinese: initChinese,
+    pinyin: '',
     thai_meaning: initThai,
     english_meaning: '',
     category: '',
@@ -23,7 +24,7 @@ export default function AddWord() {
 
   // ถ้า URL params เปลี่ยน (navigate มาใหม่) ให้ reset form
   useEffect(() => {
-    setForm({ chinese: initChinese, thai_meaning: initThai, english_meaning: '', category: '' })
+    setForm({ chinese: initChinese, pinyin: '', thai_meaning: initThai, english_meaning: '', category: '' })
     setSuccess(false)
     setError('')
   }, [initChinese, initThai])
@@ -39,7 +40,9 @@ export default function AddWord() {
     setError('')
     setSuccess(false)
     try {
-      await adminCreateWord(form)
+      const payload = { ...form }
+      if (!payload.pinyin) delete payload.pinyin
+      await adminCreateWord(payload)
       // ถ้ามาจาก missed search → ลบออกจาก list แล้ว navigate กลับ
       if (missedId) {
         await adminDeleteMissed(missedId).catch(() => {})
@@ -79,6 +82,22 @@ export default function AddWord() {
           </div>
 
           <div>
+            <label className="text-sm text-gray-600 mb-1 block">
+              Pinyin
+              <span className="text-gray-400 ml-1">(ถ้าคำจีนนี้มีอยู่แล้วแต่ออกเสียงต่างกัน)</span>
+            </label>
+            <input
+              value={form.pinyin}
+              onChange={set('pinyin')}
+              placeholder="เช่น hao4 หรือ hao4chi1"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-chinese-red text-sm font-mono"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              ตัวเลข 1-4 = เสียงวรรณยุกต์ เช่น hao3 = hǎo, hao4 = hào
+            </p>
+          </div>
+
+          <div>
             <label className="text-sm text-gray-600 mb-1 block">ความหมายไทย *</label>
             <input
               value={form.thai_meaning}
@@ -114,7 +133,7 @@ export default function AddWord() {
             </select>
           </div>
 
-          <p className="text-xs text-gray-400">พินอิน จะ generate อัตโนมัติจากคำจีน</p>
+          <p className="text-xs text-gray-400">ถ้าไม่กรอก Pinyin ระบบจะ generate อัตโนมัติจากคำจีน</p>
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">

@@ -36,6 +36,8 @@ export const recordSearchHistory = (q, wordId, found) =>
 export const getWord = (id) => api.get(`/words/${id}`)
 
 export const login = (data) => api.post('/users/login', data)
+export const requestEmailOtp = (email) => api.post('/auth/email/request-otp', { email })
+export const verifyEmailOtp = (email, otp) => api.post('/auth/email/verify-otp', { email, otp })
 export const getMe = () => api.get('/users/me')
 export const getHistory = () => api.get('/users/me/history')
 export const deleteHistory = (id) => api.delete(`/users/me/history/${id}`)

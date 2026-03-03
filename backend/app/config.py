@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     LINE_CHANNEL_SECRET: str = ""
     LINE_CALLBACK_URL: str = "http://localhost:8000/auth/line/callback"
     ADMIN_SECRET: str = ""
+    GMAIL_USER: str = ""
+    GMAIL_APP_PASSWORD: str = ""
 
     @property
     def admin_list(self) -> List[str]:

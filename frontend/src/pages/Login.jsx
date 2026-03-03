@@ -1,48 +1,71 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import useAuthStore from '../stores/authStore'
+import { requestEmailOtp, verifyEmailOtp, getMe } from '../services/api'
 
 const LINE_LOGIN_URL = `${import.meta.env.VITE_API_URL || '/api'}/auth/line`
-
-const ID_TYPES = [
-  { value: 'email', label: 'อีเมล', placeholder: 'your@email.com', icon: '📧' },
-  { value: 'line', label: 'Line', placeholder: 'Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', icon: '💬' },
-]
-
-function validateIdentifier(idType, value) {
-  if (!value.trim()) return 'กรุณากรอกข้อมูล'
-  if (idType === 'email') {
-    if (!/^[^@]+@[^@]+\.[^@]+$/.test(value.trim())) return 'รูปแบบอีเมลไม่ถูกต้อง'
-  } else if (idType === 'line') {
-    if (!/^U[0-9a-fA-F]{10,}$/.test(value.trim()))
-      return 'Line User ID ต้องขึ้นต้นด้วย U ตามด้วยตัวเลข/ตัวอักษร'
-  }
-  return ''
-}
 
 export default function Login() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { login, loading } = useAuthStore()
-  const [idType, setIdType] = useState('email')
-  const [identifier, setIdentifier] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [error, setError] = useState(
-    searchParams.get('error') === 'line' ? 'LINE Login ไม่สำเร็จ กรุณาลองใหม่' : ''
-  )
 
-  const selected = ID_TYPES.find((t) => t.value === idType)
+  // step: 'email' | 'otp'
+  const [step, setStep] = useState('email')
+  const [email, setEmail] = useState('')
+  const [otp, setOtp] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(() => {
+    const e = searchParams.get('error')
+    if (e === 'line_denied') return 'ยกเลิกการเข้าสู่ระบบด้วย LINE'
+    if (e === 'line_token_failed' || e === 'line_profile_failed') return 'LINE Login ไม่สำเร็จ กรุณาลองใหม่'
+    return ''
+  })
+  const [info, setInfo] = useState('')
 
-  const handleSubmit = async (e) => {
+  const handleRequestOtp = async (e) => {
     e.preventDefault()
-    const validationError = validateIdentifier(idType, identifier)
-    if (validationError) { setError(validationError); return }
-    setError('')
-    const result = await login(identifier.trim(), idType, displayName.trim() || undefined)
-    if (result.ok) {
+    if (!email.trim()) { setError('กรุณากรอกอีเมล'); return }
+    if (!/^[^@]+@[^@]+\.[^@]+$/.test(email.trim())) { setError('รูปแบบอีเมลไม่ถูกต้อง'); return }
+    setError(''); setLoading(true)
+    try {
+      await requestEmailOtp(email.trim().toLowerCase())
+      setStep('otp')
+      setInfo(`ส่ง OTP ไปที่ ${email} แล้ว กรุณาตรวจสอบอีเมล (รวมถึงโฟลเดอร์ spam)`)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault()
+    if (!otp.trim()) { setError('กรุณากรอก OTP'); return }
+    setError(''); setLoading(true)
+    try {
+      const res = await verifyEmailOtp(email.trim().toLowerCase(), otp.trim())
+      const token = res.data.token
+      localStorage.setItem('token', token)
+      useAuthStore.setState({ token })
+      const meRes = await getMe()
+      useAuthStore.setState({ user: meRes.data })
       navigate('/', { replace: true })
-    } else {
-      setError('เกิดข้อผิดพลาด กรุณาลองใหม่')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'OTP ไม่ถูกต้องหรือหมดอายุ')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    setError(''); setOtp(''); setLoading(true)
+    try {
+      await requestEmailOtp(email.trim().toLowerCase())
+      setInfo('ส่ง OTP ใหม่แล้ว กรุณาตรวจสอบอีเมล')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'ส่ง OTP ไม่สำเร็จ')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -67,68 +90,80 @@ export default function Login() {
           เข้าสู่ระบบด้วย LINE
         </a>
 
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-6">
           <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-xs text-gray-400">หรือ</span>
+          <span className="text-xs text-gray-400">หรือเข้าสู่ระบบด้วยอีเมล</span>
           <div className="flex-1 h-px bg-gray-200" />
         </div>
 
-        <div className="flex gap-2 mb-6">
-          {ID_TYPES.map((t) => (
+        {/* Email OTP flow */}
+        {step === 'email' ? (
+          <form onSubmit={handleRequestOtp} className="space-y-4">
+            <div>
+              <label className="text-sm text-gray-600 mb-1 block">อีเมล</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setError('') }}
+                placeholder="your@email.com"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-chinese-red bg-white"
+                required
+                autoComplete="email"
+              />
+            </div>
+            {error && <p className="text-red-500 text-sm">{error}</p>}
             <button
-              key={t.value}
-              onClick={() => { setIdType(t.value); setIdentifier(''); setError('') }}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                idType === t.value
-                  ? 'bg-chinese-red text-white'
-                  : 'bg-white text-gray-600 border border-gray-200'
-              }`}
+              type="submit"
+              disabled={loading}
+              className="w-full bg-chinese-red text-white py-3 rounded-xl font-semibold text-lg disabled:opacity-60"
             >
-              {t.icon} {t.label}
+              {loading ? 'กำลังส่ง OTP...' : 'ส่ง OTP ทางอีเมล'}
             </button>
-          ))}
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-sm text-gray-600 mb-1 block">{selected?.label}</label>
-            <input
-              type={idType === 'email' ? 'email' : 'text'}
-              value={identifier}
-              onChange={(e) => { setIdentifier(e.target.value); setError('') }}
-              placeholder={selected?.placeholder}
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-chinese-red bg-white"
-              required
-            />
-            {idType === 'line' && (
-              <p className="text-xs text-gray-400 mt-1">
-                Line User ID — เปิด Line → โปรไฟล์ → กด ID เพื่อดู หรือตั้งค่า → บัญชี
-              </p>
-            )}
-          </div>
-          <div>
-            <label className="text-sm text-gray-600 mb-1 block">ชื่อที่แสดง (ไม่บังคับ)</label>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="ชื่อของคุณ"
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-chinese-red bg-white"
-            />
-          </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-chinese-red text-white py-3 rounded-xl font-semibold text-lg disabled:opacity-60"
-          >
-            {loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
-          </button>
-        </form>
-
-        <p className="text-xs text-gray-400 text-center mt-6">
-          ไม่ต้องลงทะเบียน — กรอก identifier แล้วเข้าใช้ได้เลย
-        </p>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyOtp} className="space-y-4">
+            {info && <p className="text-sm text-gray-500 bg-gray-50 rounded-xl px-4 py-3">{info}</p>}
+            <div>
+              <label className="text-sm text-gray-600 mb-1 block">รหัส OTP 6 หลัก</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={otp}
+                onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setError('') }}
+                placeholder="000000"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-chinese-red bg-white text-center text-2xl tracking-widest font-mono"
+                required
+                autoComplete="one-time-code"
+                autoFocus
+              />
+            </div>
+            {error && <p className="text-red-500 text-sm">{error}</p>}
+            <button
+              type="submit"
+              disabled={loading || otp.length !== 6}
+              className="w-full bg-chinese-red text-white py-3 rounded-xl font-semibold text-lg disabled:opacity-60"
+            >
+              {loading ? 'กำลังตรวจสอบ...' : 'ยืนยัน OTP'}
+            </button>
+            <div className="flex items-center justify-between text-sm">
+              <button
+                type="button"
+                onClick={() => { setStep('email'); setOtp(''); setError(''); setInfo('') }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                เปลี่ยนอีเมล
+              </button>
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={loading}
+                className="text-chinese-red hover:underline disabled:opacity-50"
+              >
+                ส่ง OTP ใหม่
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   )
