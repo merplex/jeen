@@ -18,6 +18,7 @@ export default function PendingWords() {
   // generate panel
   const [genCount, setGenCount] = useState(100)
   const [genCategory, setGenCategory] = useState('')
+  const [genKeyword, setGenKeyword] = useState('')
   const [generating, setGenerating] = useState(false)
   const [genMsg, setGenMsg] = useState('')
 
@@ -82,7 +83,7 @@ export default function PendingWords() {
     setGenerating(true)
     setGenMsg('')
     try {
-      const r = await adminGenerateDailyWords(genCount, genCategory || null)
+      const r = await adminGenerateDailyWords(genCount, genCategory || null, genKeyword.trim() || null)
       setGenMsg(`✓ สร้างคำใหม่ ${r.data.inserted} คำ (ขอ ${r.data.requested} คำ)`)
       await fetchPage(0)
       setPage(0)
@@ -159,18 +160,17 @@ export default function PendingWords() {
             className="flex-1 border rounded-lg px-2 py-2 text-sm bg-white"
             disabled={generating}
           >
-            <option value="">ทั่วไป / ชีวิตประจำวัน</option>
-            <option value="แพทย์">แพทย์</option>
-            <option value="วิศวกรรม">วิศวกรรม</option>
-            <option value="เทคนิค">เทคนิค / IT</option>
-            <option value="ธุรกิจ">ธุรกิจ</option>
-            <option value="กฎหมาย">กฎหมาย</option>
-            <option value="กีฬา">กีฬา</option>
-            <option value="สัตว์">สัตว์</option>
-            <option value="อาหาร">อาหาร</option>
-            <option value="สำนวน">สำนวน / คำอุปมา</option>
+            <option value="">— หมวดหมู่ (ไม่บังคับ) —</option>
+            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
+        <input
+          value={genKeyword}
+          onChange={(e) => setGenKeyword(e.target.value)}
+          placeholder="คีย์เวิร์ด เช่น โรคร้าย, อาหารทะเล, สถาปัตยกรรม (ไม่บังคับ)"
+          disabled={generating}
+          className="w-full border rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-orange-300"
+        />
         <button
           onClick={generateDaily}
           disabled={generating}

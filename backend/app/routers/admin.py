@@ -416,6 +416,7 @@ def bulk_generate_examples(
 class GenerateDailyRequest(BaseModel):
     count: int = 100
     category: Optional[str] = None
+    keyword: Optional[str] = None
 
 
 @router.post("/generate-daily-words")
@@ -431,7 +432,7 @@ def generate_daily(
     existing |= {w[0] for w in db.query(WordPending.chinese).all()}
 
     try:
-        suggestions = generate_daily_words(count, existing, category=body.category)
+        suggestions = generate_daily_words(count, existing, category=body.category, keyword=body.keyword)
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))
 

@@ -53,8 +53,12 @@ export const adminImport = (formData) =>
 export const adminCreateWord = (data) => api.post('/words', data)
 export const adminUpdateWord = (id, data) => api.put(`/words/${id}`, data)
 export const adminDeleteWord = (id) => api.delete(`/words/${id}`)
-export const adminGenerateDailyWords = (count, category = null) =>
-  api.post('/admin/generate-daily-words', { count, ...(category && { category }) })
+export const adminGenerateDailyWords = (count, category = null, keyword = null) =>
+  api.post('/admin/generate-daily-words', {
+    count,
+    ...(category && { category }),
+    ...(keyword && { keyword }),
+  })
 export const adminImportWords = (words) =>
   api.post('/admin/import-words', { words })
 export const adminGenerateExamples = (id) =>

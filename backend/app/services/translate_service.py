@@ -104,7 +104,7 @@ def batch_generate_metadata(words: list[dict]) -> list[dict]:
         return []
 
 
-def generate_daily_words(count: int, existing_chinese: set, category: str = None) -> list[dict]:
+def generate_daily_words(count: int, existing_chinese: set, category: str = None, keyword: str = None) -> list[dict]:
     """
     Ask Gemini to suggest `count` Chinese words.
     Returns list of {"chinese": "...", "category": "..."}
@@ -117,18 +117,21 @@ def generate_daily_words(count: int, existing_chinese: set, category: str = None
             "ทั่วไป, ชีวิตประจำวัน, อาหาร, สัตว์, สถานที่, ครอบครัว, บุคคล, ร่างกาย, "
             "การงาน, การเดินทาง, กีฬา, แพทย์, วิศวกรรม, เทคนิค, ธุรกิจ, กฎหมาย, สำนวน"
         )
+
+        topic_instruction = ""
+        if keyword:
+            topic_instruction = f'หัวข้อ/คีย์เวิร์ด: "{keyword}" — สร้างคำศัพท์ที่เกี่ยวข้องกับหัวข้อนี้\n'
+
         if category:
-            cat_instruction = f'สร้างเฉพาะคำศัพท์หมวด "{category}" เท่านั้น'
+            cat_instruction = f'หมวดหมู่: "{category}" เท่านั้น'
             cat_field = f'"category":"{category}"'
         else:
-            cat_instruction = (
-                "Mix categories naturally based on word meaning. "
-                "Avoid specialized medical/technical/legal terms unless fitting."
-            )
+            cat_instruction = "เลือกหมวดหมู่ที่เหมาะสมกับความหมายของคำนั้นๆ"
             cat_field = f'"category":"<one of: {allowed_cats}>"'
 
         prompt = (
-            f"Generate exactly {count} common Chinese words (simplified) for Thai learners.\n"
+            f"Generate exactly {count} Chinese words (simplified) for Thai learners.\n"
+            f"{topic_instruction}"
             f"{cat_instruction}\n"
             f"Do NOT include: {existing_sample}\n"
             f"category MUST be exactly one of these Thai words: {allowed_cats}\n"
