@@ -29,12 +29,16 @@ def search_words(db: Session, query: str) -> SearchResult:
 
     lang = detect_language(q)
 
-    # ASCII query → ลอง pinyin ก่อนเสมอ (ครอบคลุม cong, ni hao, shang ฯลฯ)
-    # ถ้าไม่เจอค่อย fallback Gemini English
     if lang == 'english':
-        pinyin_result = _search_by_pinyin(db, q)
-        if pinyin_result.found:
-            return pinyin_result
+        # 1) pinyin (chukou, nihao, ...)
+        result = _search_by_pinyin(db, q)
+        if result.found:
+            return result
+        # 2) english_meaning column (exit, money, ...)
+        result = _search_by_english_meaning(db, q)
+        if result.found:
+            return result
+        # 3) Gemini fallback
         return _search_english(db, q)
 
     # STEP 1: PREFIX — chinese / pinyin_plain / thai_meaning ขึ้นต้นด้วย query
@@ -115,40 +119,51 @@ def _search_by_pinyin(db: Session, q: str) -> SearchResult:
     return SearchResult(query=q, prefix_group=prefix, inner_group=inner, total=total, found=total > 0)
 
 
+def _search_by_english_meaning(db: Session, q: str) -> SearchResult:
+    """ค้น english_meaning column ใน DB โดยตรง — ไม่ต้องเรียก Gemini"""
+    prefix = (
+        db.query(Word)
+        .filter(Word.status == "verified", Word.english_meaning.ilike(f"{q}%"))
+        .order_by(Word.char_count.asc())
+        .all()
+    )
+    prefix_ids = {w.id for w in prefix}
+    inner = (
+        db.query(Word)
+        .filter(
+            Word.status == "verified",
+            Word.id.notin_(prefix_ids),
+            Word.english_meaning.ilike(f"%{q}%"),
+        )
+        .order_by(Word.char_count.asc())
+        .all()
+    )
+    total = len(prefix) + len(inner)
+    _mark_multiple_readings(prefix + inner)
+    return SearchResult(query=q, prefix_group=prefix, inner_group=inner, total=total, found=total > 0)
+
+
 def _search_english(db: Session, query: str) -> SearchResult:
-    """English query: ask Gemini for Chinese candidates, then lookup in DB."""
+    """Gemini fallback: ถ้า pinyin และ english_meaning ไม่เจอ — ถาม Gemini แล้ว exact match จาก chinese"""
     from ..services.translate_service import search_by_english
 
     suggestions = search_by_english(query)
     if not suggestions:
         return SearchResult(query=query, found=False)
 
-    # ค้น DB ด้วย chinese จาก Gemini suggestions
     chinese_candidates = [s["chinese"] for s in suggestions if s.get("chinese")]
     if not chinese_candidates:
         return SearchResult(query=query, found=False)
 
     results = (
         db.query(Word)
-        .filter(
-            Word.status == "verified",
-            Word.chinese.in_(chinese_candidates),
-        )
+        .filter(Word.status == "verified", Word.chinese.in_(chinese_candidates))
         .order_by(Word.char_count.asc())
         .all()
     )
-
-    # คำที่ Gemini แนะนำแต่ยังไม่อยู่ใน DB → ใส่ inner_group เป็น placeholder ไม่ได้
-    # ดังนั้นแค่คืนสิ่งที่เจอใน DB เท่านั้น
     found = len(results) > 0
     _mark_multiple_readings(results)
-    return SearchResult(
-        query=query,
-        prefix_group=results,
-        inner_group=[],
-        total=len(results),
-        found=found,
-    )
+    return SearchResult(query=query, prefix_group=results, inner_group=[], total=len(results), found=found)
 
 
 def validate_and_record_missed(db: Session, query: str) -> bool:

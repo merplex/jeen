@@ -57,5 +57,11 @@ export const adminImportWords = (words) =>
   api.post('/admin/import-words', { words })
 export const adminGenerateExamples = (id) =>
   api.post(`/admin/generate-examples/${id}`)
+export const adminExamplesStats = () =>
+  api.get('/admin/examples-stats')
+export const adminWipeAllExamples = () =>
+  api.delete('/admin/wipe-all-examples')
+export const adminBulkGenerateExamples = (limit = 30) =>
+  api.post('/admin/bulk-generate-examples', null, { params: { limit } })
 
 export default api

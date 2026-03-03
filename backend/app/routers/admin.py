@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Body
 from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
-import shutil, tempfile, os
+import shutil, tempfile, os, time
+from sqlalchemy import select
 from pypinyin import lazy_pinyin
 from ..database import get_db
 from ..models.word import Word, WordPending
@@ -234,6 +235,86 @@ def generate_examples(
     db.commit()
     db.refresh(word)
     return word
+
+
+@router.get("/examples-stats")
+def examples_stats(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """จำนวน verified words ที่มี/ไม่มี examples"""
+    total = db.query(Word).filter(Word.status == "verified").count()
+    with_ex = (
+        db.query(Word)
+        .filter(Word.status == "verified")
+        .filter(Word.id.in_(select(Example.word_id).distinct()))
+        .count()
+    )
+    return {
+        "total_verified": total,
+        "with_examples": with_ex,
+        "without_examples": total - with_ex,
+    }
+
+
+@router.delete("/wipe-all-examples")
+def wipe_all_examples(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """ลบ examples ทั้งหมดทุกคำ"""
+    deleted = db.query(Example).delete()
+    db.commit()
+    return {"deleted": deleted}
+
+
+@router.post("/bulk-generate-examples")
+def bulk_generate_examples(
+    limit: int = 30,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """สร้าง examples ให้ verified words ที่ยังไม่มี (ทีละ limit คำ)"""
+    limit = min(max(limit, 1), 100)
+
+    words = (
+        db.query(Word)
+        .filter(Word.status == "verified")
+        .filter(Word.id.notin_(select(Example.word_id).distinct()))
+        .limit(limit)
+        .all()
+    )
+
+    done = 0
+    errors = 0
+    for word in words:
+        try:
+            examples = generate_examples_for_word(
+                word.chinese, word.pinyin or "", word.thai_meaning or ""
+            )
+            for idx, ex in enumerate(examples):
+                db.add(Example(
+                    word_id=word.id,
+                    chinese=ex.get("chinese", ""),
+                    pinyin=ex.get("pinyin"),
+                    thai=ex.get("thai"),
+                    type=ex.get("type"),
+                    meaning_line=ex.get("meaning_line", 0),
+                    sort_order=idx,
+                ))
+            db.commit()
+            done += 1
+        except Exception:
+            errors += 1
+        time.sleep(0.3)
+
+    remaining = (
+        db.query(Word)
+        .filter(Word.status == "verified")
+        .filter(Word.id.notin_(select(Example.word_id).distinct()))
+        .count()
+    )
+    return {"done": done, "errors": errors, "remaining": remaining}
 
 
 class GenerateDailyRequest(BaseModel):
