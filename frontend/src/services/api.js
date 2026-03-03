@@ -63,5 +63,9 @@ export const adminWipeAllExamples = () =>
   api.delete('/admin/wipe-all-examples')
 export const adminBulkGenerateExamples = (limit = 30) =>
   api.post('/admin/bulk-generate-examples', null, { params: { limit } })
+export const adminEnglishStats = () =>
+  api.get('/admin/english-stats')
+export const adminBulkGenerateEnglish = (limit = 50) =>
+  api.post('/admin/bulk-generate-english', null, { params: { limit } })
 
 export default api

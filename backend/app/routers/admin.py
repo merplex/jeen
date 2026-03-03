@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
 import shutil, tempfile, os, time
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from pypinyin import lazy_pinyin
 from ..database import get_db
 from ..models.word import Word, WordPending
@@ -16,6 +16,7 @@ from ..services.import_service import import_file, _gen_pinyin, _gen_pinyin_plai
 from ..services.translate_service import (
     generate_english_meaning,
     batch_generate_metadata,
+    batch_generate_english,
     generate_examples_for_word,
     generate_daily_words,
 )
@@ -268,6 +269,56 @@ def wipe_all_examples(
     return {"deleted": deleted}
 
 
+@router.get("/english-stats")
+def english_stats(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    total = db.query(Word).filter(Word.status == "verified").count()
+    with_en = db.query(Word).filter(Word.status == "verified", Word.english_meaning.isnot(None), Word.english_meaning != "").count()
+    return {"total_verified": total, "with_english": with_en, "without_english": total - with_en}
+
+
+@router.post("/bulk-generate-english")
+def bulk_generate_english(
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """สร้าง english_meaning ให้ verified words ที่ยังไม่มี (batch ทีละ limit คำ ใน 1 Gemini call)"""
+    limit = min(max(limit, 1), 100)
+
+    words = (
+        db.query(Word)
+        .filter(Word.status == "verified")
+        .filter(or_(Word.english_meaning.is_(None), Word.english_meaning == ""))
+        .limit(limit)
+        .all()
+    )
+
+    if not words:
+        remaining = 0
+        return {"done": 0, "errors": 0, "remaining": remaining}
+
+    batch = [{"id": w.id, "chinese": w.chinese, "thai": w.thai_meaning or ""} for w in words]
+    results = batch_generate_english(batch)
+
+    done = 0
+    errors = len(words) - len(results) if results else len(words)
+    for item in results:
+        word = next((w for w in words if w.id == item.get("id")), None)
+        if word and item.get("english"):
+            word.english_meaning = item["english"]
+            done += 1
+    db.commit()
+
+    remaining = db.query(Word).filter(
+        Word.status == "verified",
+        or_(Word.english_meaning.is_(None), Word.english_meaning == ""),
+    ).count()
+    return {"done": done, "errors": errors, "remaining": remaining}
+
+
 @router.post("/bulk-generate-examples")
 def bulk_generate_examples(
     limit: int = 30,
@@ -287,25 +338,31 @@ def bulk_generate_examples(
 
     done = 0
     errors = 0
+    last_error = None
     for word in words:
         try:
             examples = generate_examples_for_word(
                 word.chinese, word.pinyin or "", word.thai_meaning or ""
             )
-            for idx, ex in enumerate(examples):
-                db.add(Example(
-                    word_id=word.id,
-                    chinese=ex.get("chinese", ""),
-                    pinyin=ex.get("pinyin"),
-                    thai=ex.get("thai"),
-                    type=ex.get("type"),
-                    meaning_line=ex.get("meaning_line", 0),
-                    sort_order=idx,
-                ))
-            db.commit()
-            done += 1
-        except Exception:
+            if not examples:
+                errors += 1
+                last_error = f"{word.chinese}: Gemini returned empty"
+            else:
+                for idx, ex in enumerate(examples):
+                    db.add(Example(
+                        word_id=word.id,
+                        chinese=ex.get("chinese", ""),
+                        pinyin=ex.get("pinyin"),
+                        thai=ex.get("thai"),
+                        type=ex.get("type"),
+                        meaning_line=ex.get("meaning_line", 0),
+                        sort_order=idx,
+                    ))
+                db.commit()
+                done += 1
+        except Exception as e:
             errors += 1
+            last_error = str(e)
         time.sleep(0.3)
 
     remaining = (
@@ -314,7 +371,7 @@ def bulk_generate_examples(
         .filter(Word.id.notin_(select(Example.word_id).distinct()))
         .count()
     )
-    return {"done": done, "errors": errors, "remaining": remaining}
+    return {"done": done, "errors": errors, "remaining": remaining, "last_error": last_error}
 
 
 class GenerateDailyRequest(BaseModel):
