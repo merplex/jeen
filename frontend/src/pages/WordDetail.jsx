@@ -109,12 +109,13 @@ export default function WordDetail() {
     </div>
   )
 
-  const EXAMPLE_LABELS = {
-    daily_1: 'ชีวิตประจำวัน 1',
-    daily_2: 'ชีวิตประจำวัน 2',
-    written: 'บทความ/หนังสือ',
+  const getExampleLabel = (type) => {
+    if (!type) return ''
+    if (type === 'formal' || type === 'written') return 'บทความ/หนังสือ'
+    if (type.startsWith('conv_')) return `สนทนา ${parseInt(type.slice(5), 10) + 1}`
     // legacy
-    common: 'ทั่วไป', formal: 'ทางการ', spoken: 'พูด',
+    const legacy = { daily_1: 'ชีวิตประจำวัน 1', daily_2: 'ชีวิตประจำวัน 2', common: 'ทั่วไป', spoken: 'พูด' }
+    return legacy[type] || type
   }
 
   return (
@@ -220,9 +221,11 @@ export default function WordDetail() {
                           {exs.map((ex) => (
                             <div key={ex.id} className="border-l-2 border-chinese-gold pl-3">
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
-                                  {EXAMPLE_LABELS[ex.type] || ex.type}
-                                </span>
+                                {user?.is_admin && (
+                                  <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                                    {getExampleLabel(ex.type)}
+                                  </span>
+                                )}
                                 <button onClick={() => speak(ex.chinese)} className="text-gray-400 text-sm">
                                   🔊
                                 </button>

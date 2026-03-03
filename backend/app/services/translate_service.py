@@ -140,11 +140,12 @@ def validate_word_exists(word: str, lang: str) -> bool:
 
 def generate_examples_for_word(chinese: str, pinyin: str, thai: str) -> list[dict]:
     """
-    For each Thai meaning line, generate 3 examples:
-      - daily_1: ชีวิตประจำวัน สถานการณ์ที่ 1
-      - daily_2: ชีวิตประจำวัน สถานการณ์ที่ 2 (ต่างบริบทจาก daily_1)
-      - written: ภาษาบทความ/หนังสือ
-    Format: [{"meaning_line":0,"type":"daily_1","chinese":"...","pinyin":"...","thai":"..."}]
+    For each Thai meaning line (split by \\n):
+      - Count semicolons → n_semi
+      - Generate (n_semi + 1) conversational examples, one per ;-separated meaning: type "conv_0", "conv_1", ...
+      - Generate 1 formal/book/article example: type "formal"
+    If there are multiple meaning lines, generate a full set per line.
+    Format: [{"meaning_line":0,"type":"conv_0","chinese":"...","pinyin":"...","thai":"..."}]
     """
     if not _has_api_key():
         return []
@@ -153,21 +154,35 @@ def generate_examples_for_word(chinese: str, pinyin: str, thai: str) -> list[dic
         if not meaning_lines:
             meaning_lines = [thai.strip()]
 
-        meanings_text = '\n'.join(
-            f'{i+1}. {m}' for i, m in enumerate(meaning_lines)
-        )
+        instructions = []
+        example_template = []
+        for i, line in enumerate(meaning_lines):
+            semi_parts = [p.strip() for p in line.split(';') if p.strip()]
+            conv_lines = [
+                f'  - type "conv_{j}": ประโยคสนทนา ใช้คำจีนในความหมาย "{part}"'
+                for j, part in enumerate(semi_parts)
+            ]
+            conv_lines.append(
+                '  - type "formal": ประโยคทางการ สไตล์บทความ/หนังสือ/ข่าว (ครอบคลุมความหมายหลักของบรรทัดนี้)'
+            )
+            instructions.append(
+                f'ความหมายบรรทัดที่ {i + 1}: "{line}"\n' + '\n'.join(conv_lines)
+            )
+            for j in range(len(semi_parts)):
+                example_template.append(
+                    f'{{"meaning_line":{i},"type":"conv_{j}","chinese":"...","pinyin":"...","thai":"..."}}'
+                )
+            example_template.append(
+                f'{{"meaning_line":{i},"type":"formal","chinese":"...","pinyin":"...","thai":"..."}}'
+            )
+
         prompt = (
-            f'Chinese word: {chinese} ({pinyin})\n'
-            f'Thai meanings:\n{meanings_text}\n\n'
-            f'For EACH meaning above, generate 3 example sentences using "{chinese}":\n'
-            '- type "daily_1": ประโยคชีวิตประจำวัน สถานการณ์ที่ 1 (สนทนาปกติ)\n'
-            '- type "daily_2": ประโยคชีวิตประจำวัน สถานการณ์ที่ 2 (บริบทต่างจาก daily_1)\n'
-            '- type "written": ประโยคภาษาทางการ สไตล์บทความ/หนังสือ/ข่าว\n\n'
-            'Return ONLY a JSON array, no explanation, no markdown:\n'
-            '[{"meaning_line":0,"type":"daily_1","chinese":"...","pinyin":"...","thai":"..."},'
-            '{"meaning_line":0,"type":"daily_2","chinese":"...","pinyin":"...","thai":"..."},'
-            '{"meaning_line":0,"type":"written","chinese":"...","pinyin":"...","thai":"..."},'
-            '...repeat for each meaning line...]'
+            f'Chinese word: {chinese} ({pinyin})\n\n'
+            f'For each meaning line below, generate example sentences using "{chinese}":\n\n'
+            + '\n\n'.join(instructions)
+            + '\n\nReturn ONLY a JSON array, no explanation, no markdown:\n['
+            + ',\n'.join(example_template)
+            + ']'
         )
         response = _model.generate_content(prompt)
         return json.loads(_strip_markdown(response.text))
