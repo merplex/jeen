@@ -113,23 +113,27 @@ def generate_daily_words(count: int, existing_chinese: set, category: str = None
         return []
     try:
         existing_sample = '、'.join(list(existing_chinese)[:300])
+        allowed_cats = (
+            "ทั่วไป, ชีวิตประจำวัน, อาหาร, สัตว์, สถานที่, ครอบครัว, บุคคล, ร่างกาย, "
+            "การงาน, การเดินทาง, กีฬา, แพทย์, วิศวกรรม, เทคนิค, ธุรกิจ, กฎหมาย, สำนวน"
+        )
         if category:
             cat_instruction = f'สร้างเฉพาะคำศัพท์หมวด "{category}" เท่านั้น'
             cat_field = f'"category":"{category}"'
         else:
             cat_instruction = (
-                "Mix: daily life, food, travel, emotions, family, body, colors, time, "
-                "numbers, verbs, adjectives. Avoid specialized medical/technical/legal terms."
+                "Mix categories naturally based on word meaning. "
+                "Avoid specialized medical/technical/legal terms unless fitting."
             )
-            cat_field = '"category":"<Thai category e.g. ทั่วไป อาหาร ครอบครัว>"'
+            cat_field = f'"category":"<one of: {allowed_cats}>"'
 
         prompt = (
             f"Generate exactly {count} common Chinese words (simplified) for Thai learners.\n"
             f"{cat_instruction}\n"
             f"Do NOT include: {existing_sample}\n"
+            f"category MUST be exactly one of these Thai words: {allowed_cats}\n"
             "Return JSON array only, no explanation:\n"
             f'[{{"chinese":"你好",{cat_field}}},...]\n'
-            "category must be a short Thai word."
         )
         response = _model.generate_content(prompt)
         data = json.loads(_strip_markdown(response.text))
