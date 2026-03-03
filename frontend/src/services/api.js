@@ -14,6 +14,19 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+api.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    // token หมดอายุหรือไม่ valid → ล้าง token แล้ว redirect ไป login
+    // ยกเว้น /users/login เพราะ 401 ที่นั่นหมายถึง credential ผิด ไม่ใช่ token หมดอายุ
+    if (err.response?.status === 401 && !err.config?.url?.includes('/users/login')) {
+      localStorage.removeItem('token')
+      window.location.href = '/login'
+    }
+    return Promise.reject(err)
+  }
+)
+
 export const searchWords = (q) => api.get('/search', { params: { q } })
 export const searchEnglish = (q) => api.get('/search/english', { params: { q } })
 export const reportMissedSearch = (q) => api.post('/search/report-missed', null, { params: { q } })

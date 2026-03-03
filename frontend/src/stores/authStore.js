@@ -5,6 +5,7 @@ const useAuthStore = create((set) => ({
   user: null,
   token: localStorage.getItem('token') || null,
   loading: false,
+  fetchingMe: false,
 
   login: async (identifier, idType, displayName) => {
     set({ loading: true })
@@ -26,12 +27,13 @@ const useAuthStore = create((set) => ({
   },
 
   fetchMe: async () => {
+    set({ fetchingMe: true })
     try {
       const res = await getMe()
-      set({ user: res.data })
+      set({ user: res.data, fetchingMe: false })
     } catch {
       localStorage.removeItem('token')
-      set({ user: null, token: null })
+      set({ user: null, token: null, fetchingMe: false })
     }
   },
 }))

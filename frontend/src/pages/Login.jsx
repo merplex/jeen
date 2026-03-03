@@ -4,9 +4,19 @@ import useAuthStore from '../stores/authStore'
 
 const ID_TYPES = [
   { value: 'email', label: 'อีเมล', placeholder: 'your@email.com', icon: '📧' },
-  { value: 'line', label: 'Line ID', placeholder: '@lineid', icon: '💬' },
-  { value: 'phone', label: 'เบอร์โทร', placeholder: '08X-XXX-XXXX', icon: '📱' },
+  { value: 'line', label: 'Line', placeholder: 'Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', icon: '💬' },
 ]
+
+function validateIdentifier(idType, value) {
+  if (!value.trim()) return 'กรุณากรอกข้อมูล'
+  if (idType === 'email') {
+    if (!/^[^@]+@[^@]+\.[^@]+$/.test(value.trim())) return 'รูปแบบอีเมลไม่ถูกต้อง'
+  } else if (idType === 'line') {
+    if (!/^U[0-9a-fA-F]{10,}$/.test(value.trim()))
+      return 'Line User ID ต้องขึ้นต้นด้วย U ตามด้วยตัวเลข/ตัวอักษร'
+  }
+  return ''
+}
 
 export default function Login() {
   const navigate = useNavigate()
@@ -20,11 +30,12 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!identifier.trim()) return
+    const validationError = validateIdentifier(idType, identifier)
+    if (validationError) { setError(validationError); return }
     setError('')
     const result = await login(identifier.trim(), idType, displayName.trim() || undefined)
     if (result.ok) {
-      navigate('/')
+      navigate('/', { replace: true })
     } else {
       setError('เกิดข้อผิดพลาด กรุณาลองใหม่')
     }
@@ -40,12 +51,11 @@ export default function Login() {
       <div className="px-6 py-8 flex-1">
         <h2 className="text-xl font-bold text-gray-800 mb-6">เข้าสู่ระบบ</h2>
 
-        {/* ID Type selector */}
         <div className="flex gap-2 mb-6">
           {ID_TYPES.map((t) => (
             <button
               key={t.value}
-              onClick={() => { setIdType(t.value); setIdentifier('') }}
+              onClick={() => { setIdType(t.value); setIdentifier(''); setError('') }}
               className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 idType === t.value
                   ? 'bg-chinese-red text-white'
@@ -63,11 +73,16 @@ export default function Login() {
             <input
               type={idType === 'email' ? 'email' : 'text'}
               value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
+              onChange={(e) => { setIdentifier(e.target.value); setError('') }}
               placeholder={selected?.placeholder}
               className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-chinese-red bg-white"
               required
             />
+            {idType === 'line' && (
+              <p className="text-xs text-gray-400 mt-1">
+                Line User ID — เปิด Line → โปรไฟล์ → กด ID เพื่อดู หรือตั้งค่า → บัญชี
+              </p>
+            )}
           </div>
           <div>
             <label className="text-sm text-gray-600 mb-1 block">ชื่อที่แสดง (ไม่บังคับ)</label>

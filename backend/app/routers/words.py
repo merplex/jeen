@@ -4,14 +4,18 @@ from ..database import get_db
 from ..models.word import Word
 from ..models.activity_log import ActivityLog
 from ..schemas.word import WordOut, WordCreate, WordUpdate
-from ..auth import require_admin
+from ..auth import require_admin, require_user
 from ..services.import_service import _gen_pinyin, _gen_pinyin_plain
 
 router = APIRouter(prefix="/words", tags=["words"])
 
 
 @router.get("/{word_id}", response_model=WordOut)
-def get_word(word_id: int, db: Session = Depends(get_db)):
+def get_word(
+    word_id: int,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_user),
+):
     word = db.query(Word).filter(Word.id == word_id, Word.status == "verified").first()
     if not word:
         raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์")

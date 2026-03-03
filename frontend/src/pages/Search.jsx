@@ -1,13 +1,18 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { searchWords, reportMissedSearch, recordSearchHistory } from '../services/api'
 import WordCard from '../components/WordCard'
 import { SEARCH_CATEGORIES } from '../utils/categories'
+import useAuthStore from '../stores/authStore'
 
 function loadCatUsage() {
   try { return JSON.parse(localStorage.getItem('cat_usage') || '{}') } catch { return {} }
 }
 
 export default function Search() {
+  const navigate = useNavigate()
+  const { token, fetchingMe } = useAuthStore()
+
   const [query, setQuery] = useState(() => sessionStorage.getItem('search_query') || '')
   const [result, setResult] = useState(() => {
     const r = sessionStorage.getItem('search_result')
@@ -17,7 +22,6 @@ export default function Search() {
   const [category, setCategory] = useState(() => sessionStorage.getItem('search_category') || 'ทั้งหมด')
   const [catUsage, setCatUsage] = useState(loadCatUsage)
 
-  // เรียง categories ตามความนิยม ("ทั้งหมด" อยู่แรกเสมอ)
   const sortedCategories = [
     'ทั้งหมด',
     ...SEARCH_CATEGORIES.filter((c) => c !== 'ทั้งหมด')
@@ -26,22 +30,25 @@ export default function Search() {
 
   const missedTimerRef = useRef(null)
   const historyTimerRef = useRef(null)
-  const currentQueryRef = useRef('')   // ป้องกัน stale response ยิง timer ผิด
-  const enterPressedRef = useRef(false) // user กด Enter → report ทันทีแทน 10s
+  const currentQueryRef = useRef('')
+  const enterPressedRef = useRef(false)
 
-  // ยกเลิก timer เมื่อ unmount
   useEffect(() => () => {
     clearTimeout(missedTimerRef.current)
     clearTimeout(historyTimerRef.current)
   }, [])
 
-  // บันทึกสถานะค้นหาใน sessionStorage (ล้างเองเมื่อปิด browser)
   useEffect(() => { sessionStorage.setItem('search_query', query) }, [query])
   useEffect(() => {
     if (result) sessionStorage.setItem('search_result', JSON.stringify(result))
     else sessionStorage.removeItem('search_result')
   }, [result])
   useEffect(() => { sessionStorage.setItem('search_category', category) }, [category])
+
+  // redirect ถ้าไม่มี token (หลัง hooks ทั้งหมด)
+  useEffect(() => {
+    if (!token && !fetchingMe) navigate('/login', { replace: true })
+  }, [token, fetchingMe, navigate])
 
   const scheduleMissedReport = useCallback((q) => {
     clearTimeout(missedTimerRef.current)
@@ -75,7 +82,6 @@ export default function Search() {
     setLoading(true)
     try {
       const res = await searchWords(q.trim())
-      // ถ้า query เปลี่ยนไปแล้ว (user พิมพ์ต่อ) → ทิ้ง response นี้
       if (q !== currentQueryRef.current) return
       setResult(res.data)
       const firstWordId = res.data.prefix_group?.[0]?.id ?? res.data.inner_group?.[0]?.id ?? null
@@ -84,7 +90,6 @@ export default function Search() {
       } else {
         enterPressedRef.current = false
       }
-      // บันทึก history เฉพาะเมื่อเจอคำ (มีคำแปล)
       if (res.data.found) {
         scheduleHistory(q.trim(), firstWordId, true)
       }
@@ -108,7 +113,6 @@ export default function Search() {
     clearTimeout(missedTimerRef.current)
     clearTimeout(historyTimerRef.current)
     if (result && result.query === query.trim()) {
-      // result พร้อม → บันทึกทันที
       const firstWordId = result.prefix_group?.[0]?.id ?? result.inner_group?.[0]?.id ?? null
       if (!result.found) {
         reportMissedSearch(query.trim()).catch(() => {})
@@ -116,7 +120,6 @@ export default function Search() {
         recordHistoryNow(query.trim(), firstWordId, true)
       }
     } else {
-      // API ยังโหลดอยู่ → ตั้ง flag
       enterPressedRef.current = true
     }
   }
@@ -126,6 +129,14 @@ export default function Search() {
 
   const prefix = result ? filterByCategory(result.prefix_group) : []
   const inner = result ? filterByCategory(result.inner_group) : []
+
+  // รอ fetchMe หรือยังไม่มี token → แสดง loading / null
+  if (token && fetchingMe) return (
+    <div className="min-h-screen bg-chinese-cream flex items-center justify-center">
+      <div className="text-gray-400">กำลังโหลด...</div>
+    </div>
+  )
+  if (!token) return null
 
   return (
     <div className="min-h-screen bg-chinese-cream pb-24">

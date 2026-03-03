@@ -16,6 +16,7 @@ router = APIRouter(prefix="/search", tags=["search"])
 def search(
     q: str = Query(..., min_length=1),
     db: Session = Depends(get_db),
+    _: User = Depends(require_user),
 ):
     return search_words(db, q)
 
@@ -52,7 +53,10 @@ def record_history(
 
 
 @router.get("/english")
-def search_english(q: str = Query(..., min_length=1)):
+def search_english(
+    q: str = Query(..., min_length=1),
+    _: User = Depends(require_user),
+):
     results = search_by_english(q)
     return {"query": q, "results": results}
 

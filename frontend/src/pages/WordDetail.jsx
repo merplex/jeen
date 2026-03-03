@@ -7,7 +7,7 @@ import SelectionPopup from '../components/SelectionPopup'
 export default function WordDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const user = useAuthStore((s) => s.user)
+  const { user, token, fetchingMe } = useAuthStore()
   const [word, setWord] = useState(null)
   const [isFav, setIsFav] = useState(false)
   const [note, setNote] = useState(null)
@@ -17,7 +17,13 @@ export default function WordDetail() {
   const [editSaving, setEditSaving] = useState(false)
   const [genExLoading, setGenExLoading] = useState(false)
 
+  // redirect ถ้าไม่มี token
   useEffect(() => {
+    if (!token && !fetchingMe) navigate('/login', { replace: true })
+  }, [token, fetchingMe, navigate])
+
+  useEffect(() => {
+    if (!token) return
     getWord(id)
       .then((r) => {
         setWord(r.data)
