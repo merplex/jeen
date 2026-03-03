@@ -3,6 +3,10 @@ import { searchWords, reportMissedSearch, recordSearchHistory } from '../service
 import WordCard from '../components/WordCard'
 import { SEARCH_CATEGORIES } from '../utils/categories'
 
+function loadCatUsage() {
+  try { return JSON.parse(localStorage.getItem('cat_usage') || '{}') } catch { return {} }
+}
+
 export default function Search() {
   const [query, setQuery] = useState(() => sessionStorage.getItem('search_query') || '')
   const [result, setResult] = useState(() => {
@@ -11,6 +15,14 @@ export default function Search() {
   })
   const [loading, setLoading] = useState(false)
   const [category, setCategory] = useState(() => sessionStorage.getItem('search_category') || 'ทั้งหมด')
+  const [catUsage, setCatUsage] = useState(loadCatUsage)
+
+  // เรียง categories ตามความนิยม ("ทั้งหมด" อยู่แรกเสมอ)
+  const sortedCategories = [
+    'ทั้งหมด',
+    ...SEARCH_CATEGORIES.filter((c) => c !== 'ทั้งหมด')
+      .sort((a, b) => (catUsage[b] || 0) - (catUsage[a] || 0)),
+  ]
 
   const missedTimerRef = useRef(null)
   const historyTimerRef = useRef(null)
@@ -145,10 +157,17 @@ export default function Search() {
 
       {/* Category filter */}
       <div className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide">
-        {SEARCH_CATEGORIES.map((cat) => (
+        {sortedCategories.map((cat) => (
           <button
             key={cat}
-            onClick={() => setCategory(cat)}
+            onClick={() => {
+              setCategory(cat)
+              if (cat !== 'ทั้งหมด') {
+                const updated = { ...catUsage, [cat]: (catUsage[cat] || 0) + 1 }
+                setCatUsage(updated)
+                localStorage.setItem('cat_usage', JSON.stringify(updated))
+              }
+            }}
             className={`whitespace-nowrap px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
               category === cat
                 ? 'bg-chinese-red text-white'
