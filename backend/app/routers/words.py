@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.word import Word
+from ..models.activity_log import ActivityLog
 from ..schemas.word import WordOut, WordCreate, WordUpdate
 from ..auth import require_admin
 
@@ -39,9 +40,14 @@ def update_word(
     word = db.query(Word).filter(Word.id == word_id).first()
     if not word:
         raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์")
+    changed_fields = []
     for field, value in data.model_dump(exclude_none=True).items():
+        if getattr(word, field) != value:
+            changed_fields.append(field)
         setattr(word, field, value)
     word.admin_edited = True
+    detail = f"แก้ไข: {', '.join(changed_fields)}" if changed_fields else "แก้ไขข้อมูล"
+    db.add(ActivityLog(action="word_edited", word_id=word.id, chinese=word.chinese, detail=detail))
     db.commit()
     db.refresh(word)
     return word

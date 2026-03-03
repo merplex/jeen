@@ -3,6 +3,7 @@ import { adminActivityLog } from '../../services/api'
 
 const ACTION_META = {
   word_added:      { icon: '➕', label: 'เพิ่มคำศัพท์',        color: 'text-green-600' },
+  word_edited:     { icon: '✏️', label: 'แก้ไขคำศัพท์',        color: 'text-blue-600' },
   word_deleted:    { icon: '🗑️', label: 'ลบคำศัพท์',           color: 'text-red-500' },
   meaning_changed: { icon: '✏️', label: 'แก้ความหมาย',         color: 'text-blue-600' },
   example_added:   { icon: '📝', label: 'สร้างตัวอย่างประโยค', color: 'text-purple-600' },

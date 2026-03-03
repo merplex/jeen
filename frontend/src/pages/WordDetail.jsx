@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getWord, addFlashcard, removeFlashcard, getFlashcards, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, recordSearchHistory } from '../services/api'
 import useAuthStore from '../stores/authStore'
+import SelectionPopup from '../components/SelectionPopup'
 
 export default function WordDetail() {
   const { id } = useParams()
@@ -120,6 +121,7 @@ export default function WordDetail() {
 
   return (
     <div className="min-h-screen bg-chinese-cream pb-24">
+      <SelectionPopup />
       {/* Header */}
       <div className="bg-chinese-red px-4 pt-12 pb-6 relative">
         <button
