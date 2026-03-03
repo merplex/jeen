@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     ADMIN_IDENTIFIERS: str = ""
     JWT_SECRET: str = "changeme"
     JWT_EXPIRE_HOURS: int = 720
+    FRONTEND_URL: str = "http://localhost:3000"
+    LINE_CHANNEL_ID: str = ""
+    LINE_CHANNEL_SECRET: str = ""
+    LINE_CALLBACK_URL: str = "http://localhost:8000/auth/line/callback"
 
     @property
     def admin_list(self) -> List[str]:

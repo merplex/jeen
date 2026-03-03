@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import Base, engine
-from .routers import search, words, users, flashcard, admin, notes
+from .routers import search, words, users, flashcard, admin, notes, auth
 from .scheduler import start_scheduler
 
 Base.metadata.create_all(bind=engine)
@@ -40,6 +40,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(search.router)
 app.include_router(words.router)
 app.include_router(users.router)

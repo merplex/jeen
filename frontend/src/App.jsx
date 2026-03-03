@@ -9,6 +9,7 @@ import Flashcard from './pages/Flashcard'
 import Notes from './pages/Notes'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
+import LineCallback from './pages/LineCallback'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import PendingWords from './pages/admin/PendingWords'
 import MissedSearches from './pages/admin/MissedSearches'
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/flashcard" element={<Flashcard />} />
         <Route path="/notes" element={<Notes />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/line-callback" element={<LineCallback />} />
         <Route path="/profile" element={<Profile />} />
         <Route
           path="/admin"
