@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { adminCreateWord, adminDeleteMissed } from '../../services/api'
-
-const CATEGORIES = ['ทั่วไป', 'สัตว์', 'แพทย์', 'วิศวกรรม', 'สถานที่', 'กีฬา']
+import { CATEGORIES } from '../../utils/categories'
 
 export default function AddWord() {
   const navigate = useNavigate()

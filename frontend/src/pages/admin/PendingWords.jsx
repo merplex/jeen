@@ -1,13 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { adminGetPending, adminApprove, adminReject, adminGenerateDailyWords, adminImportWords } from '../../services/api'
+import { CATEGORIES } from '../../utils/categories'
 
 const LIMIT = 50
-
-const CATEGORIES = [
-  'ทั่วไป', 'ชีวิตประจำวัน', 'อาหาร', 'สัตว์', 'สถานที่', 'ครอบครัว',
-  'ร่างกาย', 'การงาน', 'การเดินทาง', 'กีฬา', 'แพทย์', 'วิศวกรรม',
-  'เทคนิค', 'ธุรกิจ', 'กฎหมาย', 'สำนวน',
-]
 
 export default function PendingWords() {
   const [words, setWords] = useState([])

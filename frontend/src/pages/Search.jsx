@@ -1,8 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { searchWords, reportMissedSearch, recordSearchHistory } from '../services/api'
 import WordCard from '../components/WordCard'
-
-const CATEGORIES = ['ทั้งหมด', 'สัตว์', 'แพทย์', 'วิศวกรรม', 'สถานที่', 'กีฬา', 'ทั่วไป']
+import { SEARCH_CATEGORIES } from '../utils/categories'
 
 export default function Search() {
   const [query, setQuery] = useState(() => sessionStorage.getItem('search_query') || '')
@@ -146,7 +145,7 @@ export default function Search() {
 
       {/* Category filter */}
       <div className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide">
-        {CATEGORIES.map((cat) => (
+        {SEARCH_CATEGORIES.map((cat) => (
           <button
             key={cat}
             onClick={() => setCategory(cat)}
