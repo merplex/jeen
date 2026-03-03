@@ -127,6 +127,17 @@ def reject_pending(
     return {"ok": True}
 
 
+@router.delete("/missed-searches/clear-singles")
+def clear_single_missed(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """ลบ missed searches ที่มี count = 1 ทั้งหมด"""
+    deleted = db.query(MissedSearch).filter(MissedSearch.count <= 1).delete()
+    db.commit()
+    return {"deleted": deleted}
+
+
 @router.delete("/missed-searches/{missed_id}")
 def delete_missed(
     missed_id: int,

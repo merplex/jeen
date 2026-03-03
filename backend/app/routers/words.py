@@ -5,6 +5,7 @@ from ..models.word import Word
 from ..models.activity_log import ActivityLog
 from ..schemas.word import WordOut, WordCreate, WordUpdate
 from ..auth import require_admin
+from ..services.import_service import _gen_pinyin, _gen_pinyin_plain
 
 router = APIRouter(prefix="/words", tags=["words"])
 
@@ -23,7 +24,18 @@ def create_word(
     db: Session = Depends(get_db),
     _: object = Depends(require_admin),
 ):
-    word = Word(**data.model_dump(), status="verified")
+    existing = db.query(Word).filter(Word.chinese == data.chinese).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"มีคำว่า '{data.chinese}' อยู่แล้ว (ID: {existing.id})")
+
+    d = data.model_dump()
+    if not d.get("pinyin"):
+        d["pinyin"] = _gen_pinyin(data.chinese)
+    if not d.get("pinyin_plain"):
+        d["pinyin_plain"] = _gen_pinyin_plain(data.chinese)
+
+    db.add(ActivityLog(action="word_added", chinese=data.chinese, detail=f"ความหมาย: {data.thai_meaning[:60]}"))
+    word = Word(**d, status="verified")
     db.add(word)
     db.commit()
     db.refresh(word)

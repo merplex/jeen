@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getNotes, deleteNote } from '../services/api'
 import useAuthStore from '../stores/authStore'
+import { thaiDateTime } from '../utils/time'
 
 export default function Notes() {
   const navigate = useNavigate()
@@ -71,7 +72,7 @@ export default function Notes() {
                     {note.note_text}
                   </div>
                   <div className="text-xs text-gray-300 mt-2">
-                    {new Date(note.updated_at).toLocaleString('th-TH')}
+                    {thaiDateTime(note.updated_at)}
                   </div>
                 </button>
                 <button onClick={() => remove(note.id)} className="text-gray-300 hover:text-red-400 text-xl">

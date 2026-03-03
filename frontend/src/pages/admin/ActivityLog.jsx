@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { adminActivityLog } from '../../services/api'
+import { thaiRelativeTime } from '../../utils/time'
 
 const ACTION_META = {
   word_added:      { icon: '➕', label: 'เพิ่มคำศัพท์',        color: 'text-green-600' },
@@ -10,14 +11,6 @@ const ACTION_META = {
   example_deleted: { icon: '🗑️', label: 'ลบตัวอย่างประโยค',   color: 'text-red-400' },
   bulk_english:    { icon: '🌐', label: 'เพิ่มความหมายอังกฤษ', color: 'text-sky-600' },
   bulk_examples:   { icon: '✨', label: 'สร้างตัวอย่างแบบ bulk', color: 'text-amber-600' },
-}
-
-function relativeTime(isoStr) {
-  const diff = (Date.now() - new Date(isoStr).getTime()) / 1000
-  if (diff < 60) return 'เมื่อกี้'
-  if (diff < 3600) return `${Math.floor(diff / 60)} นาทีที่แล้ว`
-  if (diff < 86400) return `${Math.floor(diff / 3600)} ชั่วโมงที่แล้ว`
-  return `${Math.floor(diff / 86400)} วันที่แล้ว`
 }
 
 export default function ActivityLog() {
@@ -75,7 +68,7 @@ export default function ActivityLog() {
               )}
             </div>
             <span className="text-xs text-gray-300 whitespace-nowrap shrink-0 mt-0.5">
-              {relativeTime(log.created_at)}
+              {thaiRelativeTime(log.created_at)}
             </span>
           </div>
         )

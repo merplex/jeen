@@ -5,10 +5,13 @@ import WordCard from '../components/WordCard'
 const CATEGORIES = ['ทั้งหมด', 'สัตว์', 'แพทย์', 'วิศวกรรม', 'สถานที่', 'กีฬา', 'ทั่วไป']
 
 export default function Search() {
-  const [query, setQuery] = useState('')
-  const [result, setResult] = useState(null)
+  const [query, setQuery] = useState(() => sessionStorage.getItem('search_query') || '')
+  const [result, setResult] = useState(() => {
+    const r = sessionStorage.getItem('search_result')
+    return r ? JSON.parse(r) : null
+  })
   const [loading, setLoading] = useState(false)
-  const [category, setCategory] = useState('ทั้งหมด')
+  const [category, setCategory] = useState(() => sessionStorage.getItem('search_category') || 'ทั้งหมด')
 
   const missedTimerRef = useRef(null)
   const historyTimerRef = useRef(null)
@@ -20,6 +23,14 @@ export default function Search() {
     clearTimeout(missedTimerRef.current)
     clearTimeout(historyTimerRef.current)
   }, [])
+
+  // บันทึกสถานะค้นหาใน sessionStorage (ล้างเองเมื่อปิด browser)
+  useEffect(() => { sessionStorage.setItem('search_query', query) }, [query])
+  useEffect(() => {
+    if (result) sessionStorage.setItem('search_result', JSON.stringify(result))
+    else sessionStorage.removeItem('search_result')
+  }, [result])
+  useEffect(() => { sessionStorage.setItem('search_category', category) }, [category])
 
   const scheduleMissedReport = useCallback((q) => {
     clearTimeout(missedTimerRef.current)
@@ -124,7 +135,7 @@ export default function Search() {
           />
           {query && (
             <button
-              onClick={() => { setQuery(''); setResult(null) }}
+              onClick={() => { setQuery(''); setResult(null); sessionStorage.removeItem('search_result') }}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl"
             >
               ×

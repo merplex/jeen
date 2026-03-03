@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getHistory, deleteHistory } from '../services/api'
 import useAuthStore from '../stores/authStore'
+import { thaiDateTime } from '../utils/time'
 
 export default function History() {
   const navigate = useNavigate()
@@ -58,7 +59,7 @@ export default function History() {
                 >
                   <div className="font-medium text-gray-800">{h.query}</div>
                   <div className="text-xs text-gray-400">
-                    {new Date(h.searched_at).toLocaleString('th-TH')}
+                    {thaiDateTime(h.searched_at)}
                     {!h.found && <span className="ml-2 text-red-400">ไม่พบ</span>}
                   </div>
                 </button>

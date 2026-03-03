@@ -47,6 +47,7 @@ export const adminApprove = (id, thaiMeaning = null, pinyin = null, category = n
 export const adminReject = (id) => api.delete(`/admin/pending/${id}`)
 export const adminMissed = () => api.get('/admin/missed-searches')
 export const adminDeleteMissed = (id) => api.delete(`/admin/missed-searches/${id}`)
+export const adminClearSingleMissed = () => api.delete('/admin/missed-searches/clear-singles')
 export const adminImport = (formData) =>
   api.post('/admin/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
 export const adminCreateWord = (data) => api.post('/words', data)

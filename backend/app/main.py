@@ -6,14 +6,24 @@ try:
 except AttributeError:
     pass  # Windows ไม่มี tzset
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import Base, engine
 from .routers import search, words, users, flashcard, admin, notes
+from .scheduler import start_scheduler
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Thai-Chinese Dictionary API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler = start_scheduler()
+    yield
+    scheduler.shutdown(wait=False)
+
+
+app = FastAPI(title="Thai-Chinese Dictionary API", version="1.0.0", lifespan=lifespan)
 
 ALLOWED_ORIGINS = [
     "http://localhost:3000",

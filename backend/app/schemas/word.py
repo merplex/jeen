@@ -52,7 +52,7 @@ class WordPublicOut(BaseModel):
 
 class WordCreate(BaseModel):
     chinese: str
-    pinyin: str
+    pinyin: Optional[str] = None
     pinyin_plain: Optional[str] = None
     thai_meaning: str
     english_meaning: Optional[str] = None
