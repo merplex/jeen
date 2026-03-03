@@ -238,6 +238,19 @@ def generate_examples(
     return word
 
 
+@router.get("/test-gemini")
+def test_gemini(_: User = Depends(require_admin)):
+    """ทดสอบว่า Gemini API ใช้งานได้ไหม"""
+    from ..services.translate_service import _has_api_key, _model
+    if not _has_api_key():
+        return {"ok": False, "error": "GEMINI_API_KEY ไม่ได้ตั้งค่า หรือเป็น placeholder"}
+    try:
+        r = _model.generate_content("Reply with just the word: OK")
+        return {"ok": True, "response": r.text.strip()}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @router.get("/examples-stats")
 def examples_stats(
     db: Session = Depends(get_db),
