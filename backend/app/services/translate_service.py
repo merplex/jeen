@@ -176,7 +176,12 @@ def validate_word_exists(word: str, lang: str) -> bool:
                 "ตอบเฉพาะ yes หรือ no เท่านั้น"
             )
         elif lang == "chinese":
-            prompt = f'Is "{word}" a valid Chinese word or phrase that exists in dictionaries? Answer only yes or no.'
+            prompt = (
+                f'The string "{word}" was typed in a Chinese dictionary search. '
+                "Is it composed of valid Chinese characters that form a meaningful or plausible combination "
+                "(including compound words, medical terms, technical terms, or descriptive phrases)? "
+                "Answer only yes or no."
+            )
         else:
             prompt = f'Is "{word}" a valid English word or common phrase? Answer only yes or no.'
         response = _model.generate_content(prompt)
