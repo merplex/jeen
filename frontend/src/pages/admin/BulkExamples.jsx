@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import {
   adminExamplesStats, adminWipeAllExamples, adminBulkGenerateExamples,
-  adminEnglishStats, adminBulkGenerateEnglish,
+  adminEnglishStats, adminBulkGenerateEnglish, adminFixLongEnglish,
 } from '../../services/api'
 
 export default function BulkExamples() {
@@ -105,6 +105,22 @@ export default function BulkExamples() {
               className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
             >
               {running ? '⏳ กำลังทำงาน...' : `🌐 สร้างความหมายอังกฤษ (${enStats.without_english} คำที่เหลือ)`}
+            </button>
+            <button
+              onClick={async () => {
+                addLog('ตรวจหาและแก้ไข english_meaning ที่ยาวเกิน...')
+                try {
+                  const r = await adminFixLongEnglish(100)
+                  const { found, fixed, failed } = r.data
+                  addLog(`🔧 พบ ${found} คำ | แก้ไข ${fixed} | ล้มเหลว ${failed}`)
+                } catch (e) {
+                  addLog(`✗ ${e.response?.data?.detail || e.message}`)
+                }
+              }}
+              disabled={running}
+              className="w-full mt-2 border border-blue-200 text-blue-600 rounded-lg py-2 text-sm disabled:opacity-40"
+            >
+              🔧 แก้ไข English ที่ยาวเกิน (Gemini thinking)
             </button>
           </>
         ) : <p className="text-xs text-gray-400">กำลังโหลด...</p>}

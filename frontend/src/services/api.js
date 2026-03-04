@@ -88,6 +88,8 @@ export const adminEnglishStats = () =>
   api.get('/admin/english-stats')
 export const adminBulkGenerateEnglish = (limit = 50) =>
   api.post('/admin/bulk-generate-english', null, { params: { limit } })
+export const adminFixLongEnglish = (maxLen = 100) =>
+  api.get('/admin/fix-long-english', { params: { max_len: maxLen } })
 export const adminActivityLog = (limit = 50) =>
   api.get('/admin/activity-log', { params: { limit } })
 
