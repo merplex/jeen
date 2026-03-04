@@ -68,80 +68,88 @@ export default function SelectionPopup() {
     }
   }, [])
 
+  // Helper: ค้นหาทุกตัวอักษรในคำ แล้ว merge ผล (dedup ด้วย id)
+  const searchByChars = useCallback(async (text) => {
+    const chars = [...new Set(text.split('').filter(isSearchable))]
+    const results = await Promise.all(chars.map((c) => searchWords(c).catch(() => null)))
+    const seenPrefix = new Set()
+    const seenInner = new Set()
+    const prefix_group = []
+    const inner_group = []
+    for (const r of results) {
+      if (!r) continue
+      for (const w of r.data?.prefix_group || []) {
+        if (!seenPrefix.has(w.id)) { seenPrefix.add(w.id); prefix_group.push(w) }
+      }
+      for (const w of r.data?.inner_group || []) {
+        if (!seenInner.has(w.id) && !seenPrefix.has(w.id)) { seenInner.add(w.id); inner_group.push(w) }
+      }
+    }
+    return { prefix_group, inner_group }
+  }, [])
+
   // Background search ทันทีที่เลือกข้อความ — auto-report ถ้าไม่เจอ + cache ผลไว้
   useEffect(() => {
     if (!selText) return
     const captured = selText
 
-    const extract = (r) => ({
-      prefix_group: r.data?.prefix_group || [],
-      inner_group: r.data?.inner_group || [],
-    })
-
     searchWords(captured)
-      .then((r) => {
-        const { prefix_group, inner_group } = extract(r)
+      .then(async (r) => {
+        const prefix_group = r.data?.prefix_group || []
+        const inner_group = r.data?.inner_group || []
         if (prefix_group.length + inner_group.length > 0) {
           bgResultRef.current = { prefix_group, inner_group, found: true }
           return
         }
+        // ไม่เจอคำเต็ม → fallback ค้นทุกตัวอักษร
         if (captured.length > 1) {
-          return searchWords(captured[0]).then((r2) => {
-            const fb = extract(r2)
-            if (fb.prefix_group.length + fb.inner_group.length > 0) {
-              bgResultRef.current = { ...fb, found: true }
-            } else {
-              bgResultRef.current = { prefix_group: [], inner_group: [], found: false }
-              reportMissedSearchDirect(captured).catch(() => {})
-            }
-          }).catch(() => {})
+          const fb = await searchByChars(captured)
+          if (fb.prefix_group.length + fb.inner_group.length > 0) {
+            bgResultRef.current = { ...fb, found: true }
+          } else {
+            bgResultRef.current = { prefix_group: [], inner_group: [], found: false }
+            reportMissedSearchDirect(captured).catch(() => {})
+          }
+          return
         }
         bgResultRef.current = { prefix_group: [], inner_group: [], found: false }
         reportMissedSearchDirect(captured).catch(() => {})
       })
       .catch(() => {})
-  }, [selText])
+  }, [selText, searchByChars])
 
   // ค้นหาเมื่อ query เปลี่ยน (เฉพาะกรณี background search ยังไม่เสร็จ)
   useEffect(() => {
     if (!query) return
-    // ถ้า handleSearch ใส่ result ไว้แล้ว (จาก cache) → ไม่ต้อง search ซ้ำ
     if (!loading) return
     setResult(null)
     const captured = query
 
-    const extract = (r) => ({
-      prefix_group: r.data?.prefix_group || [],
-      inner_group: r.data?.inner_group || [],
-    })
-
     searchWords(captured)
-      .then((r) => {
-        const { prefix_group, inner_group } = extract(r)
+      .then(async (r) => {
+        const prefix_group = r.data?.prefix_group || []
+        const inner_group = r.data?.inner_group || []
         if (prefix_group.length + inner_group.length > 0) {
           setResult({ prefix_group, inner_group, found: true })
           return
         }
-        // ไม่เจอคำเต็ม: fallback ค้นอักษรแรก (ถ้าเลือกหลายตัว)
+        // ไม่เจอคำเต็ม → fallback ค้นทุกตัวอักษร
         if (captured.length > 1) {
-          return searchWords(captured[0])
-            .then((r2) => {
-              const fb = extract(r2)
-              if (fb.prefix_group.length + fb.inner_group.length > 0) {
-                setResult({ ...fb, found: true })
-              } else {
-                setResult({ prefix_group: [], inner_group: [], found: false })
-                reportMissedSearchDirect(captured).catch(() => {})
-              }
-            })
-            .catch(() => {})
+          const fb = await searchByChars(captured)
+          if (fb.prefix_group.length + fb.inner_group.length > 0) {
+            setResult({ ...fb, found: true })
+          } else {
+            setResult({ prefix_group: [], inner_group: [], found: false })
+            reportMissedSearchDirect(captured).catch(() => {})
+          }
+          return
         }
         setResult({ prefix_group: [], inner_group: [], found: false })
         reportMissedSearchDirect(captured).catch(() => {})
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [query])
+  }, [query, searchByChars])
 
   const handleSearch = useCallback(() => {
     const text = selTextRef.current
