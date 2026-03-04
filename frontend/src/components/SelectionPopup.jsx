@@ -12,9 +12,11 @@ export default function SelectionPopup() {
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
-  // Detect text selection — mouseup (desktop) + touchend (mobile)
+  // Detect text selection — mouseup (desktop) + selectionchange (mobile handles)
   useEffect(() => {
-    const checkSelection = () => {
+    let timer = null
+
+    const tryOpen = () => {
       const text = window.getSelection()?.toString().trim()
       if (text && isSearchable(text) && text.length <= 20) {
         setQuery(text)
@@ -22,11 +24,24 @@ export default function SelectionPopup() {
       }
     }
 
-    document.addEventListener('mouseup', checkSelection)
-    document.addEventListener('touchend', checkSelection)
+    // Desktop: mouseup fires after selection is complete — short defer for safety
+    const onMouseUp = () => {
+      clearTimeout(timer)
+      timer = setTimeout(tryOpen, 10)
+    }
+
+    // Mobile: selectionchange fires as handles are dragged; debounce until user stops
+    const onSelectionChange = () => {
+      clearTimeout(timer)
+      timer = setTimeout(tryOpen, 300)
+    }
+
+    document.addEventListener('mouseup', onMouseUp)
+    document.addEventListener('selectionchange', onSelectionChange)
     return () => {
-      document.removeEventListener('mouseup', checkSelection)
-      document.removeEventListener('touchend', checkSelection)
+      document.removeEventListener('mouseup', onMouseUp)
+      document.removeEventListener('selectionchange', onSelectionChange)
+      clearTimeout(timer)
     }
   }, [])
 
@@ -35,14 +50,34 @@ export default function SelectionPopup() {
     if (!query) return
     setLoading(true)
     setResults([])
-    searchWords(query)
+    const captured = query
+
+    const extractResults = (r) =>
+      [...(r.data?.prefix_group || []), ...(r.data?.inner_group || [])]
+
+    searchWords(captured)
       .then((r) => {
-        const all = [...(r.data?.prefix_group || []), ...(r.data?.inner_group || [])]
-        setResults(all.slice(0, 10))
-        // ไม่เจอคำ → บันทึก missed โดยตรง (ไม่ validate เพราะ user เลือกจากข้อความจริง)
-        if (all.length === 0) {
-          reportMissedSearchDirect(query).catch(() => {})
+        const all = extractResults(r)
+        if (all.length > 0) {
+          setResults(all.slice(0, 10))
+          return
         }
+        // ไม่เจอคำเต็ม: ถ้าเลือกหลายอักษร → fallback ค้นอักษรแรกตัวเดียว
+        if (captured.length > 1) {
+          return searchWords(captured[0])
+            .then((r2) => {
+              const fallback = extractResults(r2)
+              setResults(fallback.slice(0, 10))
+              // ถ้า fallback ก็ยังไม่มี → report missed
+              if (fallback.length === 0) {
+                reportMissedSearchDirect(captured).catch(() => {})
+              }
+            })
+            .catch(() => {})
+        }
+        // อักษรเดียวไม่เจอ → report missed
+        setResults([])
+        reportMissedSearchDirect(captured).catch(() => {})
       })
       .catch(() => {})
       .finally(() => setLoading(false))
