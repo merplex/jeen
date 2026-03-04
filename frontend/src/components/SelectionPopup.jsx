@@ -155,7 +155,7 @@ export default function SelectionPopup() {
           <div className="fixed inset-0 z-40 bg-black/30" onClick={close} />
           <div
             className="fixed bottom-0 left-0 right-0 z-50 bg-chinese-cream rounded-t-2xl shadow-2xl flex flex-col"
-            style={{ maxHeight: '90vh' }}
+            style={{ height: '67vh' }}
           >
             {/* Drag handle */}
             <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
