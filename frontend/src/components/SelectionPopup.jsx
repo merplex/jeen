@@ -1,43 +1,55 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { searchWords, reportMissedSearchDirect } from '../services/api'
+import WordCard from './WordCard'
 
 const CHINESE_RE = /[\u4e00-\u9fff]/
 const THAI_RE = /[\u0e00-\u0e7f]/
 const isSearchable = (t) => CHINESE_RE.test(t) || THAI_RE.test(t)
 
 export default function SelectionPopup() {
-  const navigate = useNavigate()
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState([])
+  const [selText, setSelText] = useState('')       // ข้อความที่เลือกอยู่ (แสดงปุ่ม)
+  const [iconPos, setIconPos] = useState(null)     // {x, y} ตำแหน่งปุ่ม (viewport)
+  const [query, setQuery] = useState('')           // query ที่กำลังค้นหา (แสดงผล)
+  const [result, setResult] = useState(null)       // {prefix_group, inner_group, found}
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
-  // Detect text selection — mouseup (desktop) + selectionchange (mobile handles)
+
+  // ตรวจจับการเลือกข้อความ
   useEffect(() => {
     let timer = null
-    let lastMouseUp = 0  // timestamp ของ mouseup ล่าสุด
+    let lastMouseUp = 0
 
-    const tryOpen = () => {
-      const text = window.getSelection()?.toString().trim()
+    const checkSelection = () => {
+      const sel = window.getSelection()
+      const text = sel?.toString().trim()
       if (text && isSearchable(text) && text.length <= 20) {
-        setQuery(text)
-        setOpen(true)
+        try {
+          const rect = sel.getRangeAt(0).getBoundingClientRect()
+          // วางปุ่มใต้ข้อความที่เลือก กึ่งกลาง
+          setIconPos({ x: rect.left + rect.width / 2, y: rect.bottom + 10 })
+        } catch {
+          setIconPos(null)
+        }
+        setSelText(text)
+      } else {
+        setSelText('')
+        setIconPos(null)
       }
     }
 
-    // Desktop: mouseup → check ทันที (10ms)
+    // Desktop: mouseup → check ทันที
     const onMouseUp = () => {
       lastMouseUp = Date.now()
       clearTimeout(timer)
-      timer = setTimeout(tryOpen, 10)
+      timer = setTimeout(checkSelection, 10)
     }
 
-    // Mobile: selectionchange (handle drag) → debounce 300ms
-    // ถ้าเพิ่ง mouseup มาไม่ถึง 200ms = desktop selection → ข้ามไป ไม่ต้อง override
+    // Mobile: selectionchange (ลาก handle) → debounce 300ms
+    // ถ้าเพิ่ง mouseup มา < 200ms = desktop selection → ข้าม
     const onSelectionChange = () => {
       if (Date.now() - lastMouseUp < 200) return
       clearTimeout(timer)
-      timer = setTimeout(tryOpen, 300)
+      timer = setTimeout(checkSelection, 300)
     }
 
     document.addEventListener('mouseup', onMouseUp)
@@ -49,113 +61,155 @@ export default function SelectionPopup() {
     }
   }, [])
 
-  // Search when query changes
+  // ค้นหาเมื่อ query เปลี่ยน
   useEffect(() => {
     if (!query) return
     setLoading(true)
-    setResults([])
+    setResult(null)
     const captured = query
 
-    const extractResults = (r) =>
-      [...(r.data?.prefix_group || []), ...(r.data?.inner_group || [])]
+    const extract = (r) => ({
+      prefix_group: r.data?.prefix_group || [],
+      inner_group: r.data?.inner_group || [],
+    })
 
     searchWords(captured)
       .then((r) => {
-        const all = extractResults(r)
-        if (all.length > 0) {
-          setResults(all.slice(0, 10))
+        const { prefix_group, inner_group } = extract(r)
+        if (prefix_group.length + inner_group.length > 0) {
+          setResult({ prefix_group, inner_group, found: true })
           return
         }
-        // ไม่เจอคำเต็ม: ถ้าเลือกหลายอักษร → fallback ค้นอักษรแรกตัวเดียว
+        // ไม่เจอคำเต็ม: fallback ค้นอักษรแรก (ถ้าเลือกหลายตัว)
         if (captured.length > 1) {
           return searchWords(captured[0])
             .then((r2) => {
-              const fallback = extractResults(r2)
-              setResults(fallback.slice(0, 10))
-              // ถ้า fallback ก็ยังไม่มี → report missed
-              if (fallback.length === 0) {
+              const fb = extract(r2)
+              if (fb.prefix_group.length + fb.inner_group.length > 0) {
+                setResult({ ...fb, found: true })
+              } else {
+                setResult({ prefix_group: [], inner_group: [], found: false })
                 reportMissedSearchDirect(captured).catch(() => {})
               }
             })
             .catch(() => {})
         }
-        // อักษรเดียวไม่เจอ → report missed
-        setResults([])
+        setResult({ prefix_group: [], inner_group: [], found: false })
         reportMissedSearchDirect(captured).catch(() => {})
       })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [query])
 
+  const handleSearch = useCallback(() => {
+    if (!selText) return
+    setQuery(selText)
+    setOpen(true)
+    setSelText('')
+    setIconPos(null)
+    window.getSelection()?.removeAllRanges()
+  }, [selText])
+
   const close = useCallback(() => {
     setOpen(false)
     setQuery('')
-    setResults([])
+    setResult(null)
+    setSelText('')
+    setIconPos(null)
     window.getSelection()?.removeAllRanges()
   }, [])
 
-  const goToWord = (word) => {
-    close()
-    navigate(`/words/${word.id}`)
-  }
-
-  if (!open) return null
-
   return (
     <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 z-40 bg-black/30" onClick={close} />
+      {/* ปุ่มแว่นขยายลอย — แสดงเมื่อมีข้อความเลือกอยู่ */}
+      {selText && !open && iconPos && (
+        <button
+          onPointerDown={(e) => { e.preventDefault(); handleSearch() }}
+          style={{
+            position: 'fixed',
+            left: iconPos.x,
+            top: iconPos.y,
+            transform: 'translateX(-50%)',
+            zIndex: 60,
+          }}
+          className="bg-chinese-red text-white rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-xl text-sm font-medium select-none"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <span className="font-chinese">{selText}</span>
+        </button>
+      )}
 
-      {/* Bottom Sheet */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl flex flex-col"
-        style={{ maxHeight: '55vh' }}>
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-2 flex-shrink-0">
-          <div className="w-10 h-1 bg-gray-200 rounded-full" />
-        </div>
+      {/* Bottom sheet ผลการค้นหา */}
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/30" onClick={close} />
+          <div
+            className="fixed bottom-0 left-0 right-0 z-50 bg-chinese-cream rounded-t-2xl shadow-2xl flex flex-col"
+            style={{ maxHeight: '90vh' }}
+          >
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+              <div className="w-10 h-1 bg-gray-300 rounded-full" />
+            </div>
 
-        {/* Header */}
-        <div className="px-4 pb-3 flex items-center justify-between border-b border-gray-100 flex-shrink-0">
-          <div className="text-sm text-gray-500">
-            ค้นหา:{' '}
-            <span className="font-chinese text-gray-900 text-base font-semibold">
-              {query}
-            </span>
+            {/* Header */}
+            <div className="px-4 py-2.5 flex items-center justify-between border-b border-gray-200 flex-shrink-0 bg-white">
+              <div className="text-sm text-gray-500">
+                ค้นหา:{' '}
+                <span className="font-chinese text-gray-900 text-base font-semibold">{query}</span>
+              </div>
+              <button onClick={close} className="text-gray-400 text-xl leading-none px-1">✕</button>
+            </div>
+
+            {/* ผลการค้นหา */}
+            <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
+              {loading && (
+                <div className="text-center text-gray-400 py-8">กำลังค้นหา...</div>
+              )}
+
+              {result && !loading && (
+                <>
+                  {!result.found && (
+                    <div className="text-center py-12">
+                      <div className="text-5xl mb-4">🔍</div>
+                      <p className="text-gray-500">ไม่พบคำว่า "<strong>{query}</strong>"</p>
+                      <p className="text-sm text-gray-400 mt-1">บันทึกไว้ให้ Admin เพิ่มให้นะครับ</p>
+                    </div>
+                  )}
+
+                  {result.prefix_group.length > 0 && (
+                    <div>
+                      <h2 className="text-xs font-semibold text-chinese-gold uppercase tracking-wider mb-2">
+                        คำที่ขึ้นต้นด้วย "{query}"
+                      </h2>
+                      <div className="space-y-2">
+                        {result.prefix_group.map((w) => (
+                          <WordCard key={w.id} word={w} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {result.inner_group.length > 0 && (
+                    <div>
+                      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                        คำที่มี "{query}" อยู่ข้างใน
+                      </h2>
+                      <div className="space-y-2">
+                        {result.inner_group.map((w) => (
+                          <WordCard key={w.id} word={w} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
-          <button onClick={close} className="text-gray-400 text-xl leading-none px-1">
-            ✕
-          </button>
-        </div>
-
-        {/* Results list */}
-        <div className="overflow-y-auto flex-1">
-          {loading && (
-            <p className="text-xs text-gray-400 text-center py-8">กำลังค้นหา...</p>
-          )}
-
-          {!loading && results.length === 0 && (
-            <p className="text-xs text-gray-400 text-center py-8">ไม่พบคำศัพท์สำหรับ "{query}"</p>
-          )}
-
-          {results.map((word) => (
-            <button
-              key={word.id}
-              onClick={() => goToWord(word)}
-              className="w-full text-left px-4 py-3 border-b border-gray-50 last:border-0 active:bg-gray-50 transition-colors"
-            >
-              <div className="flex items-baseline gap-2">
-                <span className="font-chinese text-xl text-gray-900">{word.chinese}</span>
-                <span className="text-xs text-gray-400">{word.pinyin}</span>
-              </div>
-              <div className="text-sm text-gray-600 mt-0.5">
-                {word.thai_meaning.split('\n').filter(l => l.trim()).slice(0, 2).map((line, i) => (
-                  <div key={i}>{line}</div>
-                ))}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
+        </>
+      )}
     </>
   )
 }
