@@ -1,8 +1,6 @@
 import httpx
 import random
-import smtplib
 from datetime import datetime, timedelta
-from email.mime.text import MIMEText
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr
@@ -112,43 +110,28 @@ class OTPVerifyRequest(BaseModel):
 
 
 def _send_otp_email(to_email: str, otp: str):
-    """ส่ง OTP ผ่าน Gmail SMTP"""
-    if not settings.GMAIL_USER or not settings.GMAIL_APP_PASSWORD:
-        raise HTTPException(status_code=503, detail="ระบบอีเมลยังไม่ได้ตั้งค่า")
-    msg = MIMEText(
-        f"รหัส OTP ของคุณสำหรับเข้าสู่ระบบ 字典\n\n"
-        f"รหัส: {otp}\n\n"
-        f"รหัสนี้จะหมดอายุใน 10 นาที\n"
-        f"ห้ามแจ้งรหัสนี้แก่ผู้อื่น",
-        "plain",
-        "utf-8",
+    """ส่ง OTP ผ่าน Resend HTTP API"""
+    if not settings.RESEND_API_KEY:
+        raise HTTPException(status_code=503, detail="ระบบอีเมลยังไม่ได้ตั้งค่า (RESEND_API_KEY)")
+    res = httpx.post(
+        "https://api.resend.com/emails",
+        headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+        json={
+            "from": settings.EMAIL_FROM,
+            "to": [to_email],
+            "subject": f"รหัส OTP: {otp} — 字典",
+            "text": (
+                f"รหัส OTP ของคุณสำหรับเข้าสู่ระบบ 字典\n\n"
+                f"รหัส: {otp}\n\n"
+                f"รหัสนี้จะหมดอายุใน 10 นาที\n"
+                f"ห้ามแจ้งรหัสนี้แก่ผู้อื่น"
+            ),
+        },
+        timeout=10,
     )
-    msg["Subject"] = f"รหัส OTP: {otp} — 字典"
-    msg["From"] = settings.GMAIL_USER
-    msg["To"] = to_email
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as smtp:
-        smtp.login(settings.GMAIL_USER, settings.GMAIL_APP_PASSWORD)
-        smtp.send_message(msg)
+    if res.status_code not in (200, 201):
+        raise HTTPException(status_code=500, detail=f"ส่งอีเมลไม่สำเร็จ: {res.text}")
 
-
-@router.get("/test-smtp")
-def test_smtp():
-    """ทดสอบ SMTP connection — ลบทิ้งหลัง debug"""
-    import socket, ssl
-    results = {}
-    for port in [465, 587]:
-        try:
-            ctx = ssl.create_default_context() if port == 465 else None
-            sock = socket.create_connection(("smtp.gmail.com", port), timeout=8)
-            if ctx:
-                sock = ctx.wrap_socket(sock, server_hostname="smtp.gmail.com")
-            sock.close()
-            results[str(port)] = "ok"
-        except Exception as e:
-            results[str(port)] = f"{type(e).__name__}: {e}"
-    results["GMAIL_USER_set"] = bool(settings.GMAIL_USER)
-    results["GMAIL_PASS_set"] = bool(settings.GMAIL_APP_PASSWORD)
-    return results
 
 
 @router.post("/email/request-otp")

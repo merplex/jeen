@@ -15,6 +15,7 @@ export default function SelectionPopup() {
   // Detect text selection — mouseup (desktop) + selectionchange (mobile handles)
   useEffect(() => {
     let timer = null
+    let lastMouseUp = 0  // timestamp ของ mouseup ล่าสุด
 
     const tryOpen = () => {
       const text = window.getSelection()?.toString().trim()
@@ -24,14 +25,17 @@ export default function SelectionPopup() {
       }
     }
 
-    // Desktop: mouseup fires after selection is complete — short defer for safety
+    // Desktop: mouseup → check ทันที (10ms)
     const onMouseUp = () => {
+      lastMouseUp = Date.now()
       clearTimeout(timer)
       timer = setTimeout(tryOpen, 10)
     }
 
-    // Mobile: selectionchange fires as handles are dragged; debounce until user stops
+    // Mobile: selectionchange (handle drag) → debounce 300ms
+    // ถ้าเพิ่ง mouseup มาไม่ถึง 200ms = desktop selection → ข้ามไป ไม่ต้อง override
     const onSelectionChange = () => {
+      if (Date.now() - lastMouseUp < 200) return
       clearTimeout(timer)
       timer = setTimeout(tryOpen, 300)
     }
