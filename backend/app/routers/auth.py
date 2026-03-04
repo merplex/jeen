@@ -90,7 +90,9 @@ def line_callback(code: str = None, state: str = None, error: str = None, db: Se
         )
         db.add(user)
     else:
-        user.is_admin = is_admin
+        # ยกระดับเป็น admin ได้ แต่ไม่ตัด admin ออกถ้าเคยเป็นอยู่แล้ว
+        if is_admin:
+            user.is_admin = True
         if display_name and not user.display_name:
             user.display_name = display_name
     db.commit()
