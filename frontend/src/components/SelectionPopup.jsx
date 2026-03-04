@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { searchWords, reportMissedSearchDirect } from '../services/api'
 import WordCard from './WordCard'
 
@@ -13,6 +13,8 @@ export default function SelectionPopup() {
   const [result, setResult] = useState(null)       // {prefix_group, inner_group, found}
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
+  // ref เก็บข้อความล่าสุดที่เลือก — ใช้ใน handleSearch กัน race condition บน mobile
+  const selTextRef = useRef('')
 
   // ตรวจจับการเลือกข้อความ
   useEffect(() => {
@@ -25,13 +27,14 @@ export default function SelectionPopup() {
       if (text && isSearchable(text) && text.length <= 20) {
         try {
           const rect = sel.getRangeAt(0).getBoundingClientRect()
-          // วางปุ่มใต้ข้อความที่เลือก กึ่งกลาง
           setIconPos({ x: rect.left + rect.width / 2, y: rect.bottom + 10 })
         } catch {
           setIconPos(null)
         }
+        selTextRef.current = text
         setSelText(text)
       } else {
+        selTextRef.current = ''
         setSelText('')
         setIconPos(null)
       }
@@ -102,18 +105,22 @@ export default function SelectionPopup() {
   }, [query])
 
   const handleSearch = useCallback(() => {
-    if (!selText) return
-    setQuery(selText)
-    setOpen(true)
+    // ใช้ ref เสมอ — กัน mobile race condition ที่ state อาจยัง stale
+    const text = selTextRef.current
+    if (!text) return
+    selTextRef.current = ''
     setSelText('')
     setIconPos(null)
+    setQuery(text)
+    setOpen(true)
     window.getSelection()?.removeAllRanges()
-  }, [selText])
+  }, [])
 
   const close = useCallback(() => {
     setOpen(false)
     setQuery('')
     setResult(null)
+    selTextRef.current = ''
     setSelText('')
     setIconPos(null)
     window.getSelection()?.removeAllRanges()
@@ -124,7 +131,8 @@ export default function SelectionPopup() {
       {/* ปุ่มแว่นขยายลอย — แสดงเมื่อมีข้อความเลือกอยู่ */}
       {selText && !open && iconPos && (
         <button
-          onPointerDown={(e) => { e.preventDefault(); handleSearch() }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={handleSearch}
           style={{
             position: 'fixed',
             left: iconPos.x,
