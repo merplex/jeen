@@ -7,6 +7,7 @@ const TABS = [
   { to: '/admin/add', label: 'เพิ่มคำ' },
   { to: '/admin/examples', label: 'ตัวอย่าง' },
   { to: '/admin/activity', label: 'ประวัติ' },
+  { to: '/admin/subscriptions', label: 'Subscription' },
 ]
 
 export default function AdminDashboard() {

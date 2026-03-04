@@ -16,3 +16,4 @@ class User(Base):
     search_history = relationship("SearchHistory", back_populates="user")
     flashcards = relationship("Flashcard", back_populates="user")
     notes = relationship("UserNote", back_populates="user")
+    subscriptions = relationship("UserSubscription", back_populates="user")

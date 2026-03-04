@@ -93,4 +93,10 @@ export const adminFixLongEnglish = (maxLen = 100) =>
 export const adminActivityLog = (limit = 50) =>
   api.get('/admin/activity-log', { params: { limit } })
 
+// Subscription
+export const getSubscriptionStatus = () => api.get('/subscription/status')
+export const adminListSubscriptions = () => api.get('/admin/subscription/list')
+export const adminGrantSubscription = (data) => api.post('/admin/subscription/grant', data)
+export const adminCancelSubscription = (id) => api.patch(`/admin/subscription/${id}/cancel`)
+
 export default api
