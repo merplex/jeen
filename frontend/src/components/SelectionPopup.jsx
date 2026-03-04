@@ -15,6 +15,8 @@ export default function SelectionPopup() {
   const [open, setOpen] = useState(false)
   // ref เก็บข้อความล่าสุดที่เลือก — ใช้ใน handleSearch กัน race condition บน mobile
   const selTextRef = useRef('')
+  // cache ผลจาก background search — พอกดปุ่มแสดงได้เลย ไม่ต้องรอ
+  const bgResultRef = useRef(null)
 
   // ตรวจจับการเลือกข้อความ
   useEffect(() => {
@@ -32,9 +34,11 @@ export default function SelectionPopup() {
           setIconPos(null)
         }
         selTextRef.current = text
+        bgResultRef.current = null  // reset cache สำหรับ selection ใหม่
         setSelText(text)
       } else {
         selTextRef.current = ''
+        bgResultRef.current = null
         setSelText('')
         setIconPos(null)
       }
@@ -64,10 +68,45 @@ export default function SelectionPopup() {
     }
   }, [])
 
-  // ค้นหาเมื่อ query เปลี่ยน
+  // Background search ทันทีที่เลือกข้อความ — auto-report ถ้าไม่เจอ + cache ผลไว้
+  useEffect(() => {
+    if (!selText) return
+    const captured = selText
+
+    const extract = (r) => ({
+      prefix_group: r.data?.prefix_group || [],
+      inner_group: r.data?.inner_group || [],
+    })
+
+    searchWords(captured)
+      .then((r) => {
+        const { prefix_group, inner_group } = extract(r)
+        if (prefix_group.length + inner_group.length > 0) {
+          bgResultRef.current = { prefix_group, inner_group, found: true }
+          return
+        }
+        if (captured.length > 1) {
+          return searchWords(captured[0]).then((r2) => {
+            const fb = extract(r2)
+            if (fb.prefix_group.length + fb.inner_group.length > 0) {
+              bgResultRef.current = { ...fb, found: true }
+            } else {
+              bgResultRef.current = { prefix_group: [], inner_group: [], found: false }
+              reportMissedSearchDirect(captured).catch(() => {})
+            }
+          }).catch(() => {})
+        }
+        bgResultRef.current = { prefix_group: [], inner_group: [], found: false }
+        reportMissedSearchDirect(captured).catch(() => {})
+      })
+      .catch(() => {})
+  }, [selText])
+
+  // ค้นหาเมื่อ query เปลี่ยน (เฉพาะกรณี background search ยังไม่เสร็จ)
   useEffect(() => {
     if (!query) return
-    setLoading(true)
+    // ถ้า handleSearch ใส่ result ไว้แล้ว (จาก cache) → ไม่ต้อง search ซ้ำ
+    if (!loading) return
     setResult(null)
     const captured = query
 
@@ -105,14 +144,22 @@ export default function SelectionPopup() {
   }, [query])
 
   const handleSearch = useCallback(() => {
-    // ใช้ ref เสมอ — กัน mobile race condition ที่ state อาจยัง stale
     const text = selTextRef.current
     if (!text) return
     selTextRef.current = ''
     setSelText('')
     setIconPos(null)
-    setQuery(text)
     setOpen(true)
+    // ถ้า background search เสร็จแล้ว → แสดงผลเลย ไม่ต้องรอ
+    if (bgResultRef.current !== null) {
+      setResult(bgResultRef.current)
+      setLoading(false)
+      bgResultRef.current = null
+    } else {
+      // ยังไม่เสร็จ → ให้ useEffect([query]) จัดการ
+      setLoading(true)
+    }
+    setQuery(text)
     window.getSelection()?.removeAllRanges()
   }, [])
 
