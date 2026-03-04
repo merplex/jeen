@@ -131,6 +131,26 @@ def _send_otp_email(to_email: str, otp: str):
         smtp.send_message(msg)
 
 
+@router.get("/test-smtp")
+def test_smtp():
+    """ทดสอบ SMTP connection — ลบทิ้งหลัง debug"""
+    import socket, ssl
+    results = {}
+    for port in [465, 587]:
+        try:
+            ctx = ssl.create_default_context() if port == 465 else None
+            sock = socket.create_connection(("smtp.gmail.com", port), timeout=8)
+            if ctx:
+                sock = ctx.wrap_socket(sock, server_hostname="smtp.gmail.com")
+            sock.close()
+            results[str(port)] = "ok"
+        except Exception as e:
+            results[str(port)] = f"{type(e).__name__}: {e}"
+    results["GMAIL_USER_set"] = bool(settings.GMAIL_USER)
+    results["GMAIL_PASS_set"] = bool(settings.GMAIL_APP_PASSWORD)
+    return results
+
+
 @router.post("/email/request-otp")
 def email_request_otp(body: EmailRequest):
     """ขอ OTP ทางอีเมล — ส่ง 6 หลัก หมดอายุ 10 นาที"""
