@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     LINE_CALLBACK_URL: str = "http://localhost:8000/auth/line/callback"
     ADMIN_SECRET: str = ""
     RESEND_API_KEY: str = ""
-    EMAIL_FROM: str = "noreply@resend.dev"
+    EMAIL_FROM: str = "onboarding@resend.dev"
 
     @property
     def admin_list(self) -> List[str]:
