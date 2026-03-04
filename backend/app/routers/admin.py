@@ -455,6 +455,41 @@ def generate_daily(
     return {"inserted": inserted, "requested": count}
 
 
+@router.post("/fix-long-english")
+def fix_long_english(
+    max_len: int = 100,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Re-generate english_meaning ที่ยาวเกิน max_len (น่าจะเป็น Gemini thinking หลุดมา)"""
+    bad_words = (
+        db.query(Word)
+        .filter(Word.english_meaning.isnot(None))
+        .filter(Word.english_meaning != "")
+        .all()
+    )
+    bad_words = [w for w in bad_words if len(w.english_meaning) > max_len]
+
+    if not bad_words:
+        return {"found": 0, "fixed": 0, "failed": 0}
+
+    fixed = 0
+    failed = 0
+    for w in bad_words:
+        new_eng = generate_english_meaning(w.chinese, w.thai_meaning or "")
+        if new_eng and len(new_eng) <= max_len:
+            w.english_meaning = new_eng
+            fixed += 1
+        else:
+            failed += 1
+
+    if fixed > 0:
+        _log(db, "fix_long_english", detail=f"แก้ไข {fixed} คำ")
+        db.commit()
+
+    return {"found": len(bad_words), "fixed": fixed, "failed": failed}
+
+
 @router.get("/activity-log", response_model=list[ActivityLogOut])
 def activity_log(
     limit: int = 50,

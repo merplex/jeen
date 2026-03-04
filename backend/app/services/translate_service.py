@@ -20,6 +20,18 @@ def _strip_markdown(text: str) -> str:
     return text.strip()
 
 
+def _get_text(response) -> str:
+    """Extract only non-thinking parts from Gemini response."""
+    parts = []
+    try:
+        for part in response.candidates[0].content.parts:
+            if not getattr(part, "thought", False):
+                parts.append(part.text)
+        return "".join(parts).strip()
+    except Exception:
+        return response.text.strip()
+
+
 def generate_english_meaning(chinese: str, thai: str) -> str:
     if not _has_api_key():
         return ""
@@ -30,7 +42,7 @@ def generate_english_meaning(chinese: str, thai: str) -> str:
             "Give a concise English translation (1-5 words). Return only the English text, no explanation."
         )
         response = _model.generate_content(prompt)
-        return response.text.strip()
+        return _get_text(response)
     except Exception:
         return ""
 
@@ -46,7 +58,7 @@ def search_by_english(english_query: str) -> list[dict]:
             "Return valid JSON only, no explanation, no markdown."
         )
         response = _model.generate_content(prompt)
-        return json.loads(_strip_markdown(response.text))
+        return json.loads(_strip_markdown(_get_text(response)))
     except Exception:
         return []
 
@@ -74,7 +86,7 @@ def batch_generate_english(words: list[dict]) -> list[dict]:
             '[{"id":<exact id from input>,"english":"meaning1, meaning2"},...]'
         )
         response = _model.generate_content(prompt)
-        return json.loads(_strip_markdown(response.text))
+        return json.loads(_strip_markdown(_get_text(response)))
     except Exception:
         return []
 
@@ -99,7 +111,7 @@ def batch_generate_metadata(words: list[dict]) -> list[dict]:
             '[{"id":1,"english":"...","category":"..."},...]'
         )
         response = _model.generate_content(prompt)
-        return json.loads(_strip_markdown(response.text))
+        return json.loads(_strip_markdown(_get_text(response)))
     except Exception:
         return []
 
@@ -139,7 +151,7 @@ def generate_daily_words(count: int, existing_chinese: set, category: str = None
             f'[{{"chinese":"你好",{cat_field}}},...]\n'
         )
         response = _model.generate_content(prompt)
-        data = json.loads(_strip_markdown(response.text))
+        data = json.loads(_strip_markdown(_get_text(response)))
         result = []
         for w in data:
             if isinstance(w, dict) and w.get("chinese"):
@@ -168,7 +180,7 @@ def validate_word_exists(word: str, lang: str) -> bool:
         else:
             prompt = f'Is "{word}" a valid English word or common phrase? Answer only yes or no.'
         response = _model.generate_content(prompt)
-        return response.text.strip().lower().startswith("yes")
+        return _get_text(response).lower().startswith("yes")
     except Exception:
         return True  # fallback: assume valid
 
@@ -220,6 +232,6 @@ def generate_examples_for_word(chinese: str, pinyin: str, thai: str) -> list[dic
             + ']'
         )
         response = _model.generate_content(prompt)
-        return json.loads(_strip_markdown(response.text))
+        return json.loads(_strip_markdown(_get_text(response)))
     except Exception:
         return []
