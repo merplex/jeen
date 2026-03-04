@@ -455,6 +455,7 @@ def generate_daily(
     return {"inserted": inserted, "requested": count}
 
 
+@router.get("/fix-long-english")
 @router.post("/fix-long-english")
 def fix_long_english(
     max_len: int = 100,
