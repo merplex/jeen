@@ -73,7 +73,7 @@ export default function Learning() {
     </div>
   )
 
-  const isPremium = false // TODO: ใช้ subscriptionStore เมื่อพร้อม
+  const isPremium = user?.is_admin === true // admin = no limit; TODO: เพิ่ม subscription check
 
   return (
     <div className="min-h-screen bg-chinese-cream pb-24">
