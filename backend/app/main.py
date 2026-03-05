@@ -15,6 +15,7 @@ from .scheduler import start_scheduler
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
     scheduler = start_scheduler()
     yield
     scheduler.shutdown(wait=False)
