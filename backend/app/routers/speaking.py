@@ -96,7 +96,7 @@ async def assess_speaking(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_user),
 ):
-    is_premium = _has_subscription(current_user.id, db)
+    is_premium = current_user.is_admin or _has_subscription(current_user.id, db)
     if not is_premium:
         today = _today_count(current_user.id, db)
         if today >= FREE_DAILY_LIMIT:
@@ -187,7 +187,7 @@ def daily_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_user),
 ):
-    is_premium = _has_subscription(current_user.id, db)
+    is_premium = current_user.is_admin or _has_subscription(current_user.id, db)
     today = _today_count(current_user.id, db)
     return {
         "is_premium": is_premium,

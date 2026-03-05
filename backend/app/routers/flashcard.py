@@ -83,7 +83,7 @@ def add_flashcard(
 ):
     if deck not in (1, 2, 3):
         raise HTTPException(status_code=400, detail="deck ต้องเป็น 1, 2 หรือ 3")
-    if deck in PREMIUM_DECKS and not _has_subscription(current_user.id, db):
+    if deck in PREMIUM_DECKS and not current_user.is_admin and not _has_subscription(current_user.id, db):
         raise HTTPException(status_code=403, detail="การ์ดชุด 2 และ 3 สำหรับสมาชิกพรีเมียมเท่านั้น")
 
     word = db.query(Word).filter(Word.id == word_id).first()
