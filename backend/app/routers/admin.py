@@ -25,6 +25,13 @@ from ..services.translate_service import (
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
+def _to_int(val, default=0):
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return default
+
+
 def _log(db: Session, action: str, word_id: int = None, chinese: str = None, detail: str = None):
     db.add(ActivityLog(action=action, word_id=word_id, chinese=chinese, detail=detail))
     db.flush()
@@ -102,7 +109,7 @@ def approve_pending(
                 pinyin=ex.get("pinyin"),
                 thai=ex.get("thai"),
                 type=ex.get("type"),
-                meaning_line=ex.get("meaning_line", 0),
+                meaning_line=_to_int(ex.get("meaning_line")),
                 sort_order=idx,
             ))
         db.commit()
@@ -247,7 +254,7 @@ def generate_examples(
             pinyin=ex.get("pinyin"),
             thai=ex.get("thai"),
             type=ex.get("type"),
-            meaning_line=ex.get("meaning_line", 0),
+            meaning_line=_to_int(ex.get("meaning_line")),
             sort_order=idx,
         ))
 
@@ -390,7 +397,7 @@ def bulk_generate_examples(
                         pinyin=ex.get("pinyin"),
                         thai=ex.get("thai"),
                         type=ex.get("type"),
-                        meaning_line=ex.get("meaning_line", 0),
+                        meaning_line=_to_int(ex.get("meaning_line")),
                         sort_order=idx,
                     ))
                 db.commit()
@@ -457,7 +464,7 @@ def regen_examples_by_category(
                         pinyin=ex.get("pinyin"),
                         thai=ex.get("thai"),
                         type=ex.get("type"),
-                        meaning_line=ex.get("meaning_line", 0),
+                        meaning_line=_to_int(ex.get("meaning_line")),
                         sort_order=idx,
                     ))
                 db.commit()

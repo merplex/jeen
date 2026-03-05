@@ -93,7 +93,10 @@ def _assess_sdk_sync(audio_bytes: bytes, reference_text: str, key: str, region: 
     tmp.close()
     try:
         audio_cfg = speechsdk.AudioConfig(filename=tmp.name)
-        recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_cfg)
+        try:
+            recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_cfg)
+        except Exception:
+            return None
         pa_config.apply_to(recognizer)
         result = recognizer.recognize_once_async().get(timeout=10)
         if result.reason != speechsdk.ResultReason.RecognizedSpeech:
