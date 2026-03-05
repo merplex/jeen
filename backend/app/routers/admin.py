@@ -94,7 +94,7 @@ def approve_pending(
 
     # Auto-generate examples (best effort — ไม่ block approval ถ้า Gemini ล้มเหลว)
     try:
-        examples = generate_examples_for_word(word.chinese, word.pinyin, word.thai_meaning)
+        examples = generate_examples_for_word(word.chinese, word.pinyin, word.thai_meaning, word.category or "")
         for idx, ex in enumerate(examples):
             db.add(Example(
                 word_id=word.id,
@@ -235,7 +235,7 @@ def generate_examples(
     if not word:
         raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์ที่ verified")
 
-    examples = generate_examples_for_word(word.chinese, word.pinyin, word.thai_meaning)
+    examples = generate_examples_for_word(word.chinese, word.pinyin, word.thai_meaning, word.category or "")
 
     # ลบ examples เดิมก่อน
     db.query(Example).filter(Example.word_id == word_id).delete()
@@ -377,7 +377,7 @@ def bulk_generate_examples(
     for word in words:
         try:
             examples = generate_examples_for_word(
-                word.chinese, word.pinyin or "", word.thai_meaning or ""
+                word.chinese, word.pinyin or "", word.thai_meaning or "", word.category or ""
             )
             if not examples:
                 errors += 1
@@ -411,6 +411,69 @@ def bulk_generate_examples(
         .count()
     )
     return {"done": done, "errors": errors, "remaining": remaining, "last_error": last_error}
+
+
+@router.post("/regen-examples-by-category")
+def regen_examples_by_category(
+    category: str,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """ลบและ gen ตัวอย่างใหม่สำหรับคำใน category ที่กำหนด (ใช้ logic ใหม่)"""
+    limit = min(max(limit, 1), 50)
+
+    words = (
+        db.query(Word)
+        .filter(Word.status == "verified", Word.category == category)
+        .limit(limit)
+        .all()
+    )
+
+    if not words:
+        return {"done": 0, "errors": 0, "message": f"ไม่พบคำใน category '{category}'"}
+
+    done = 0
+    errors = 0
+    last_error = None
+    for word in words:
+        try:
+            examples = generate_examples_for_word(
+                word.chinese, word.pinyin or "", word.thai_meaning or "", word.category or ""
+            )
+            if not examples:
+                errors += 1
+                last_error = f"{word.chinese}: Gemini returned empty"
+            else:
+                db.query(Example).filter(Example.word_id == word.id).delete()
+                for idx, ex in enumerate(examples):
+                    db.add(Example(
+                        word_id=word.id,
+                        chinese=ex.get("chinese", ""),
+                        pinyin=ex.get("pinyin"),
+                        thai=ex.get("thai"),
+                        type=ex.get("type"),
+                        meaning_line=ex.get("meaning_line", 0),
+                        sort_order=idx,
+                    ))
+                db.commit()
+                done += 1
+        except Exception as e:
+            errors += 1
+            last_error = str(e)
+        time.sleep(0.3)
+
+    if done > 0:
+        _log(db, "regen_examples", detail=f"regen ตัวอย่าง {done} คำ category={category}")
+        db.commit()
+
+    total_in_cat = db.query(Word).filter(Word.status == "verified", Word.category == category).count()
+    return {
+        "done": done,
+        "errors": errors,
+        "total_in_category": total_in_cat,
+        "last_error": last_error,
+    }
 
 
 class GenerateDailyRequest(BaseModel):

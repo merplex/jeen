@@ -64,7 +64,7 @@ def _job_gen_examples():
         for word in words:
             try:
                 examples = generate_examples_for_word(
-                    word.chinese, word.pinyin or "", word.thai_meaning or ""
+                    word.chinese, word.pinyin or "", word.thai_meaning or "", word.category or ""
                 )
                 if examples:
                     for idx, ex in enumerate(examples):

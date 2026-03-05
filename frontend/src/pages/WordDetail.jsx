@@ -119,6 +119,8 @@ export default function WordDetail() {
   const getExampleLabel = (type) => {
     if (!type) return ''
     if (type === 'formal' || type === 'written') return 'บทความ/หนังสือ'
+    if (type === 'formal_0') return 'บทความ/หนังสือ 1'
+    if (type === 'formal_1') return 'บทความ/หนังสือ 2'
     if (type.startsWith('conv_')) return `สนทนา ${parseInt(type.slice(5), 10) + 1}`
     // legacy
     const legacy = { daily_1: 'ชีวิตประจำวัน 1', daily_2: 'ชีวิตประจำวัน 2', common: 'ทั่วไป', spoken: 'พูด' }

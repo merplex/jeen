@@ -2,7 +2,10 @@ import { useEffect, useState, useRef } from 'react'
 import {
   adminExamplesStats, adminWipeAllExamples, adminBulkGenerateExamples,
   adminEnglishStats, adminBulkGenerateEnglish, adminFixLongEnglish,
+  adminRegenExamplesByCategory,
 } from '../../services/api'
+
+const REGEN_CATEGORIES = ['แพทย์', 'กฎหมาย', 'สำนวน', 'วิศวกรรม', 'เทคนิค']
 
 export default function BulkExamples() {
   const [exStats, setExStats] = useState(null)
@@ -10,6 +13,8 @@ export default function BulkExamples() {
   const [log, setLog] = useState([])
   const [running, setRunning] = useState(false)
   const stopRef = useRef(false)
+  const [regenCat, setRegenCat] = useState('แพทย์')
+  const [regenLimit, setRegenLimit] = useState(20)
 
   const loadStats = async () => {
     const [ex, en] = await Promise.all([adminExamplesStats(), adminEnglishStats()])
@@ -73,6 +78,31 @@ export default function BulkExamples() {
   const stopAll = () => {
     stopRef.current = true
     addLog('หยุดหลังรอบนี้เสร็จ...')
+  }
+
+  const runRegenByCategory = async () => {
+    if (running) return
+    setRunning(true)
+    stopRef.current = false
+    setLog([])
+    addLog(`เริ่ม regen ตัวอย่างหมวด "${regenCat}"...`)
+    let total = 0
+    while (!stopRef.current) {
+      try {
+        const r = await adminRegenExamplesByCategory(regenCat, regenLimit)
+        const { done, errors, total_in_category, last_error } = r.data
+        total += done
+        const errNote = last_error ? ` (${last_error})` : ''
+        addLog(`✓ regen ${done} คำ | error ${errors}${errNote} | รวมในหมวด ${total_in_category} คำ`)
+        if (done === 0) break
+      } catch (e) {
+        addLog(`✗ ${e.response?.data?.detail || e.message}`)
+        break
+      }
+    }
+    addLog(`เสร็จ — regen รวม ${total} คำ`)
+    setRunning(false)
+    loadStats()
   }
 
   const wipeAll = async () => {
@@ -162,6 +192,47 @@ export default function BulkExamples() {
             </button>
           </>
         ) : <p className="text-xs text-gray-400">กำลังโหลด...</p>}
+      </div>
+
+      {/* Regen by category */}
+      <div className="bg-white rounded-xl p-4 shadow-sm">
+        <h2 className="text-sm font-semibold text-gray-500 mb-3">Regen ตัวอย่างตามหมวด (ลบ+gen ใหม่)</h2>
+        <p className="text-xs text-gray-400 mb-3">ใช้ logic ใหม่ — คำแพทย์/กฎหมาย/สำนวนที่ไม่ได้ใช้พูดจะได้ formal_0+formal_1 แทน conv</p>
+        <div className="flex gap-2 mb-3">
+          <select
+            value={regenCat}
+            onChange={(e) => setRegenCat(e.target.value)}
+            disabled={running}
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+          >
+            {REGEN_CATEGORIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <select
+            value={regenLimit}
+            onChange={(e) => setRegenLimit(Number(e.target.value))}
+            disabled={running}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+          >
+            {[10, 20, 30, 50].map((n) => (
+              <option key={n} value={n}>{n} คำ/รอบ</option>
+            ))}
+          </select>
+        </div>
+        {!running ? (
+          <button
+            onClick={runRegenByCategory}
+            disabled={running}
+            className="w-full bg-amber-500 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
+          >
+            🔁 Regen ตัวอย่างหมวด "{regenCat}"
+          </button>
+        ) : (
+          <button onClick={stopAll} className="w-full bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium">
+            ⏹ หยุด
+          </button>
+        )}
       </div>
 
       {/* Log */}

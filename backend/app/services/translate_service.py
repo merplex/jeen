@@ -190,13 +190,17 @@ def validate_word_exists(word: str, lang: str) -> bool:
         return True  # fallback: assume valid
 
 
-def generate_examples_for_word(chinese: str, pinyin: str, thai: str) -> list[dict]:
+NON_CONVERSATIONAL_CATEGORIES = {"แพทย์", "กฎหมาย", "สำนวน", "วิศวกรรม", "เทคนิค"}
+
+
+def generate_examples_for_word(chinese: str, pinyin: str, thai: str, category: str = "") -> list[dict]:
     """
     For each Thai meaning line (split by \\n):
-      - Count semicolons → n_semi
-      - Generate (n_semi + 1) conversational examples, one per ;-separated meaning: type "conv_0", "conv_1", ...
-      - Generate 1 formal/book/article example: type "formal"
-    If there are multiple meaning lines, generate a full set per line.
+      - Normal words: conv_0, conv_1, ... (one per ;-meaning) + 1 formal
+      - Non-conversational categories (แพทย์/กฎหมาย/สำนวน/วิศวกรรม/เทคนิค):
+        Ask Gemini to judge if the word is actually used in everyday speech.
+        - If YES (or has a common colloquial equivalent): generate conv examples normally
+        - If NO: skip conv examples, generate 2 formal (article/news/book) examples instead
     Format: [{"meaning_line":0,"type":"conv_0","chinese":"...","pinyin":"...","thai":"..."}]
     """
     if not _has_api_key():
@@ -206,37 +210,81 @@ def generate_examples_for_word(chinese: str, pinyin: str, thai: str) -> list[dic
         if not meaning_lines:
             meaning_lines = [thai.strip()]
 
+        is_non_conv_category = category.strip() in NON_CONVERSATIONAL_CATEGORIES
+
         instructions = []
         example_template = []
-        for i, line in enumerate(meaning_lines):
-            semi_parts = [p.strip() for p in line.split(';') if p.strip()]
-            conv_lines = [
-                f'  - type "conv_{j}": ประโยคสนทนา ใช้คำจีนในความหมาย "{part}"'
-                for j, part in enumerate(semi_parts)
-            ]
-            conv_lines.append(
-                '  - type "formal": ประโยคทางการ สไตล์บทความ/หนังสือ/ข่าว (ครอบคลุมความหมายหลักของบรรทัดนี้)'
-            )
-            instructions.append(
-                f'ความหมายบรรทัดที่ {i + 1}: "{line}"\n' + '\n'.join(conv_lines)
-            )
-            for j in range(len(semi_parts)):
-                example_template.append(
-                    f'{{"meaning_line":{i},"type":"conv_{j}","chinese":"...","pinyin":"...","thai":"..."}}'
+
+        if is_non_conv_category:
+            # Let Gemini decide per word whether it's conversational or not
+            for i, line in enumerate(meaning_lines):
+                semi_parts = [p.strip() for p in line.split(';') if p.strip()]
+                instructions.append(
+                    f'ความหมายบรรทัดที่ {i + 1}: "{line}"\n'
+                    f'  - ตรวจสอบก่อนว่า "{chinese}" ถูกใช้ในการสนทนาชีวิตประจำวันจริงๆ หรือไม่\n'
+                    f'  - ถ้าใช้ได้จริง (หรือมีคำเรียกทั่วไปที่คนใช้แทน): ให้สร้าง {len(semi_parts)} ประโยคสนทนา (conv_0...) + 1 formal\n'
+                    f'  - ถ้าไม่ได้ใช้ในการสนทนา (เช่น ศัพท์แพทย์/กฎหมายที่คนทั่วไปไม่พูด): ให้ข้าม conv ทั้งหมด สร้างแค่ 2 ประโยค formal (formal_0, formal_1) สไตล์บทความ/ข่าว/ตำรา\n'
+                    f'  - ถ้ามีคำพูดทั่วไปที่ใช้แทน "{chinese}" ได้ (เช่น แทน 腹直肌 ด้วย 肚子): ให้ใช้คำนั้นในประโยคสนทนาแทน\n'
+                    f'  - IMPORTANT: ถ้าสร้าง formal ให้ใช้ type "formal_0" และ "formal_1"; ถ้าสร้าง conv ให้ใช้ type "conv_0", "conv_1", ... และ "formal"'
                 )
-            example_template.append(
-                f'{{"meaning_line":{i},"type":"formal","chinese":"...","pinyin":"...","thai":"..."}}'
+                # Template: either conv+formal or formal_0+formal_1
+                for j in range(len(semi_parts)):
+                    example_template.append(
+                        f'{{"meaning_line":{i},"type":"conv_{j}","chinese":"...","pinyin":"...","thai":"..."}}'
+                    )
+                example_template.append(
+                    f'{{"meaning_line":{i},"type":"formal","chinese":"...","pinyin":"...","thai":"..."}}'
+                )
+                # Also provide formal_0/formal_1 slots in case Gemini chooses non-conv path
+                example_template.append(
+                    f'// OR if non-conversational: {{"meaning_line":{i},"type":"formal_0","chinese":"...","pinyin":"...","thai":"..."}} and {{"meaning_line":{i},"type":"formal_1","chinese":"...","pinyin":"...","thai":"..."}}'
+                )
+        else:
+            for i, line in enumerate(meaning_lines):
+                semi_parts = [p.strip() for p in line.split(';') if p.strip()]
+                conv_lines = [
+                    f'  - type "conv_{j}": ประโยคสนทนา ใช้คำจีนในความหมาย "{part}"'
+                    for j, part in enumerate(semi_parts)
+                ]
+                conv_lines.append(
+                    '  - type "formal": ประโยคทางการ สไตล์บทความ/หนังสือ/ข่าว (ครอบคลุมความหมายหลักของบรรทัดนี้)'
+                )
+                instructions.append(
+                    f'ความหมายบรรทัดที่ {i + 1}: "{line}"\n' + '\n'.join(conv_lines)
+                )
+                for j in range(len(semi_parts)):
+                    example_template.append(
+                        f'{{"meaning_line":{i},"type":"conv_{j}","chinese":"...","pinyin":"...","thai":"..."}}'
+                    )
+                example_template.append(
+                    f'{{"meaning_line":{i},"type":"formal","chinese":"...","pinyin":"...","thai":"..."}}'
+                )
+
+        if is_non_conv_category:
+            prompt = (
+                f'Chinese word: {chinese} ({pinyin})\n'
+                f'Category: {category} (specialized/non-everyday)\n\n'
+                f'For each meaning line, first assess whether "{chinese}" is actually used in everyday spoken Chinese.\n'
+                f'- If YES or has a common colloquial equivalent → generate conv examples (using the colloquial word in conv if needed) + 1 formal\n'
+                f'- If NO (only used in written/professional contexts) → skip conv entirely, generate 2 formal examples (formal_0, formal_1) in article/news/textbook style\n\n'
+                + '\n\n'.join(instructions)
+                + '\n\nReturn ONLY a valid JSON array (no comments, no explanation, no markdown).\n'
+                + 'Use ONLY these types: "conv_0", "conv_1", "formal", "formal_0", "formal_1"\n'
+                + 'Example output (non-conv path): [{"meaning_line":0,"type":"formal_0","chinese":"...","pinyin":"...","thai":"..."},{"meaning_line":0,"type":"formal_1","chinese":"...","pinyin":"...","thai":"..."}]\n'
+                + 'Example output (conv path): [{"meaning_line":0,"type":"conv_0","chinese":"...","pinyin":"...","thai":"..."},{"meaning_line":0,"type":"formal","chinese":"...","pinyin":"...","thai":"..."}]'
+            )
+        else:
+            prompt = (
+                f'Chinese word: {chinese} ({pinyin})\n\n'
+                f'For each meaning line below, generate example sentences using "{chinese}":\n\n'
+                + '\n\n'.join(instructions)
+                + '\n\nReturn ONLY a JSON array, no explanation, no markdown:\n['
+                + ',\n'.join(example_template)
+                + ']'
             )
 
-        prompt = (
-            f'Chinese word: {chinese} ({pinyin})\n\n'
-            f'For each meaning line below, generate example sentences using "{chinese}":\n\n'
-            + '\n\n'.join(instructions)
-            + '\n\nReturn ONLY a JSON array, no explanation, no markdown:\n['
-            + ',\n'.join(example_template)
-            + ']'
-        )
         response = _model.generate_content(prompt)
-        return json.loads(_strip_markdown(_get_text(response)))
+        raw = _strip_markdown(_get_text(response))
+        return json.loads(raw)
     except Exception:
         return []
