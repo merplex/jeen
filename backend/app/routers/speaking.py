@@ -69,47 +69,58 @@ def _today_gen_count(user_id: int, db: Session) -> int:
     return result or 0
 
 
+def _assess_sdk_sync(audio_bytes: bytes, reference_text: str, key: str, region: str) -> dict | None:
+    """ใช้ Azure Speech SDK — รองรับ ProsodyScore (โทนเสียง) ที่ REST API ไม่มี"""
+    import tempfile, os as _os
+    try:
+        import azure.cognitiveservices.speech as speechsdk
+    except ImportError:
+        return None
+
+    speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
+    speech_config.speech_recognition_language = "zh-CN"
+
+    pa_config = speechsdk.PronunciationAssessmentConfig(
+        reference_text=reference_text,
+        grading_system=speechsdk.PronunciationAssessmentGradingSystem.HundredMark,
+        granularity=speechsdk.PronunciationAssessmentGranularity.FullText,
+        enable_miscue=True,
+    )
+    pa_config.enable_prosody_assessment()
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    tmp.write(audio_bytes)
+    tmp.close()
+    try:
+        audio_cfg = speechsdk.AudioConfig(filename=tmp.name)
+        recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_cfg)
+        pa_config.apply_to(recognizer)
+        result = recognizer.recognize_once_async().get(timeout=10)
+        if result.reason != speechsdk.ResultReason.RecognizedSpeech:
+            print(f"[Azure SDK] reason={result.reason}")
+            return None
+        pa = speechsdk.PronunciationAssessmentResult(result)
+        return {
+            "pronunciation_score": round(pa.accuracy_score or 0, 1),
+            "tone_score": round(pa.prosody_score or 0, 1),
+            "fluency_score": round(pa.fluency_score or 0, 1),
+        }
+    finally:
+        _os.unlink(tmp.name)
+
+
 async def _assess_azure(audio_base64: str, reference_text: str) -> dict | None:
     key = os.getenv("AZURE_SPEECH_KEY")
     region = os.getenv("AZURE_SPEECH_REGION")
     if not key or not region:
         return None
 
-    pronunciation_config = json.dumps({
-        "ReferenceText": reference_text,
-        "GradingSystem": "HundredMark",
-        "Granularity": "FullText",
-        "Dimension": "Comprehensive",
-        "EnableMiscue": True,
-    })
-    config_b64 = base64.b64encode(pronunciation_config.encode()).decode()
-    url = f"https://{region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1"
-    headers = {
-        "Ocp-Apim-Subscription-Key": key,
-        "Content-Type": "audio/wav; codecs=audio/pcm; samplerate=16000",
-        "Pronunciation-Assessment": config_b64,
-    }
+    import asyncio, concurrent.futures
     audio_bytes = base64.b64decode(audio_base64)
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.post(url, params={"language": "zh-CN", "format": "detailed"}, headers=headers, content=audio_bytes)
-        if resp.status_code != 200:
-            print(f"[Azure] error status={resp.status_code} body={resp.text[:300]}")
-            return None
-        data = resp.json()
-
-    status = data.get("RecognitionStatus", "")
-    if status != "Success":
-        print(f"[Azure] RecognitionStatus={status}")
-        return None
-
-    nbest = data.get("NBest", [{}])[0]
-    pa = nbest.get("PronunciationAssessment", {})
-    print(f"[Azure] pa={pa} | nbest_keys={list(nbest.keys())}")
-    return {
-        "pronunciation_score": pa.get("AccuracyScore") or nbest.get("AccuracyScore", 0),
-        "tone_score": pa.get("ProsodyScore") or nbest.get("ProsodyScore", 0),
-        "fluency_score": pa.get("FluencyScore") or nbest.get("FluencyScore", 0),
-    }
+    loop = asyncio.get_event_loop()
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        result = await loop.run_in_executor(pool, _assess_sdk_sync, audio_bytes, reference_text, key, region)
+    return result
 
 
 def _mock_scores() -> dict:
