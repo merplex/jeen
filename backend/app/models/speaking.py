@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, String, DateTime, ForeignKey, UniqueConstraint, func
+from sqlalchemy import Column, Integer, Float, String, Boolean, DateTime, ForeignKey, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 from ..database import Base
 
@@ -9,8 +9,10 @@ class SpeakingRecord(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     word_id = Column(Integer, ForeignKey("words.id"), nullable=False)
-    example_id = Column(Integer, nullable=False)          # Example.id ที่ฝึก
+    example_id = Column(Integer, nullable=False)          # Example.id ที่ฝึก (negative = generated)
     example_chinese = Column(String(500), nullable=False) # เก็บข้อความไว้แสดงแม้ example ถูกลบ
+    example_pinyin = Column(String(500), nullable=True)   # pinyin ของประโยค
+    is_generated = Column(Boolean, default=False)         # True = gen จาก Gemini
 
     pronunciation_score = Column(Float, default=0)  # 0-100
     tone_score = Column(Float, default=0)           # 0-100

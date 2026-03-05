@@ -55,11 +55,11 @@ export default function SpeakingPractice() {
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
 
-  const { wordId, wordChinese, wordPinyin, wordThai, exampleId, chinese, pinyin, thai } = location.state || {}
+  const { wordId, wordChinese, wordPinyin, wordThai, exampleId, chinese, pinyin, thai, isGenerated } = location.state || {}
 
   // รายการประโยคทั้งหมด: ประโยคแรก = ต้นฉบับจาก DB, ที่เหลือ = generated
   const [sentences, setSentences] = useState(() =>
-    chinese ? [{ chinese, pinyin, thai, exampleId, isOriginal: true }] : []
+    chinese ? [{ chinese, pinyin, thai, exampleId, isOriginal: !isGenerated }] : []
   )
   const [sentenceIdx, setSentenceIdx] = useState(0)
 
@@ -117,8 +117,10 @@ export default function SpeakingPractice() {
 
       const r = await assessSpeaking({
         word_id: wordId,
-        example_id: current.exampleId || 0,  // 0 = generated
+        example_id: current.exampleId || 0,
         example_chinese: current.chinese,
+        example_pinyin: current.pinyin || '',
+        is_generated: !current.isOriginal,
         audio_base64: audioBase64,
       })
       setResult(r.data)

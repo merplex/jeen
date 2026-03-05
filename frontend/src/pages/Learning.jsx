@@ -225,7 +225,15 @@ export default function Learning() {
                   <div key={r.id} className="bg-white rounded-xl p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex-1 min-w-0">
-                        <div className="font-chinese text-lg text-gray-800 leading-snug">{r.example_chinese}</div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-chinese text-lg text-gray-800 leading-snug">{r.example_chinese}</span>
+                          {r.is_generated && (
+                            <span className="text-[9px] bg-purple-100 text-purple-500 px-1 py-0.5 rounded">gen</span>
+                          )}
+                        </div>
+                        {r.example_pinyin && (
+                          <div className="text-xs text-blue-400 mt-0.5">{r.example_pinyin}</div>
+                        )}
                         {r.word && (
                           <div className="text-xs text-gray-400 mt-0.5">{r.word.chinese} · {r.word.pinyin}</div>
                         )}
@@ -249,8 +257,9 @@ export default function Learning() {
                           wordThai: r.word?.thai_meaning,
                           exampleId: r.example_id,
                           chinese: r.example_chinese,
-                          pinyin: '',
+                          pinyin: r.example_pinyin || '',
                           thai: '',
+                          isGenerated: r.is_generated,
                         }
                       })}
                       className="w-full border border-gray-200 rounded-lg py-2 text-xs text-gray-500 active:bg-gray-50"

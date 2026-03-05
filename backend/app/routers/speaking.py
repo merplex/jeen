@@ -134,8 +134,10 @@ def _mock_scores() -> dict:
 
 class AssessRequest(BaseModel):
     word_id: int
-    example_id: int          # 0 = generated sentence (ไม่บันทึก record ถาวร)
+    example_id: int          # 0 = generated sentence
     example_chinese: str
+    example_pinyin: str = ""
+    is_generated: bool = False
     audio_base64: str
 
 
@@ -176,27 +178,43 @@ async def assess_speaking(
     new_total = scores["pronunciation_score"] + scores["tone_score"] + scores["fluency_score"]
     is_improved = False
 
-    if body.example_id == 0:
-        # Generated sentence — ไม่เก็บ record ถาวร แต่นับโควต้า
-        # เก็บใน "gen_quota_record" row พิเศษหรือใช้ example_id=-1
-        # ง่ายสุด: เพิ่ม daily_assess_count ใน record ล่าสุดของวันนี้ (ถ้ามี)
-        if today_records:
-            today_records[-1].daily_assess_count = (today_records[-1].daily_assess_count or 0) + 1
-            today_records[-1].practiced_at = datetime.utcnow()
+    if body.is_generated or body.example_id == 0:
+        # Generated sentence — บันทึกลง history ด้วย stable negative ID
+        # ใช้ hash(word_id + chinese) เพื่อให้ฝึกซ้ำประโยคเดิมได้
+        import hashlib
+        gen_id = -abs(int(hashlib.md5(f"{body.word_id}:{body.example_chinese}".encode()).hexdigest(), 16) % 10**9)
+
+        existing = db.query(SpeakingRecord).filter(
+            SpeakingRecord.user_id == current_user.id,
+            SpeakingRecord.example_id == gen_id,
+        ).first()
+
+        if existing:
+            old_total = existing.pronunciation_score + existing.tone_score + existing.fluency_score
+            existing.practice_count += 1
+            existing.daily_assess_count = (existing.daily_assess_count or 0) + 1
+            existing.practiced_at = datetime.utcnow()
+            if new_total > old_total:
+                existing.pronunciation_score = scores["pronunciation_score"]
+                existing.tone_score = scores["tone_score"]
+                existing.fluency_score = scores["fluency_score"]
+                is_improved = True
             db.commit()
         else:
-            # ยังไม่มี record วันนี้ — สร้าง placeholder
-            placeholder = SpeakingRecord(
+            record = SpeakingRecord(
                 user_id=current_user.id,
                 word_id=body.word_id,
-                example_id=-1,
+                example_id=gen_id,
                 example_chinese=body.example_chinese,
+                example_pinyin=body.example_pinyin or None,
+                is_generated=True,
                 daily_assess_count=1,
                 **scores,
             )
-            db.add(placeholder)
+            db.add(record)
             db.commit()
-        is_improved = True
+            db.refresh(record)
+            is_improved = True
     else:
         existing = db.query(SpeakingRecord).filter(
             SpeakingRecord.user_id == current_user.id,
@@ -220,6 +238,7 @@ async def assess_speaking(
                 word_id=body.word_id,
                 example_id=body.example_id,
                 example_chinese=body.example_chinese,
+                example_pinyin=body.example_pinyin or None,
                 daily_assess_count=1,
                 **scores,
             )
@@ -314,7 +333,8 @@ def speaking_history(
         db.query(SpeakingRecord)
         .filter(
             SpeakingRecord.user_id == current_user.id,
-            SpeakingRecord.example_id > 0,   # ไม่แสดง placeholder
+            SpeakingRecord.example_id != 0,        # ไม่แสดง placeholder เก่า
+            SpeakingRecord.example_chinese != "",   # ไม่แสดง gen quota placeholder
         )
         .order_by(SpeakingRecord.practiced_at.desc())
         .all()
@@ -325,6 +345,8 @@ def speaking_history(
             "word_id": r.word_id,
             "example_id": r.example_id,
             "example_chinese": r.example_chinese,
+            "example_pinyin": r.example_pinyin,
+            "is_generated": r.is_generated,
             "pronunciation_score": r.pronunciation_score,
             "tone_score": r.tone_score,
             "fluency_score": r.fluency_score,
