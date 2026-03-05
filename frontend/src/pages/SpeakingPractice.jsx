@@ -68,6 +68,12 @@ export default function SpeakingPractice() {
   const [dailyStatus, setDailyStatus] = useState(null)
   const [errorMsg, setErrorMsg] = useState('')
   const [genLoading, setGenLoading] = useState(false)
+  const [quotaMsg, setQuotaMsg] = useState('')
+
+  const showQuotaMsg = (msg) => {
+    setQuotaMsg(msg)
+    setTimeout(() => setQuotaMsg(''), 3000)
+  }
 
   const mediaRecorderRef = useRef(null)
   const chunksRef = useRef([])
@@ -225,15 +231,18 @@ export default function SpeakingPractice() {
 
       <div className="px-4 py-6 flex flex-col items-center gap-5">
         {/* ปุ่ม Gen ประโยคใหม่ */}
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-sm space-y-1.5">
           <button
-            onClick={handleGenSentences}
-            disabled={genLoading || !canGen}
-            className="w-full border border-gray-300 bg-white rounded-xl py-2.5 text-sm text-gray-600 disabled:opacity-40 flex items-center justify-center gap-2"
+            onClick={canGen && !genLoading ? handleGenSentences : () => showQuotaMsg('สร้างประโยคใหม่ได้ 1 ครั้ง/วัน — มาใหม่พรุ่งนี้ หรืออัปเกรด')}
+            className={`w-full border rounded-xl py-2.5 text-sm flex items-center justify-center gap-2 transition-opacity ${
+              canGen && !genLoading ? 'border-gray-300 bg-white text-gray-600' : 'border-gray-200 bg-gray-50 text-gray-400'
+            }`}
           >
-            {genLoading ? '⏳ กำลัง gen...' : '✨ เปลี่ยนประโยค (Gemini)'}
-            {!canGen && <span className="text-xs text-orange-500">หมดโควต้าวันนี้</span>}
+            {genLoading ? '⏳ กำลัง gen...' : '✨ สร้างประโยคใหม่'}
           </button>
+          {quotaMsg && quotaMsg.includes('สร้าง') && (
+            <p className="text-center text-xs text-orange-500">{quotaMsg}</p>
+          )}
         </div>
 
         {/* Record button */}
@@ -318,18 +327,30 @@ export default function SpeakingPractice() {
               })}
 
               <div className="pt-1 border-t border-gray-100 flex justify-between text-xs text-gray-400">
-                <span>รวม</span>
+                <span className="flex items-center gap-1.5">
+                  รวม
+                  {result.mock && (
+                    <span className="bg-orange-100 text-orange-500 px-1.5 py-0.5 rounded text-[10px]">Mock</span>
+                  )}
+                  {!result.mock && (
+                    <span className="bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded text-[10px]">Azure AI</span>
+                  )}
+                </span>
                 <span className="font-medium text-gray-600">
                   {Math.round((result.pronunciation_score + result.tone_score + result.fluency_score) / 3)} / 100
                 </span>
               </div>
             </div>
 
+            {quotaMsg && !quotaMsg.includes('สร้าง') && (
+              <p className="text-center text-xs text-orange-500">{quotaMsg}</p>
+            )}
             <div className="flex gap-3">
               <button
-                onClick={retryPractice}
-                disabled={!canPractice}
-                className="flex-1 bg-white border border-gray-200 text-gray-600 rounded-xl py-3 text-sm disabled:opacity-40"
+                onClick={canPractice ? retryPractice : () => showQuotaMsg('ฝึกพูดได้ 3 ครั้ง/วัน — มาใหม่พรุ่งนี้ หรืออัปเกรด')}
+                className={`flex-1 border rounded-xl py-3 text-sm transition-opacity ${
+                  canPractice ? 'bg-white border-gray-200 text-gray-600' : 'bg-gray-50 border-gray-200 text-gray-400'
+                }`}
               >
                 ฝึกซ้ำ
               </button>

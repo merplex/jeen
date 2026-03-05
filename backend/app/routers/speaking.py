@@ -98,7 +98,7 @@ def _assess_sdk_sync(audio_bytes: bytes, reference_text: str, key: str, region: 
         except Exception:
             return None
         pa_config.apply_to(recognizer)
-        result = recognizer.recognize_once_async().get(timeout=10)
+        result = recognizer.recognize_once_async().get()
         if result.reason != speechsdk.ResultReason.RecognizedSpeech:
             print(f"[Azure SDK] reason={result.reason}")
             return None
@@ -175,6 +175,7 @@ async def assess_speaking(
         )
 
     scores = await _assess_azure(body.audio_base64, body.example_chinese)
+    is_mock = scores is None
     if scores is None:
         scores = _mock_scores()
 
@@ -250,7 +251,7 @@ async def assess_speaking(
             db.refresh(record)
             is_improved = True
 
-    return {**scores, "is_improved": is_improved, "today_assess": today_assess + 1}
+    return {**scores, "is_improved": is_improved, "today_assess": today_assess + 1, "mock": is_mock}
 
 
 @router.post("/generate-sentences")
