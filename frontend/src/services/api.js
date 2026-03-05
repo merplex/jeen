@@ -106,6 +106,9 @@ export const adminFixLongEnglish = (maxLen = 100) =>
 export const adminActivityLog = (limit = 50) =>
   api.get('/admin/activity-log', { params: { limit } })
 
+// OCR
+export const scanOcr = (data) => api.post('/ocr/scan', data)
+
 // Subscription
 export const getSubscriptionStatus = () => api.get('/subscription/status')
 export const adminListSubscriptions = () => api.get('/admin/subscription/list')

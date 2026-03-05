@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords } from '../services/api'
+import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords, scanOcr } from '../services/api'
 import WordCard from '../components/WordCard'
 import { SEARCH_CATEGORIES } from '../utils/categories'
 import useAuthStore from '../stores/authStore'
@@ -22,6 +22,9 @@ export default function Search() {
   const [randomWords, setRandomWords] = useState([])
   const [category, setCategory] = useState(() => sessionStorage.getItem('search_category') || 'ทั้งหมด')
   const [catUsage, setCatUsage] = useState(loadCatUsage)
+  const [ocrResult, setOcrResult] = useState(null)  // { text, translation, words }
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const ocrInputRef = useRef(null)
 
   const sortedCategories = [
     'ทั้งหมด',
@@ -108,6 +111,26 @@ export default function Search() {
     }
   }, [scheduleMissedReport, scheduleHistory])
 
+  const handleOcrFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setOcrLoading(true)
+    setOcrResult(null)
+    try {
+      const buf = await file.arrayBuffer()
+      const bytes = new Uint8Array(buf)
+      let binary = ''
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+      const b64 = btoa(binary)
+      const r = await scanOcr({ image_base64: b64, mime_type: file.type || 'image/jpeg' })
+      setOcrResult(r.data)
+    } catch (err) {
+      setOcrResult({ error: err.response?.data?.detail || 'เกิดข้อผิดพลาด' })
+    }
+    setOcrLoading(false)
+  }
+
   const handleChange = (e) => {
     const v = e.target.value
     setQuery(v)
@@ -152,26 +175,89 @@ export default function Search() {
         <h1 className="font-chinese text-white text-2xl font-bold mb-4 text-center">
           字典 พจนานุกรมจีน-ไทย
         </h1>
-        <div className="relative">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={query}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              placeholder="ค้นหาภาษาจีน พินอิน หรือไทย..."
+              className="w-full rounded-xl px-4 py-3 pr-10 text-gray-800 bg-white shadow-lg text-base focus:outline-none focus:ring-2 focus:ring-chinese-gold"
+              autoFocus
+            />
+            {query && (
+              <button
+                onClick={() => { setQuery(''); setResult(null); sessionStorage.removeItem('search_result') }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => ocrInputRef.current?.click()}
+            disabled={ocrLoading}
+            className="w-12 h-12 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center text-white text-xl shadow-lg transition-colors disabled:opacity-50"
+          >
+            {ocrLoading ? '⏳' : '📷'}
+          </button>
           <input
-            type="text"
-            value={query}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            placeholder="ค้นหาภาษาจีน พินอิน หรือไทย..."
-            className="w-full rounded-xl px-4 py-3 pr-10 text-gray-800 bg-white shadow-lg text-base focus:outline-none focus:ring-2 focus:ring-chinese-gold"
-            autoFocus
+            ref={ocrInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleOcrFile}
           />
-          {query && (
-            <button
-              onClick={() => { setQuery(''); setResult(null); sessionStorage.removeItem('search_result') }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl"
-            >
-              ×
-            </button>
-          )}
         </div>
       </div>
+
+      {/* OCR Result */}
+      {ocrResult && (
+        <div className="mx-4 mt-3 bg-white rounded-2xl shadow-lg overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <span className="text-sm font-medium text-gray-700">ผลการสแกน OCR</span>
+            <button onClick={() => setOcrResult(null)} className="text-gray-400 text-xl">×</button>
+          </div>
+          {ocrResult.error ? (
+            <p className="px-4 py-3 text-sm text-red-500">{ocrResult.error}</p>
+          ) : !ocrResult.text ? (
+            <p className="px-4 py-3 text-sm text-gray-400">ไม่พบข้อความภาษาจีนในรูป</p>
+          ) : (
+            <div className="px-4 py-3 space-y-3">
+              <div>
+                <p className="text-xs text-gray-400 mb-1">ข้อความที่อ่านได้</p>
+                <p className="font-chinese text-lg text-gray-800 leading-relaxed">{ocrResult.text}</p>
+              </div>
+              {ocrResult.translation && (
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">คำแปล</p>
+                  <p className="text-sm text-gray-700">{ocrResult.translation}</p>
+                </div>
+              )}
+              {ocrResult.words?.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-400 mb-2">คำศัพท์ที่พบใน DB ({ocrResult.words.length} คำ)</p>
+                  <div className="space-y-1.5">
+                    {ocrResult.words.map((w) => (
+                      <button
+                        key={w.id}
+                        onClick={() => navigate(`/word/${w.id}`)}
+                        className="w-full text-left bg-gray-50 rounded-xl px-3 py-2 flex items-center gap-3 active:bg-gray-100"
+                      >
+                        <span className="font-chinese text-xl text-chinese-red w-10 shrink-0">{w.chinese}</span>
+                        <span className="text-xs text-gray-500">{w.pinyin}</span>
+                        <span className="text-xs text-gray-700 line-clamp-1 ml-auto">{w.thai_meaning?.split('\n')[0]}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Category filter */}
       <div className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide">
