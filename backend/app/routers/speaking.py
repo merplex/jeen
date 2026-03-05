@@ -76,10 +76,11 @@ async def _assess_azure(audio_base64: str, reference_text: str) -> dict | None:
         return None
 
     pronunciation_config = json.dumps({
-        "referenceText": reference_text,
-        "gradingSystem": "HundredMark",
-        "granularity": "Word",
-        "enableMiscue": True,
+        "ReferenceText": reference_text,
+        "GradingSystem": "HundredMark",
+        "Granularity": "FullText",
+        "Dimension": "Comprehensive",
+        "EnableMiscue": True,
     })
     config_b64 = base64.b64encode(pronunciation_config.encode()).decode()
     url = f"https://{region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1"
@@ -91,22 +92,23 @@ async def _assess_azure(audio_base64: str, reference_text: str) -> dict | None:
     audio_bytes = base64.b64decode(audio_base64)
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(url, params={"language": "zh-CN", "format": "detailed"}, headers=headers, content=audio_bytes)
-        print(f"[Azure] status={resp.status_code} body={resp.text[:500]}")
         if resp.status_code != 200:
+            print(f"[Azure] error status={resp.status_code} body={resp.text[:300]}")
             return None
         data = resp.json()
 
     status = data.get("RecognitionStatus", "")
     if status != "Success":
-        print(f"[Azure] RecognitionStatus={status} — ไม่สามารถจดจำเสียงได้")
-        return {"pronunciation_score": 0, "tone_score": 0, "fluency_score": 0, "_status": status}
+        print(f"[Azure] RecognitionStatus={status}")
+        return None
 
-    pa = data.get("NBest", [{}])[0].get("PronunciationAssessment", {})
-    print(f"[Azure] PronunciationAssessment={pa}")
+    nbest = data.get("NBest", [{}])[0]
+    pa = nbest.get("PronunciationAssessment", {})
+    print(f"[Azure] pa={pa} | nbest_keys={list(nbest.keys())}")
     return {
-        "pronunciation_score": pa.get("AccuracyScore", 0),
-        "tone_score": pa.get("ProsodyScore", 0),
-        "fluency_score": pa.get("FluencyScore", 0),
+        "pronunciation_score": pa.get("AccuracyScore") or nbest.get("AccuracyScore", 0),
+        "tone_score": pa.get("ProsodyScore") or nbest.get("ProsodyScore", 0),
+        "fluency_score": pa.get("FluencyScore") or nbest.get("FluencyScore", 0),
     }
 
 
