@@ -9,15 +9,19 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column('users', sa.Column('report_flagged', sa.Boolean(), nullable=False, server_default='false'))
-    op.create_table(
-        'word_reports',
-        sa.Column('id', sa.Integer(), primary_key=True, index=True),
-        sa.Column('word_id', sa.Integer(), sa.ForeignKey('words.id', ondelete='CASCADE'), nullable=False, index=True),
-        sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=False, index=True),
-        sa.Column('message', sa.String(100), nullable=False),
-        sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()')),
-    )
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS report_flagged BOOLEAN NOT NULL DEFAULT false")
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS word_reports (
+            id SERIAL PRIMARY KEY,
+            word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            message VARCHAR(100) NOT NULL,
+            created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now()
+        )
+    """)
+    op.execute("CREATE INDEX IF NOT EXISTS ix_word_reports_id ON word_reports(id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_word_reports_word_id ON word_reports(word_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_word_reports_user_id ON word_reports(user_id)")
 
 
 def downgrade():
