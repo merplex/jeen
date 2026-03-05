@@ -13,9 +13,6 @@ from .database import Base, engine
 from .routers import search, words, users, flashcard, admin, notes, auth, subscription, speaking
 from .scheduler import start_scheduler
 
-Base.metadata.create_all(bind=engine)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     scheduler = start_scheduler()
