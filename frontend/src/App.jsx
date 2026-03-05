@@ -10,6 +10,7 @@ import FlashcardPlay from './pages/FlashcardPlay'
 import SpeakingPractice from './pages/SpeakingPractice'
 import Notes from './pages/Notes'
 import Login from './pages/Login'
+import Register from './pages/Register'
 import Profile from './pages/Profile'
 import LineCallback from './pages/LineCallback'
 import AdminDashboard from './pages/admin/AdminDashboard'
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/speaking/practice" element={<SpeakingPractice />} />
         <Route path="/notes" element={<Notes />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/line-callback" element={<LineCallback />} />
         <Route path="/profile" element={<Profile />} />
         <Route

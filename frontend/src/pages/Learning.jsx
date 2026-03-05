@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getFlashcards, getFlashcardStats, removeFlashcard, getSpeakingHistory, getSpeakingDailyStatus } from '../services/api'
 import useAuthStore from '../stores/authStore'
+import useSubscriptionStore from '../stores/subscriptionStore'
 
 const DECK_COLORS = {
   1: { bg: 'bg-chinese-red', border: 'border-chinese-red', text: 'text-chinese-red', light: 'bg-red-50' },
@@ -12,6 +13,7 @@ const DECK_COLORS = {
 export default function Learning() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
+  const { subscription, fetch: fetchSub } = useSubscriptionStore()
   const [tab, setTab] = useState('flashcard') // 'flashcard' | 'speaking'
 
   // Flashcard state
@@ -28,6 +30,7 @@ export default function Learning() {
   useEffect(() => {
     if (!user) return
     getFlashcardStats().then((r) => setStats(r.data)).catch(() => {})
+    if (!subscription) fetchSub()
   }, [user])
 
   useEffect(() => {
@@ -73,7 +76,7 @@ export default function Learning() {
     </div>
   )
 
-  const isPremium = user?.is_admin === true // admin = no limit; TODO: เพิ่ม subscription check
+  const isPremium = user?.is_admin === true || subscription?.active === true
 
   return (
     <div className="min-h-screen bg-chinese-cream pb-24">

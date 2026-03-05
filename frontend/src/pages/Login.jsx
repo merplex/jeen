@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import useAuthStore from '../stores/authStore'
-import { requestEmailOtp, verifyEmailOtp, getMe } from '../services/api'
+import { emailLogin, getMe } from '../services/api'
 
 const LINE_LOGIN_URL = `${import.meta.env.VITE_API_URL || '/api'}/auth/line`
 
@@ -9,41 +9,23 @@ export default function Login() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
-  // step: 'email' | 'otp'
-  const [step, setStep] = useState('email')
   const [email, setEmail] = useState('')
-  const [otp, setOtp] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(() => {
     const e = searchParams.get('error')
     if (e === 'line_denied') return 'ยกเลิกการเข้าสู่ระบบด้วย LINE'
-    if (e === 'line_token_failed' || e === 'line_profile_failed') return 'LINE Login ไม่สำเร็จ กรุณาลองใหม่'
+    if (e === 'line_token_failed' || e === 'line_profile_failed' || e === 'line') return 'LINE Login ไม่สำเร็จ กรุณาลองใหม่'
     return ''
   })
-  const [info, setInfo] = useState('')
 
-  const handleRequestOtp = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault()
-    if (!email.trim()) { setError('กรุณากรอกอีเมล'); return }
-    if (!/^[^@]+@[^@]+\.[^@]+$/.test(email.trim())) { setError('รูปแบบอีเมลไม่ถูกต้อง'); return }
-    setError(''); setLoading(true)
+    if (!email.trim() || !password) return
+    setError('')
+    setLoading(true)
     try {
-      await requestEmailOtp(email.trim().toLowerCase())
-      setStep('otp')
-      setInfo(`ส่ง OTP ไปที่ ${email} แล้ว กรุณาตรวจสอบอีเมล (รวมถึงโฟลเดอร์ spam)`)
-    } catch (err) {
-      setError(err.response?.data?.detail || 'ส่ง OTP ไม่สำเร็จ กรุณาลองใหม่')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault()
-    if (!otp.trim()) { setError('กรุณากรอก OTP'); return }
-    setError(''); setLoading(true)
-    try {
-      const res = await verifyEmailOtp(email.trim().toLowerCase(), otp.trim())
+      const res = await emailLogin(email.trim().toLowerCase(), password)
       const token = res.data.token
       localStorage.setItem('token', token)
       useAuthStore.setState({ token })
@@ -51,19 +33,7 @@ export default function Login() {
       useAuthStore.setState({ user: meRes.data })
       navigate('/', { replace: true })
     } catch (err) {
-      setError(err.response?.data?.detail || 'OTP ไม่ถูกต้องหรือหมดอายุ')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleResend = async () => {
-    setError(''); setOtp(''); setLoading(true)
-    try {
-      await requestEmailOtp(email.trim().toLowerCase())
-      setInfo('ส่ง OTP ใหม่แล้ว กรุณาตรวจสอบอีเมล')
-    } catch (err) {
-      setError(err.response?.data?.detail || 'ส่ง OTP ไม่สำเร็จ')
+      setError(err.response?.data?.detail || 'เข้าสู่ระบบไม่สำเร็จ')
     } finally {
       setLoading(false)
     }
@@ -96,74 +66,50 @@ export default function Login() {
           <div className="flex-1 h-px bg-gray-200" />
         </div>
 
-        {/* Email OTP flow */}
-        {step === 'email' ? (
-          <form onSubmit={handleRequestOtp} className="space-y-4">
-            <div>
-              <label className="text-sm text-gray-600 mb-1 block">อีเมล</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); setError('') }}
-                placeholder="your@email.com"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-chinese-red bg-white"
-                required
-                autoComplete="email"
-              />
-            </div>
-            {error && <p className="text-red-500 text-sm">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-chinese-red text-white py-3 rounded-xl font-semibold text-lg disabled:opacity-60"
-            >
-              {loading ? 'กำลังส่ง OTP...' : 'ส่ง OTP ทางอีเมล'}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyOtp} className="space-y-4">
-            {info && <p className="text-sm text-gray-500 bg-gray-50 rounded-xl px-4 py-3">{info}</p>}
-            <div>
-              <label className="text-sm text-gray-600 mb-1 block">รหัส OTP 6 หลัก</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={otp}
-                onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setError('') }}
-                placeholder="000000"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-chinese-red bg-white text-center text-2xl tracking-widest font-mono"
-                required
-                autoComplete="one-time-code"
-                autoFocus
-              />
-            </div>
-            {error && <p className="text-red-500 text-sm">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading || otp.length !== 6}
-              className="w-full bg-chinese-red text-white py-3 rounded-xl font-semibold text-lg disabled:opacity-60"
-            >
-              {loading ? 'กำลังตรวจสอบ...' : 'ยืนยัน OTP'}
-            </button>
-            <div className="flex items-center justify-between text-sm">
-              <button
-                type="button"
-                onClick={() => { setStep('email'); setOtp(''); setError(''); setInfo('') }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                เปลี่ยนอีเมล
-              </button>
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={loading}
-                className="text-chinese-red hover:underline disabled:opacity-50"
-              >
-                ส่ง OTP ใหม่
-              </button>
-            </div>
-          </form>
-        )}
+        {/* Email + Password login */}
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="text-sm text-gray-600 mb-1 block">อีเมล</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setError('') }}
+              placeholder="your@email.com"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-chinese-red bg-white"
+              autoComplete="email"
+              required
+            />
+          </div>
+          <div>
+            <label className="text-sm text-gray-600 mb-1 block">รหัสผ่าน</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setError('') }}
+              placeholder="••••••"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-chinese-red bg-white"
+              autoComplete="current-password"
+              required
+            />
+          </div>
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-chinese-red text-white py-3 rounded-xl font-semibold text-lg disabled:opacity-60"
+          >
+            {loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+          </button>
+        </form>
+
+        <div className="flex items-center justify-between mt-4 text-sm">
+          <Link to="/register" className="text-chinese-red">
+            ยังไม่มีบัญชี? สมัครสมาชิก
+          </Link>
+          <Link to="/register?mode=reset" className="text-gray-400">
+            ลืมรหัสผ่าน?
+          </Link>
+        </div>
       </div>
     </div>
   )

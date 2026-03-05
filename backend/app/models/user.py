@@ -12,6 +12,7 @@ class User(Base):
     display_name = Column(String(100))
     is_admin = Column(Boolean, default=False)
     report_flagged = Column(Boolean, default=False)
+    password_hash = Column(String(200), nullable=True)
     created_at = Column(DateTime, default=func.now())
 
     search_history = relationship("SearchHistory", back_populates="user")

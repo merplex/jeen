@@ -3,6 +3,7 @@ import random
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
+from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -10,8 +11,12 @@ from ..models.user import User
 from ..auth import create_token
 from ..config import settings
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 # OTP in-memory store: email → (otp, expires_at)
 _otp_store: dict[str, tuple[str, datetime]] = {}
+# Verified store: email → expires_at (5 นาทีหลัง OTP ผ่าน ให้ตั้ง password ได้)
+_verified_store: dict[str, datetime] = {}
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -151,8 +156,8 @@ def email_request_otp(body: EmailRequest):
 
 
 @router.post("/email/verify-otp")
-def email_verify_otp(body: OTPVerifyRequest, db: Session = Depends(get_db)):
-    """ตรวจสอบ OTP แล้วออก JWT"""
+def email_verify_otp(body: OTPVerifyRequest):
+    """ตรวจสอบ OTP — หลังผ่านแล้วให้ไปตั้ง password ต่อ (/auth/email/set-password)"""
     email = body.email.lower()
     entry = _otp_store.get(email)
     if not entry:
@@ -163,15 +168,54 @@ def email_verify_otp(body: OTPVerifyRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="OTP หมดอายุแล้ว กรุณาขอใหม่")
     if body.otp.strip() != stored_otp:
         raise HTTPException(status_code=400, detail="OTP ไม่ถูกต้อง")
-    # OTP ถูก → ลบทิ้ง
     del _otp_store[email]
-    # สร้างหรือดึง user
+    # mark verified — มีเวลา 5 นาทีตั้ง password
+    _verified_store[email] = datetime.utcnow() + timedelta(minutes=5)
+    return {"verified": True, "email": email}
+
+
+class EmailSetPasswordRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+@router.post("/email/set-password")
+def email_set_password(body: EmailSetPasswordRequest, db: Session = Depends(get_db)):
+    """ตั้ง password หลัง OTP ผ่านแล้ว — ใช้สำหรับสมัครใหม่ และรีเซ็ตรหัสผ่าน"""
+    email = body.email.lower()
+    exp = _verified_store.get(email)
+    if not exp or datetime.utcnow() > exp:
+        raise HTTPException(status_code=400, detail="กรุณายืนยัน OTP ก่อน หรือ OTP หมดอายุแล้ว")
+    if len(body.password) < 6:
+        raise HTTPException(status_code=400, detail="รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร")
+    hashed = pwd_context.hash(body.password)
     user = db.query(User).filter(User.identifier == email).first()
     if not user:
-        user = User(identifier=email, id_type="email", display_name="")
+        user = User(identifier=email, id_type="email", display_name="", password_hash=hashed)
         db.add(user)
-        db.commit()
-        db.refresh(user)
+    else:
+        user.password_hash = hashed
+    db.commit()
+    db.refresh(user)
+    del _verified_store[email]
+    jwt_token = create_token(user.id)
+    return {"token": jwt_token, "user": {"id": user.id, "display_name": user.display_name, "is_admin": user.is_admin}}
+
+
+class EmailLoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+@router.post("/email/login")
+def email_login(body: EmailLoginRequest, db: Session = Depends(get_db)):
+    """Login ด้วยอีเมล + password"""
+    email = body.email.lower()
+    user = db.query(User).filter(User.identifier == email).first()
+    if not user or not user.password_hash:
+        raise HTTPException(status_code=400, detail="อีเมลหรือรหัสผ่านไม่ถูกต้อง")
+    if not pwd_context.verify(body.password, user.password_hash):
+        raise HTTPException(status_code=400, detail="อีเมลหรือรหัสผ่านไม่ถูกต้อง")
     jwt_token = create_token(user.id)
     return {"token": jwt_token, "user": {"id": user.id, "display_name": user.display_name, "is_admin": user.is_admin}}
 
