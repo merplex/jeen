@@ -30,14 +30,22 @@ def search_words(db: Session, query: str) -> SearchResult:
     lang = detect_language(q)
 
     if lang == 'english':
-        # 1) pinyin (chukou, nihao, ...)
-        result = _search_by_pinyin(db, q)
-        if result.found:
-            return result
-        # 2) english_meaning column (exit, money, ...)
-        result = _search_by_english_meaning(db, q)
-        if result.found:
-            return result
+        # 1) english_meaning column (exact brand/word match — Nike, exit, money, ...)
+        eng_result = _search_by_english_meaning(db, q)
+        # 2) pinyin (chukou, nihao, ...)
+        pin_result = _search_by_pinyin(db, q)
+
+        # merge: english_meaning prefix first, then pinyin results not already included
+        if eng_result.found or pin_result.found:
+            eng_ids = {w.id for w in (eng_result.prefix_group + eng_result.inner_group)}
+            extra_prefix = [w for w in pin_result.prefix_group if w.id not in eng_ids]
+            extra_inner = [w for w in pin_result.inner_group if w.id not in eng_ids]
+            prefix = eng_result.prefix_group + extra_prefix
+            inner = eng_result.inner_group + extra_inner
+            total = len(prefix) + len(inner)
+            _mark_multiple_readings(prefix + inner)
+            return SearchResult(query=q, prefix_group=prefix, inner_group=inner, total=total, found=True)
+
         # 3) Gemini fallback
         return _search_english(db, q)
 
