@@ -95,6 +95,22 @@ export default function Search() {
       if (q !== currentQueryRef.current) return
       setResult(res.data)
       const firstWordId = res.data.prefix_group?.[0]?.id ?? res.data.inner_group?.[0]?.id ?? null
+
+      // นับหมวดหมู่จากผลค้นหา เพื่อให้หมวดที่ค้นบ่อยขึ้นมาด้านหน้า
+      if (res.data.found) {
+        const allWords = [...(res.data.prefix_group || []), ...(res.data.inner_group || [])]
+        const catCounts = {}
+        allWords.forEach((w) => { if (w.category) catCounts[w.category] = (catCounts[w.category] || 0) + 1 })
+        if (Object.keys(catCounts).length > 0) {
+          setCatUsage((prev) => {
+            const updated = { ...prev }
+            Object.entries(catCounts).forEach(([cat, cnt]) => { updated[cat] = (updated[cat] || 0) + cnt })
+            localStorage.setItem('cat_usage', JSON.stringify(updated))
+            return updated
+          })
+        }
+      }
+
       if (!res.data.found) {
         scheduleMissedReport(q.trim())
       } else {
