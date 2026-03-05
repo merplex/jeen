@@ -3,12 +3,17 @@ import {
   adminListSubscriptions,
   adminGrantSubscription,
   adminCancelSubscription,
+  adminGetFlaggedUsers,
+  adminUnflagUser,
 } from '../../services/api'
+import { thaiDateTime } from '../../utils/time'
 
 export default function Subscriptions() {
   const [subs, setSubs] = useState([])
   const [loading, setLoading] = useState(true)
   const [showGrant, setShowGrant] = useState(false)
+  const [flaggedUsers, setFlaggedUsers] = useState([])
+  const [expandedUser, setExpandedUser] = useState(null) // user_id ที่กำลัง expand ดูประวัติ
   const [form, setForm] = useState({
     user_id: '',
     product_id: 'manual_grant',
@@ -20,14 +25,23 @@ export default function Subscriptions() {
   const load = async () => {
     setLoading(true)
     try {
-      const res = await adminListSubscriptions()
-      setSubs(res.data)
+      const [subsRes, flaggedRes] = await Promise.all([
+        adminListSubscriptions(),
+        adminGetFlaggedUsers(),
+      ])
+      setSubs(subsRes.data)
+      setFlaggedUsers(flaggedRes.data)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => { load() }, [])
+
+  const handleUnflag = async (userId) => {
+    await adminUnflagUser(userId)
+    setFlaggedUsers((prev) => prev.filter((u) => u.id !== userId))
+  }
 
   const handleGrant = async () => {
     if (!form.user_id) return
@@ -132,6 +146,50 @@ export default function Subscriptions() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Flagged Users */}
+      {flaggedUsers.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-yellow-700 flex items-center gap-1">
+            ⚠️ ผู้ใช้ที่ต้องตรวจสอบ ({flaggedUsers.length})
+          </h3>
+          {flaggedUsers.map((u) => (
+            <div key={u.id} className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  onClick={() => setExpandedUser(expandedUser === u.id ? null : u.id)}
+                  className="text-left flex-1 min-w-0"
+                >
+                  <div className="font-medium text-gray-800">{u.display_name}</div>
+                  <div className="text-xs text-gray-400">{u.identifier} · ID #{u.id}</div>
+                </button>
+                <button
+                  onClick={() => handleUnflag(u.id)}
+                  className="text-xs text-green-600 border border-green-300 rounded-lg px-2 py-1 shrink-0 hover:bg-green-50"
+                >
+                  ปลดล็อค
+                </button>
+              </div>
+              {expandedUser === u.id && (
+                <div className="mt-3 border-t border-yellow-200 pt-3 space-y-1.5">
+                  <p className="text-xs font-medium text-gray-500 mb-2">ประวัติค้นหา 10 คำล่าสุด</p>
+                  {u.history.length === 0 ? (
+                    <p className="text-xs text-gray-400">ไม่มีประวัติ</p>
+                  ) : (
+                    u.history.map((h, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${h.found ? 'bg-green-400' : 'bg-red-300'}`} />
+                        <span className="font-medium text-gray-700 flex-1">{h.query}</span>
+                        <span className="text-xs text-gray-400">{thaiDateTime(h.searched_at)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 

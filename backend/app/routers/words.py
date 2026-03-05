@@ -1,13 +1,30 @@
 import re
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import date, datetime
+from fastapi import APIRouter, Depends, HTTPException, Body
 from pypinyin.contrib.tone_convert import tone3_to_tone
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.word import Word
 from ..models.activity_log import ActivityLog
+from ..models.word_report import WordReport
+from ..models.subscription import UserSubscription
 from ..schemas.word import WordOut, WordCreate, WordUpdate
 from ..auth import require_admin, require_user
+from ..models.user import User
 from ..services.import_service import _gen_pinyin, _gen_pinyin_plain
+
+
+def _has_subscription(user_id: int, db: Session) -> bool:
+    sub = (
+        db.query(UserSubscription)
+        .filter(UserSubscription.user_id == user_id, UserSubscription.status == "active")
+        .first()
+    )
+    if not sub:
+        return False
+    if sub.expires_at and sub.expires_at < datetime.utcnow():
+        return False
+    return True
 
 
 def _numeric_to_tone_pinyin(s: str) -> str:
@@ -154,6 +171,52 @@ def update_word(
     db.commit()
     db.refresh(word)
     return word
+
+
+@router.post("/{word_id}/report")
+def report_word(
+    word_id: int,
+    message: str = Body(..., embed=True, min_length=3, max_length=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_user),
+):
+    """รายงานปัญหาคำศัพท์ — สำหรับ premium user เท่านั้น"""
+    if not current_user.is_admin and not _has_subscription(current_user.id, db):
+        raise HTTPException(status_code=403, detail="เฉพาะสมาชิก Premium เท่านั้น")
+
+    word = db.query(Word).filter(Word.id == word_id, Word.status == "verified").first()
+    if not word:
+        raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์")
+
+    today_start = datetime.combine(date.today(), datetime.min.time())
+
+    # ตรวจ: รายงานคำเดิมซ้ำ > 3 ครั้ง/วัน
+    same_word_today = (
+        db.query(WordReport)
+        .filter(WordReport.user_id == current_user.id, WordReport.word_id == word_id,
+                WordReport.created_at >= today_start)
+        .count()
+    )
+    if same_word_today >= 3:
+        current_user.report_flagged = True
+        db.commit()
+        raise HTTPException(status_code=429, detail="รายงานคำนี้ครบ 3 ครั้งต่อวันแล้ว")
+
+    # ตรวจ: รายงานมากกว่า 10 คำ/วัน
+    unique_words_today = (
+        db.query(WordReport.word_id)
+        .filter(WordReport.user_id == current_user.id, WordReport.created_at >= today_start)
+        .distinct()
+        .count()
+    )
+    if unique_words_today >= 10:
+        current_user.report_flagged = True
+        db.commit()
+        raise HTTPException(status_code=429, detail="รายงานครบ 10 คำต่อวันแล้ว")
+
+    db.add(WordReport(word_id=word_id, user_id=current_user.id, message=message))
+    db.commit()
+    return {"ok": True}
 
 
 @router.delete("/{word_id}")

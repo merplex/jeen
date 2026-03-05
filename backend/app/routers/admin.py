@@ -10,6 +10,8 @@ from ..models.word import Word, WordPending
 from ..models.example import Example
 from ..models.missed_search import MissedSearch
 from ..models.activity_log import ActivityLog
+from ..models.word_report import WordReport
+from ..models.search_history import SearchHistory
 from ..schemas.word import WordOut, WordPendingOut, ActivityLogOut
 from ..auth import require_admin
 from ..models.user import User
@@ -173,6 +175,89 @@ def list_missed(
         .limit(limit)
         .all()
     )
+
+
+@router.get("/word-reports")
+def list_word_reports(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    reports = (
+        db.query(WordReport)
+        .order_by(WordReport.created_at.desc())
+        .limit(200)
+        .all()
+    )
+    result = []
+    for r in reports:
+        word = db.query(Word).filter(Word.id == r.word_id).first()
+        user = db.query(User).filter(User.id == r.user_id).first()
+        result.append({
+            "id": r.id,
+            "word_id": r.word_id,
+            "word_chinese": word.chinese if word else "?",
+            "word_pinyin": word.pinyin if word else "",
+            "user_id": r.user_id,
+            "user_name": (user.display_name or user.identifier) if user else "?",
+            "message": r.message,
+            "created_at": r.created_at,
+        })
+    return result
+
+
+@router.delete("/word-reports/{report_id}")
+def delete_word_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    r = db.query(WordReport).filter(WordReport.id == report_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="ไม่พบรายงาน")
+    db.delete(r)
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/flagged-users")
+def list_flagged_users(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    users = db.query(User).filter(User.report_flagged == True).all()
+    result = []
+    for u in users:
+        history = (
+            db.query(SearchHistory)
+            .filter(SearchHistory.user_id == u.id)
+            .order_by(SearchHistory.searched_at.desc())
+            .limit(10)
+            .all()
+        )
+        result.append({
+            "id": u.id,
+            "display_name": u.display_name or u.identifier,
+            "identifier": u.identifier,
+            "history": [
+                {"query": h.query, "found": h.found, "searched_at": h.searched_at}
+                for h in history
+            ],
+        })
+    return result
+
+
+@router.post("/users/{user_id}/unflag")
+def unflag_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    u = db.query(User).filter(User.id == user_id).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="ไม่พบ user")
+    u.report_flagged = False
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/import")

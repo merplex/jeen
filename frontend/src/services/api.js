@@ -106,6 +106,13 @@ export const adminFixLongEnglish = (maxLen = 100) =>
 export const adminActivityLog = (limit = 50) =>
   api.get('/admin/activity-log', { params: { limit } })
 
+// Word reports
+export const reportWord = (wordId, message) => api.post(`/words/${wordId}/report`, { message })
+export const adminGetWordReports = () => api.get('/admin/word-reports')
+export const adminDeleteWordReport = (id) => api.delete(`/admin/word-reports/${id}`)
+export const adminGetFlaggedUsers = () => api.get('/admin/flagged-users')
+export const adminUnflagUser = (userId) => api.post(`/admin/users/${userId}/unflag`)
+
 // OCR
 export const scanOcr = (data) => api.post('/ocr/scan', data)
 

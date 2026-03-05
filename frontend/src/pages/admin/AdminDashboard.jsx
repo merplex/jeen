@@ -2,7 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 
 const TABS = [
   { to: '/admin/pending', label: 'รอ Approve' },
-  { to: '/admin/missed', label: 'ค้นไม่พบ' },
+  { to: '/admin/missed', label: 'รายงาน' },
   { to: '/admin/import', label: 'Import' },
   { to: '/admin/add', label: 'เพิ่มคำ' },
   { to: '/admin/examples', label: 'ตัวอย่าง' },

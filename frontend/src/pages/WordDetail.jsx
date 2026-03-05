@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, recordSearchHistory } from '../services/api'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, recordSearchHistory, reportWord, adminDeleteWordReport } from '../services/api'
 import useAuthStore from '../stores/authStore'
+import useSubscriptionStore from '../stores/subscriptionStore'
 import SelectionPopup from '../components/SelectionPopup'
 
 const DECK_STYLE = {
@@ -13,7 +14,9 @@ const DECK_STYLE = {
 export default function WordDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, token, fetchingMe } = useAuthStore()
+  const { subscription, fetch: fetchSub } = useSubscriptionStore()
   const [word, setWord] = useState(null)
   const [activeDecks, setActiveDecks] = useState(new Set()) // deck numbers ที่คำนี้อยู่
   const [note, setNote] = useState(null)
@@ -22,11 +25,23 @@ export default function WordDetail() {
   const [editData, setEditData] = useState(null) // null = ไม่ได้ edit
   const [editSaving, setEditSaving] = useState(false)
   const [genExLoading, setGenExLoading] = useState(false)
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [reportMsg, setReportMsg] = useState('')
+  const [reportSending, setReportSending] = useState(false)
+
+  // context จาก admin "เช็ค" — { reportId, reportMsg, reportUserName }
+  const reportContext = location.state?.reportId ? location.state : null
+
+  const isPremium = user?.is_admin || subscription?.active === true
 
   // redirect ถ้าไม่มี token
   useEffect(() => {
     if (!token && !fetchingMe) navigate('/login', { replace: true })
   }, [token, fetchingMe, navigate])
+
+  useEffect(() => {
+    if (token && !subscription) fetchSub()
+  }, [token])
 
   useEffect(() => {
     if (!token) return
@@ -97,10 +112,29 @@ export default function WordDetail() {
       const r = await adminUpdateWord(id, payload)
       setWord(r.data)
       setEditData(null)
+      // ถ้าเข้ามาจากหน้า admin "เช็ค" รายงาน → ลบ report แล้วกลับไป
+      if (reportContext?.reportId) {
+        await adminDeleteWordReport(reportContext.reportId).catch(() => {})
+        navigate(-1)
+      }
     } catch (e) {
       alert(e.response?.data?.detail || 'บันทึกไม่สำเร็จ')
     }
     setEditSaving(false)
+  }
+
+  const sendReport = async () => {
+    if (reportMsg.trim().length < 3) return
+    setReportSending(true)
+    try {
+      await reportWord(id, reportMsg.trim())
+      setShowReportModal(false)
+      setReportMsg('')
+      alert('ส่งรายงานแล้ว ขอบคุณครับ')
+    } catch (e) {
+      alert(e.response?.data?.detail || 'ส่งรายงานไม่สำเร็จ')
+    }
+    setReportSending(false)
   }
 
   const generateExamples = async () => {
@@ -149,9 +183,21 @@ export default function WordDetail() {
           >
             ←
           </button>
-          <button onClick={() => speak(word.chinese)} className="absolute right-0 text-white text-2xl" title="ออกเสียง">
-            🔊
-          </button>
+          {/* ปุ่ม ออกเสียง + รายงาน อยู่ขวา */}
+          <div className="absolute right-0 flex items-center gap-2">
+            {isPremium && (
+              <button
+                onClick={() => setShowReportModal(true)}
+                title="รายงานปัญหาคำศัพท์"
+                className="text-yellow-300 text-xl leading-none"
+              >
+                ⚠️
+              </button>
+            )}
+            <button onClick={() => speak(word.chinese)} className="text-white text-2xl" title="ออกเสียง">
+              🔊
+            </button>
+          </div>
           <div className="font-chinese text-5xl text-white">{word.chinese}</div>
         </div>
         <div className="text-chinese-gold text-lg text-center mb-4">{word.pinyin}</div>
@@ -369,6 +415,17 @@ export default function WordDetail() {
           </div>
         )}
 
+        {/* Report context — admin เข้ามาจากหน้า "เช็ค" รายงาน */}
+        {reportContext && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 shadow-sm">
+            <div className="text-xs font-semibold text-yellow-700 mb-1">
+              รายงานจาก {reportContext.reportUserName}
+            </div>
+            <p className="text-sm text-gray-700">{reportContext.reportMsg}</p>
+            <p className="text-xs text-gray-400 mt-2">แก้ไขแล้วกด "บันทึก" ด้านบน — รายการนี้จะถูกลบออกอัตโนมัติ</p>
+          </div>
+        )}
+
         {/* Notes */}
         {user && (
           <div className="bg-white rounded-xl p-4 shadow-sm">
@@ -415,6 +472,44 @@ export default function WordDetail() {
           </div>
         )}
       </div>
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">⚠️</span>
+              <h3 className="font-bold text-gray-800">รายงานปัญหาคำศัพท์</h3>
+            </div>
+            <p className="text-xs text-gray-400">{word.chinese} — {word.pinyin}</p>
+            <input
+              type="text"
+              maxLength={100}
+              value={reportMsg}
+              onChange={(e) => setReportMsg(e.target.value)}
+              placeholder="ระบุปัญหา เช่น พินอินผิด, แปลไม่ถูก..."
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              autoFocus
+            />
+            <div className="text-right text-xs text-gray-400">{reportMsg.length}/100</div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowReportModal(false); setReportMsg('') }}
+                className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm text-gray-600"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={sendReport}
+                disabled={reportMsg.trim().length < 3 || reportSending}
+                className="flex-1 bg-yellow-400 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-40"
+              >
+                {reportSending ? 'กำลังส่ง...' : 'ส่งรายงาน'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
