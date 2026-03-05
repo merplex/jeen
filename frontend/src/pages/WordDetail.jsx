@@ -272,6 +272,9 @@ export default function WordDetail() {
                                   onClick={() => navigate('/speaking/practice', {
                                     state: {
                                       wordId: word.id,
+                                      wordChinese: word.chinese,
+                                      wordPinyin: word.pinyin,
+                                      wordThai: word.thai_meaning,
                                       exampleId: ex.id,
                                       chinese: ex.chinese,
                                       pinyin: ex.pinyin,

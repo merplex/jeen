@@ -55,6 +55,7 @@ export const removeFlashcard = (wordId, deck = 1) =>
 export const getSpeakingHistory = () => api.get('/speaking/history')
 export const getSpeakingDailyStatus = () => api.get('/speaking/daily-status')
 export const assessSpeaking = (data) => api.post('/speaking/assess', data)
+export const generateSpeakingSentences = (data) => api.post('/speaking/generate-sentences', data)
 
 export const getNotes = (q = '') => api.get('/notes', { params: { q } })
 export const createNote = (data) => api.post('/notes', data)
