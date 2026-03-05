@@ -2,7 +2,9 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 from .config import settings
 
-engine = create_engine(settings.DATABASE_URL)
+# Railway provides postgres:// but SQLAlchemy 2.x requires postgresql://
+db_url = settings.DATABASE_URL.replace("postgres://", "postgresql://", 1)
+engine = create_engine(db_url)
 
 
 @event.listens_for(engine, "connect")
