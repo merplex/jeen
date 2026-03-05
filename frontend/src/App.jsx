@@ -5,7 +5,9 @@ import BottomNav from './components/BottomNav'
 import Search from './pages/Search'
 import WordDetail from './pages/WordDetail'
 import History from './pages/History'
-import Flashcard from './pages/Flashcard'
+import Learning from './pages/Learning'
+import FlashcardPlay from './pages/FlashcardPlay'
+import SpeakingPractice from './pages/SpeakingPractice'
 import Notes from './pages/Notes'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
@@ -40,7 +42,10 @@ export default function App() {
         <Route path="/" element={<Search />} />
         <Route path="/word/:id" element={<WordDetail />} />
         <Route path="/history" element={<History />} />
-        <Route path="/flashcard" element={<Flashcard />} />
+        <Route path="/flashcard" element={<Learning />} />
+        <Route path="/learning" element={<Learning />} />
+        <Route path="/learning/play/:deck" element={<FlashcardPlay />} />
+        <Route path="/speaking/practice" element={<SpeakingPractice />} />
         <Route path="/notes" element={<Notes />} />
         <Route path="/login" element={<Login />} />
         <Route path="/line-callback" element={<LineCallback />} />

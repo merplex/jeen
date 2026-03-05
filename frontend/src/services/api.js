@@ -42,9 +42,18 @@ export const getMe = () => api.get('/users/me')
 export const getHistory = () => api.get('/users/me/history')
 export const deleteHistory = (id) => api.delete(`/users/me/history/${id}`)
 
-export const getFlashcards = () => api.get('/flashcards')
-export const addFlashcard = (wordId) => api.post(`/flashcards/${wordId}`)
-export const removeFlashcard = (wordId) => api.delete(`/flashcards/${wordId}`)
+export const getFlashcards = (deck = null) =>
+  api.get('/flashcards', { params: deck ? { deck } : {} })
+export const getFlashcardDecks = (wordId) => api.get(`/flashcards/word/${wordId}`)
+export const getFlashcardStats = () => api.get('/flashcards/stats')
+export const addFlashcard = (wordId, deck = 1) =>
+  api.post(`/flashcards/${wordId}`, null, { params: { deck } })
+export const removeFlashcard = (wordId, deck = 1) =>
+  api.delete(`/flashcards/${wordId}`, { params: { deck } })
+
+export const getSpeakingHistory = () => api.get('/speaking/history')
+export const getSpeakingDailyStatus = () => api.get('/speaking/daily-status')
+export const assessSpeaking = (data) => api.post('/speaking/assess', data)
 
 export const getNotes = (q = '') => api.get('/notes', { params: { q } })
 export const createNote = (data) => api.post('/notes', data)

@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getWord, addFlashcard, removeFlashcard, getFlashcards, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, recordSearchHistory } from '../services/api'
+import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, recordSearchHistory } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import SelectionPopup from '../components/SelectionPopup'
+
+const DECK_STYLE = {
+  1: { active: 'bg-chinese-red border-chinese-red text-white', inactive: 'bg-transparent border-chinese-red text-chinese-red' },
+  2: { active: 'bg-blue-500 border-blue-500 text-white', inactive: 'bg-transparent border-blue-500 text-blue-500' },
+  3: { active: 'bg-green-500 border-green-500 text-white', inactive: 'bg-transparent border-green-500 text-green-500' },
+}
 
 export default function WordDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user, token, fetchingMe } = useAuthStore()
   const [word, setWord] = useState(null)
-  const [isFav, setIsFav] = useState(false)
+  const [activeDecks, setActiveDecks] = useState(new Set()) // deck numbers ที่คำนี้อยู่
   const [note, setNote] = useState(null)
   const [noteText, setNoteText] = useState('')
   const [editingNote, setEditingNote] = useState(false)
@@ -33,8 +39,8 @@ export default function WordDetail() {
       })
       .catch(() => navigate('/'))
     if (user) {
-      getFlashcards().then((r) => {
-        setIsFav(r.data.some((f) => f.word_id === Number(id)))
+      getFlashcardDecks(id).then((r) => {
+        setActiveDecks(new Set(r.data.decks))
       })
       getNotes().then((r) => {
         const n = r.data.find((n) => n.word_id === Number(id))
@@ -43,14 +49,18 @@ export default function WordDetail() {
     }
   }, [id, user])
 
-  const toggleFav = async () => {
+  const toggleDeck = async (deck) => {
     if (!user) return navigate('/login')
-    if (isFav) {
-      await removeFlashcard(id)
-      setIsFav(false)
+    if (activeDecks.has(deck)) {
+      await removeFlashcard(id, deck)
+      setActiveDecks((prev) => { const s = new Set(prev); s.delete(deck); return s })
     } else {
-      await addFlashcard(id)
-      setIsFav(true)
+      try {
+        await addFlashcard(id, deck)
+        setActiveDecks((prev) => new Set([...prev, deck]))
+      } catch (e) {
+        alert(e.response?.data?.detail || 'ไม่สามารถเพิ่มได้')
+      }
     }
   }
 
@@ -142,13 +152,24 @@ export default function WordDetail() {
           <div className="font-chinese text-5xl text-white mb-2">{word.chinese}</div>
           <div className="text-chinese-gold text-lg">{word.pinyin}</div>
         </div>
-        <div className="absolute right-4 top-12 flex gap-3">
-          <button onClick={() => speak(word.chinese)} className="text-white text-2xl" title="ออกเสียง">
+        <div className="absolute right-4 top-12 flex flex-col items-center gap-2">
+          <button onClick={() => speak(word.chinese)} className="text-white text-2xl mb-1" title="ออกเสียง">
             🔊
           </button>
-          <button onClick={toggleFav} className="text-2xl" title="เพิ่ม Flashcard">
-            {isFav ? '⭐' : '☆'}
-          </button>
+          {[1, 2, 3].map((deck) => {
+            const inDeck = activeDecks.has(deck)
+            const s = DECK_STYLE[deck]
+            return (
+              <button
+                key={deck}
+                onClick={() => toggleDeck(deck)}
+                className={`w-7 h-7 rounded border-2 text-xs font-bold flex items-center justify-center transition-all active:scale-90 ${inDeck ? s.active : s.inactive}`}
+                title={`การ์ดชุด ${deck}`}
+              >
+                {deck}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -238,6 +259,21 @@ export default function WordDetail() {
                                 )}
                                 <button onClick={() => speak(ex.chinese)} className="text-gray-400 text-sm">
                                   🔊
+                                </button>
+                                <button
+                                  onClick={() => navigate('/speaking/practice', {
+                                    state: {
+                                      wordId: word.id,
+                                      exampleId: ex.id,
+                                      chinese: ex.chinese,
+                                      pinyin: ex.pinyin,
+                                      thai: ex.thai,
+                                    }
+                                  })}
+                                  className="text-purple-400 text-sm"
+                                  title="ฝึกพูด"
+                                >
+                                  🎙
                                 </button>
                               </div>
                               <div className="font-chinese text-lg text-gray-800">{ex.chinese}</div>

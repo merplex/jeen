@@ -4,7 +4,7 @@ import useAuthStore from '../stores/authStore'
 const NAV = [
   { to: '/', label: '搜索', icon: '🔍', text: 'ค้นหา' },
   { to: '/history', label: '历史', icon: '🕐', text: 'ประวัติ' },
-  { to: '/flashcard', label: '卡片', icon: '📇', text: 'แฟลชการ์ด' },
+  { to: '/learning', label: '学习', icon: '📚', text: 'เรียน' },
   { to: '/notes', label: '笔记', icon: '📝', text: 'โน้ต' },
 ]
 
