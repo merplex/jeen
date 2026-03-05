@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { searchWords, reportMissedSearch, recordSearchHistory } from '../services/api'
+import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords } from '../services/api'
 import WordCard from '../components/WordCard'
 import { SEARCH_CATEGORIES } from '../utils/categories'
 import useAuthStore from '../stores/authStore'
@@ -19,6 +19,7 @@ export default function Search() {
     return r ? JSON.parse(r) : null
   })
   const [loading, setLoading] = useState(false)
+  const [randomWords, setRandomWords] = useState([])
   const [category, setCategory] = useState(() => sessionStorage.getItem('search_category') || 'ทั้งหมด')
   const [catUsage, setCatUsage] = useState(loadCatUsage)
 
@@ -49,6 +50,12 @@ export default function Search() {
   useEffect(() => {
     if (!token && !fetchingMe) navigate('/login', { replace: true })
   }, [token, fetchingMe, navigate])
+
+  // โหลดคำสุ่มตอนเปิดครั้งแรก
+  useEffect(() => {
+    if (!token || query) return
+    getRandomWords(30).then((r) => setRandomWords(r.data)).catch(() => {})
+  }, [token])
 
   const scheduleMissedReport = useCallback((q) => {
     clearTimeout(missedTimerRef.current)
@@ -230,11 +237,39 @@ export default function Search() {
         )}
 
         {!result && !loading && (
-          <div className="text-center py-16 text-gray-400">
-            <div className="font-chinese text-6xl text-chinese-red/20 mb-4">字</div>
-            <p>พิมพ์คำที่ต้องการค้นหา</p>
-            <p className="text-sm mt-1">รองรับ จีน / พินอิน / ไทย</p>
-          </div>
+          randomWords.length > 0 ? (
+            <div>
+              <div className="flex items-center justify-between mb-2 px-1">
+                <span className="text-xs text-gray-400">คำศัพท์วันนี้</span>
+                <button
+                  onClick={() => getRandomWords(30).then((r) => setRandomWords(r.data)).catch(() => {})}
+                  className="text-xs text-chinese-red"
+                >
+                  สุ่มใหม่
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {randomWords.map((w) => (
+                  <button
+                    key={w.id}
+                    onClick={() => navigate(`/word/${w.id}`)}
+                    className="bg-white rounded-xl p-3 text-left shadow-sm border border-gray-100 active:scale-95 transition-transform"
+                  >
+                    <div className="font-chinese text-2xl text-chinese-red leading-tight">{w.chinese}</div>
+                    <div className="text-[11px] text-gray-400 mt-0.5">{w.pinyin}</div>
+                    <div className="text-xs text-gray-600 mt-1 line-clamp-2 leading-snug">
+                      {w.thai_meaning.split('\n')[0]}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-16 text-gray-400">
+              <div className="font-chinese text-6xl text-chinese-red/20 mb-4">字</div>
+              <p>พิมพ์คำที่ต้องการค้นหา</p>
+            </div>
+          )
         )}
       </div>
     </div>

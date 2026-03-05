@@ -64,6 +64,24 @@ def _normalize_pinyin_key(s: str) -> str:
 router = APIRouter(prefix="/words", tags=["words"])
 
 
+@router.get("/random")
+def get_random_words(
+    limit: int = 30,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_user),
+):
+    from sqlalchemy import func
+    limit = min(max(limit, 1), 60)
+    words = (
+        db.query(Word)
+        .filter(Word.status == "verified")
+        .order_by(func.random())
+        .limit(limit)
+        .all()
+    )
+    return words
+
+
 @router.get("/{word_id}", response_model=WordOut)
 def get_word(
     word_id: int,

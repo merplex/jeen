@@ -34,6 +34,7 @@ export const reportMissedSearchDirect = (q) => api.post('/search/report-missed',
 export const recordSearchHistory = (q, wordId, found) =>
   api.post('/search/record-history', null, { params: { q, word_id: wordId ?? undefined, found } })
 export const getWord = (id) => api.get(`/words/${id}`)
+export const getRandomWords = (limit = 30) => api.get('/words/random', { params: { limit } })
 
 export const login = (data) => api.post('/users/login', data)
 export const requestEmailOtp = (email) => api.post('/auth/email/request-otp', { email })
