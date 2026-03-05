@@ -87,17 +87,28 @@ export default function BulkExamples() {
     setLog([])
     addLog(`เริ่ม regen ตัวอย่างหมวด "${regenCat}"...`)
     let total = 0
+    let offset = 0
+    let retries = 0
     while (!stopRef.current) {
       try {
-        const r = await adminRegenExamplesByCategory(regenCat, regenLimit)
-        const { done, errors, total_in_category, last_error } = r.data
+        const r = await adminRegenExamplesByCategory(regenCat, regenLimit, offset)
+        const { done, errors, total_in_category, next_offset, last_error } = r.data
         total += done
+        retries = 0
         const errNote = last_error ? ` (${last_error})` : ''
-        addLog(`✓ regen ${done} คำ | error ${errors}${errNote} | รวมในหมวด ${total_in_category} คำ`)
-        if (done === 0) break
+        addLog(`✓ regen ${done} คำ | error ${errors}${errNote} | ${next_offset}/${total_in_category} คำ`)
+        offset = next_offset
+        if (done === 0 && errors === 0) break
+        if (next_offset >= total_in_category) break
       } catch (e) {
-        addLog(`✗ ${e.response?.data?.detail || e.message}`)
-        break
+        retries++
+        if (retries <= 3) {
+          addLog(`✗ Network error — retry ${retries}/3...`)
+          await new Promise((res) => setTimeout(res, 2000 * retries))
+        } else {
+          addLog(`✗ หยุด — network error เกิน 3 ครั้ง (offset ที่ทำค้างไว้: ${offset})`)
+          break
+        }
       }
     }
     addLog(`เสร็จ — regen รวม ${total} คำ`)

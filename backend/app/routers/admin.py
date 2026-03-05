@@ -417,21 +417,25 @@ def bulk_generate_examples(
 def regen_examples_by_category(
     category: str,
     limit: int = 20,
+    offset: int = 0,
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
     """ลบและ gen ตัวอย่างใหม่สำหรับคำใน category ที่กำหนด (ใช้ logic ใหม่)"""
     limit = min(max(limit, 1), 50)
+    offset = max(offset, 0)
 
     words = (
         db.query(Word)
         .filter(Word.status == "verified", Word.category == category)
+        .order_by(Word.id)
+        .offset(offset)
         .limit(limit)
         .all()
     )
 
     if not words:
-        return {"done": 0, "errors": 0, "message": f"ไม่พบคำใน category '{category}'"}
+        return {"done": 0, "errors": 0, "total_in_category": 0, "next_offset": offset, "message": f"ไม่พบคำใน category '{category}'"}
 
     done = 0
     errors = 0
@@ -472,6 +476,7 @@ def regen_examples_by_category(
         "done": done,
         "errors": errors,
         "total_in_category": total_in_cat,
+        "next_offset": offset + len(words),
         "last_error": last_error,
     }
 
