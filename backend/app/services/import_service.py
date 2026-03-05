@@ -172,6 +172,7 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
     updated = 0
     pending = 0
     skipped = 0
+    updated_words = []
 
     for key, g in groups.items():
         chinese = g["chinese"]
@@ -181,6 +182,15 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
             if key in existing_words:
                 # upsert: อัปเดต thai_meaning ด้วยเวอร์ชัน merge จากไฟล์
                 word = existing_words[key]
+                old_thai = word.thai_meaning or ""
+                if old_thai != thai:
+                    updated_words.append({
+                        "id": word.id,
+                        "chinese": chinese,
+                        "pinyin": g["pinyin"],
+                        "old": old_thai,
+                        "new": thai,
+                    })
                 word.thai_meaning = thai
                 if g["category"]:
                     word.category = g["category"]
@@ -212,4 +222,4 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
             skipped += g["row_count"]
 
     db.commit()
-    return {"success": True, "verified": verified, "updated": updated, "pending": pending, "skipped": skipped}
+    return {"success": True, "verified": verified, "updated": updated, "pending": pending, "skipped": skipped, "updated_words": updated_words}

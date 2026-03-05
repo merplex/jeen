@@ -1,11 +1,26 @@
 import { useState } from 'react'
-import { adminImport } from '../../services/api'
+import { adminImport, adminUpdateWord } from '../../services/api'
 
 export default function ImportWords() {
   const [file, setFile] = useState(null)
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showDiff, setShowDiff] = useState(false)
+  const [reverted, setReverted] = useState({}) // id → 'old'|'new'
+  const [reverting, setReverting] = useState({})
+
+  const handleRevert = async (word, to) => {
+    setReverting(v => ({ ...v, [word.id]: true }))
+    try {
+      await adminUpdateWord(word.id, { thai_meaning: to === 'old' ? word.old : word.new })
+      setReverted(v => ({ ...v, [word.id]: to }))
+    } catch {
+      // ignore
+    } finally {
+      setReverting(v => ({ ...v, [word.id]: false }))
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -63,9 +78,53 @@ export default function ImportWords() {
               </p>
             )}
             {result.updated > 0 && (
-              <p className="text-sm text-blue-600">
-                ↻ อัปเดตคำแปล: <strong>{result.updated}</strong> คำ
-              </p>
+              <div>
+                <button
+                  onClick={() => setShowDiff(v => !v)}
+                  className="text-sm text-blue-600 hover:underline text-left"
+                >
+                  ↻ อัปเดตคำแปล: <strong>{result.updated}</strong> คำ
+                  {result.updated_words?.length > 0 && (
+                    <span className="ml-1">{showDiff ? '▲ ซ่อน' : '▼ ดู diff'}</span>
+                  )}
+                </button>
+                {showDiff && result.updated_words?.length > 0 && (
+                  <div className="mt-2 space-y-2 max-h-96 overflow-y-auto">
+                    {result.updated_words.map((w, i) => {
+                      const chosen = reverted[w.id]
+                      const busy = reverting[w.id]
+                      return (
+                        <div key={i} className="bg-white border border-blue-100 rounded-lg p-3 text-xs">
+                          <p className="font-semibold text-gray-800 mb-2">{w.chinese} <span className="text-gray-400 font-normal">{w.pinyin}</span></p>
+                          <div className="flex gap-2 items-start">
+                            <button
+                              onClick={() => handleRevert(w, 'old')}
+                              disabled={busy || chosen === 'old'}
+                              className={`flex-1 rounded-lg border p-2 text-left whitespace-pre-wrap transition ${chosen === 'old' ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-orange-300'} ${busy ? 'opacity-50' : ''}`}
+                            >
+                              <span className="block text-gray-400 mb-0.5">เก่า {chosen === 'old' && '✓'}</span>
+                              <span className="text-gray-600">{w.old || '(ว่าง)'}</span>
+                            </button>
+                            <button
+                              onClick={() => handleRevert(w, 'new')}
+                              disabled={busy || chosen === 'new'}
+                              className={`flex-1 rounded-lg border p-2 text-left whitespace-pre-wrap transition ${chosen === 'new' || !chosen ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:border-green-300'} ${busy ? 'opacity-50' : ''}`}
+                            >
+                              <span className="block text-gray-400 mb-0.5">ใหม่ {(chosen === 'new' || !chosen) && '✓'}</span>
+                              <span className="text-green-700">{w.new}</span>
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {result.updated - result.updated_words.length > 0 && (
+                      <p className="text-xs text-gray-400">
+                        + อีก {result.updated - result.updated_words.length} คำที่ค่าเหมือนเดิม (ไม่มีการเปลี่ยนแปลง)
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
             {result.pending > 0 && (
               <p className="text-sm text-orange-600">
