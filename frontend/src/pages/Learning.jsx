@@ -197,10 +197,10 @@ export default function Learning() {
               <div>
                 <p className="text-sm font-medium text-gray-700">
                   {dailyStatus.can_practice
-                    ? `ใช้ได้อีก ${dailyStatus.daily_limit - dailyStatus.today_count} ครั้งวันนี้`
+                    ? `เหลือ ${dailyStatus.assess_limit - dailyStatus.today_assess} ครั้งวันนี้`
                     : 'ใช้ครบโควต้าวันนี้แล้ว'}
                 </p>
-                <p className="text-xs text-gray-400">ฟรี {dailyStatus.daily_limit} ครั้ง/วัน</p>
+                <p className="text-xs text-gray-400">ฟรี {dailyStatus.assess_limit} ครั้ง/วัน · gen ประโยค {dailyStatus.gen_limit} ครั้ง/วัน</p>
               </div>
             </div>
           )}
@@ -224,10 +224,10 @@ export default function Learning() {
                 return (
                   <div key={r.id} className="bg-white rounded-xl p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <div>
-                        <div className="font-chinese text-lg text-gray-800">{r.example_chinese}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-chinese text-lg text-gray-800 leading-snug">{r.example_chinese}</div>
                         {r.word && (
-                          <div className="text-xs text-gray-400">{r.word.chinese} · {r.word.pinyin}</div>
+                          <div className="text-xs text-gray-400 mt-0.5">{r.word.chinese} · {r.word.pinyin}</div>
                         )}
                       </div>
                       <div className="text-right shrink-0">
@@ -235,11 +235,28 @@ export default function Learning() {
                         <div className="text-[10px] text-gray-400">{r.practice_count}x</div>
                       </div>
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 mb-3">
                       <ScoreBar label="ออกเสียง" value={r.pronunciation_score} color="bg-blue-400" />
                       <ScoreBar label="โทน" value={r.tone_score} color="bg-purple-400" />
                       <ScoreBar label="คล่อง" value={r.fluency_score} color="bg-green-400" />
                     </div>
+                    <button
+                      onClick={() => navigate('/speaking/practice', {
+                        state: {
+                          wordId: r.word_id,
+                          wordChinese: r.word?.chinese,
+                          wordPinyin: r.word?.pinyin,
+                          wordThai: r.word?.thai_meaning,
+                          exampleId: r.example_id,
+                          chinese: r.example_chinese,
+                          pinyin: '',
+                          thai: '',
+                        }
+                      })}
+                      className="w-full border border-gray-200 rounded-lg py-2 text-xs text-gray-500 active:bg-gray-50"
+                    >
+                      ฝึกซ้ำ / เปลี่ยนประโยค
+                    </button>
                   </div>
                 )
               })}
