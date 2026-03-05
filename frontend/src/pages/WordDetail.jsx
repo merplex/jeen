@@ -141,36 +141,44 @@ export default function WordDetail() {
     <div className="min-h-screen bg-chinese-cream pb-24">
       <SelectionPopup />
       {/* Header */}
-      <div className="bg-chinese-red px-4 pt-12 pb-6 relative">
-        <button
-          onClick={() => navigate(-1)}
-          className="absolute left-4 top-12 text-white text-2xl"
-        >
-          ←
-        </button>
-        <div className="text-center">
-          <div className="font-chinese text-5xl text-white mb-2">{word.chinese}</div>
-          <div className="text-chinese-gold text-lg">{word.pinyin}</div>
-        </div>
-        <div className="absolute right-4 top-12 flex flex-col items-center gap-2">
-          <button onClick={() => speak(word.chinese)} className="text-white text-2xl mb-1" title="ออกเสียง">
+      <div className="bg-chinese-red px-4 pt-12 pb-5">
+        <div className="relative flex items-center justify-center mb-1">
+          <button
+            onClick={() => navigate(-1)}
+            className="absolute left-0 text-white text-2xl"
+          >
+            ←
+          </button>
+          <button onClick={() => speak(word.chinese)} className="absolute right-0 text-white text-2xl" title="ออกเสียง">
             🔊
           </button>
-          {[1, 2, 3].map((deck) => {
-            const inDeck = activeDecks.has(deck)
-            const s = DECK_STYLE[deck]
-            return (
-              <button
-                key={deck}
-                onClick={() => toggleDeck(deck)}
-                className={`w-7 h-7 rounded border-2 text-xs font-bold flex items-center justify-center transition-all active:scale-90 ${inDeck ? s.active : s.inactive}`}
-                title={`การ์ดชุด ${deck}`}
-              >
-                {deck}
-              </button>
-            )
-          })}
+          <div className="font-chinese text-5xl text-white">{word.chinese}</div>
         </div>
+        <div className="text-chinese-gold text-lg text-center mb-4">{word.pinyin}</div>
+
+        {/* Flashcard deck buttons */}
+        {user && (
+          <div className="flex gap-2">
+            {[1, 2, 3].map((deck) => {
+              const inDeck = activeDecks.has(deck)
+              const locked = deck > 1 && !user?.is_admin
+              return (
+                <button
+                  key={deck}
+                  onClick={() => !locked && toggleDeck(deck)}
+                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-all
+                    ${inDeck
+                      ? 'bg-white/10 border border-white text-white underline underline-offset-2'
+                      : 'bg-transparent border border-white/40 text-white/70'
+                    }
+                    ${locked ? 'opacity-40' : 'active:scale-95'}`}
+                >
+                  {locked ? '🔒 ' : ''}Flash card {deck}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       <div className="px-4 py-6 space-y-4">
@@ -270,10 +278,9 @@ export default function WordDetail() {
                                       thai: ex.thai,
                                     }
                                   })}
-                                  className="text-purple-400 text-sm"
-                                  title="ฝึกพูด"
+                                  className="text-[10px] text-purple-500 border border-purple-200 rounded px-1.5 py-0.5 leading-none"
                                 >
-                                  🎙
+                                  Speak Training
                                 </button>
                               </div>
                               <div className="font-chinese text-lg text-gray-800">{ex.chinese}</div>
