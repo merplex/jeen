@@ -198,9 +198,28 @@ export default function Search() {
           <button
             onClick={() => ocrInputRef.current?.click()}
             disabled={ocrLoading}
-            className="w-12 h-12 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center text-white text-xl shadow-lg transition-colors disabled:opacity-50"
+            className="w-12 h-12 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center shadow-lg transition-colors disabled:opacity-50"
           >
-            {ocrLoading ? '⏳' : '📷'}
+            {ocrLoading ? (
+              <svg className="w-6 h-6 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+              </svg>
+            ) : (
+              <svg className="w-7 h-7 text-white" viewBox="0 0 28 28" fill="none">
+                {/* body กล้อง */}
+                <rect x="2" y="8" width="24" height="17" rx="3.5" fill="currentColor" opacity="0.9"/>
+                {/* ส่วนยื่น viewfinder */}
+                <path d="M9 8V6.5C9 5.67 9.67 5 10.5 5h7C18.33 5 19 5.67 19 6.5V8" fill="currentColor" opacity="0.9"/>
+                {/* เลนส์วงใหญ่ */}
+                <circle cx="14" cy="16.5" r="5.5" fill="white" opacity="0.15"/>
+                <circle cx="14" cy="16.5" r="4.5" stroke="white" strokeWidth="2"/>
+                {/* เลนส์วงในสะท้อนแสง */}
+                <circle cx="14" cy="16.5" r="2.5" fill="white" opacity="0.25"/>
+                {/* แฟลช */}
+                <circle cx="22" cy="11" r="1.2" fill="white" opacity="0.6"/>
+              </svg>
+            )}
           </button>
           <input
             ref={ocrInputRef}
