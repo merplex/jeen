@@ -3,6 +3,53 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { assessSpeaking, getSpeakingDailyStatus, generateSpeakingSentences } from '../services/api'
 import useAuthStore from '../stores/authStore'
 
+function writeString(view, offset, str) {
+  for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i))
+}
+
+function pcmToWav(pcm, sampleRate) {
+  const buf = new ArrayBuffer(44 + pcm.length * 2)
+  const v = new DataView(buf)
+  writeString(v, 0, 'RIFF')
+  v.setUint32(4, 36 + pcm.length * 2, true)
+  writeString(v, 8, 'WAVE')
+  writeString(v, 12, 'fmt ')
+  v.setUint32(16, 16, true)
+  v.setUint16(20, 1, true)        // PCM
+  v.setUint16(22, 1, true)        // mono
+  v.setUint32(24, sampleRate, true)
+  v.setUint32(28, sampleRate * 2, true)
+  v.setUint16(32, 2, true)
+  v.setUint16(34, 16, true)
+  writeString(v, 36, 'data')
+  v.setUint32(40, pcm.length * 2, true)
+  for (let i = 0; i < pcm.length; i++) v.setInt16(44 + i * 2, pcm[i], true)
+  return buf
+}
+
+async function blobToWavBase64(blob) {
+  const TARGET_RATE = 16000
+  const arrayBuffer = await blob.arrayBuffer()
+  const decoded = await new AudioContext().decodeAudioData(arrayBuffer)
+  // Resample to 16kHz mono via OfflineAudioContext
+  const offline = new OfflineAudioContext(1, Math.ceil(decoded.duration * TARGET_RATE), TARGET_RATE)
+  const src = offline.createBufferSource()
+  src.buffer = decoded
+  src.connect(offline.destination)
+  src.start()
+  const rendered = await offline.startRendering()
+  const samples = rendered.getChannelData(0)
+  const pcm = new Int16Array(samples.length)
+  for (let i = 0; i < samples.length; i++) {
+    pcm[i] = Math.max(-32768, Math.min(32767, Math.round(samples[i] * 32767)))
+  }
+  const wav = pcmToWav(pcm, TARGET_RATE)
+  const bytes = new Uint8Array(wav)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+  return btoa(binary)
+}
+
 export default function SpeakingPractice() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -66,10 +113,7 @@ export default function SpeakingPractice() {
   const handleRecordingStop = async () => {
     try {
       const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
-      const arrayBuffer = await blob.arrayBuffer()
-      const uint8 = new Uint8Array(arrayBuffer)
-      const binary = uint8.reduce((acc, b) => acc + String.fromCharCode(b), '')
-      const audioBase64 = btoa(binary)
+      const audioBase64 = await blobToWavBase64(blob)
 
       const r = await assessSpeaking({
         word_id: wordId,
