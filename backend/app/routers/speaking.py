@@ -91,10 +91,18 @@ async def _assess_azure(audio_base64: str, reference_text: str) -> dict | None:
     audio_bytes = base64.b64decode(audio_base64)
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(url, params={"language": "zh-CN", "format": "detailed"}, headers=headers, content=audio_bytes)
+        print(f"[Azure] status={resp.status_code} body={resp.text[:500]}")
         if resp.status_code != 200:
             return None
         data = resp.json()
+
+    status = data.get("RecognitionStatus", "")
+    if status != "Success":
+        print(f"[Azure] RecognitionStatus={status} — ไม่สามารถจดจำเสียงได้")
+        return {"pronunciation_score": 0, "tone_score": 0, "fluency_score": 0, "_status": status}
+
     pa = data.get("NBest", [{}])[0].get("PronunciationAssessment", {})
+    print(f"[Azure] PronunciationAssessment={pa}")
     return {
         "pronunciation_score": pa.get("AccuracyScore", 0),
         "tone_score": pa.get("ProsodyScore", 0),
