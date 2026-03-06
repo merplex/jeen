@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import { searchWords, reportMissedSearchDirect } from '../services/api'
 import WordCard from './WordCard'
 
@@ -17,6 +18,7 @@ export default function SelectionPopup() {
   const selTextRef = useRef('')
   // cache ผลจาก background search — พอกดปุ่มแสดงได้เลย ไม่ต้องรอ
   const bgResultRef = useRef(null)
+  const location = useLocation()
 
   // ตรวจจับการเลือกข้อความ
   useEffect(() => {
@@ -68,16 +70,26 @@ export default function SelectionPopup() {
     }
   }, [])
 
+  // ปิด popup เมื่อ navigate ไปหน้าอื่น (เช่น กด WordCard)
+  useEffect(() => {
+    setOpen(false)
+    setQuery('')
+    setResult(null)
+    selTextRef.current = ''
+    setSelText('')
+    setIconPos(null)
+  }, [location.pathname])
+
   // Helper: ค้นหาทุกตัวอักษรในคำ → คืนผลแยกรายตัว
-  const searchByChars = useCallback(async (text) => {
+  const searchByChars = useCallback(async (text, excludeIds = new Set()) => {
     const chars = [...new Set(text.split('').filter(isSearchable))]
     const results = await Promise.all(chars.map((c) => searchWords(c).catch(() => null)))
     const char_results = []
     for (let i = 0; i < chars.length; i++) {
       const r = results[i]
       if (!r) continue
-      const prefix_group = r.data?.prefix_group || []
-      const inner_group = r.data?.inner_group || []
+      const prefix_group = (r.data?.prefix_group || []).filter((w) => !excludeIds.has(w.id))
+      const inner_group = (r.data?.inner_group || []).filter((w) => !excludeIds.has(w.id))
       if (prefix_group.length + inner_group.length > 0) {
         char_results.push({ char: chars[i], prefix_group, inner_group })
       }
@@ -92,25 +104,35 @@ export default function SelectionPopup() {
 
     searchWords(captured)
       .then(async (r) => {
-        const prefix_group = r.data?.prefix_group || []
-        const inner_group = r.data?.inner_group || []
+        const raw_prefix = r.data?.prefix_group || []
+        const raw_inner = r.data?.inner_group || []
+
+        // กรอง: เฉพาะคำที่ chinese จริงๆ มี query อยู่ (ป้องกัน thai_meaning false positive)
+        const isChineseQuery = CHINESE_RE.test(captured)
+        const prefix_group = isChineseQuery
+          ? raw_prefix.filter((w) => w.chinese?.startsWith(captured))
+          : raw_prefix
+        const inner_group = isChineseQuery
+          ? raw_inner.filter((w) => w.chinese?.includes(captured) && !w.chinese?.startsWith(captured))
+          : raw_inner
+
+        if (captured.length > 1) {
+          // multi-char: แสดง combined (filtered) + per-char เสมอ
+          const combinedIds = new Set([...prefix_group, ...inner_group].map((w) => w.id))
+          const fb = await searchByChars(captured, combinedIds)
+          const hasResults = prefix_group.length + inner_group.length + fb.char_results.length > 0
+          bgResultRef.current = { prefix_group, inner_group, char_results: fb.char_results, found: hasResults }
+          if (!hasResults) reportMissedSearchDirect(captured).catch(() => {})
+          return
+        }
+
+        // single char
         if (prefix_group.length + inner_group.length > 0) {
           bgResultRef.current = { prefix_group, inner_group, found: true }
-          return
+        } else {
+          bgResultRef.current = { prefix_group: [], inner_group: [], found: false }
+          reportMissedSearchDirect(captured).catch(() => {})
         }
-        // ไม่เจอคำเต็ม → fallback ค้นทุกตัวอักษรแยกรายตัว
-        if (captured.length > 1) {
-          const fb = await searchByChars(captured)
-          if (fb.char_results.length > 0) {
-            bgResultRef.current = { char_results: fb.char_results, found: true }
-          } else {
-            bgResultRef.current = { char_results: [], found: false }
-            reportMissedSearchDirect(captured).catch(() => {})
-          }
-          return
-        }
-        bgResultRef.current = { prefix_group: [], inner_group: [], found: false }
-        reportMissedSearchDirect(captured).catch(() => {})
       })
       .catch(() => {})
   }, [selText, searchByChars])
@@ -124,25 +146,32 @@ export default function SelectionPopup() {
 
     searchWords(captured)
       .then(async (r) => {
-        const prefix_group = r.data?.prefix_group || []
-        const inner_group = r.data?.inner_group || []
+        const raw_prefix = r.data?.prefix_group || []
+        const raw_inner = r.data?.inner_group || []
+
+        const isChineseQuery = CHINESE_RE.test(captured)
+        const prefix_group = isChineseQuery
+          ? raw_prefix.filter((w) => w.chinese?.startsWith(captured))
+          : raw_prefix
+        const inner_group = isChineseQuery
+          ? raw_inner.filter((w) => w.chinese?.includes(captured) && !w.chinese?.startsWith(captured))
+          : raw_inner
+
+        if (captured.length > 1) {
+          const combinedIds = new Set([...prefix_group, ...inner_group].map((w) => w.id))
+          const fb = await searchByChars(captured, combinedIds)
+          const hasResults = prefix_group.length + inner_group.length + fb.char_results.length > 0
+          setResult({ prefix_group, inner_group, char_results: fb.char_results, found: hasResults })
+          if (!hasResults) reportMissedSearchDirect(captured).catch(() => {})
+          return
+        }
+
         if (prefix_group.length + inner_group.length > 0) {
           setResult({ prefix_group, inner_group, found: true })
-          return
+        } else {
+          setResult({ prefix_group: [], inner_group: [], found: false })
+          reportMissedSearchDirect(captured).catch(() => {})
         }
-        // ไม่เจอคำเต็ม → fallback ค้นทุกตัวอักษรแยกรายตัว
-        if (captured.length > 1) {
-          const fb = await searchByChars(captured)
-          if (fb.char_results.length > 0) {
-            setResult({ char_results: fb.char_results, found: true })
-          } else {
-            setResult({ char_results: [], found: false })
-            reportMissedSearchDirect(captured).catch(() => {})
-          }
-          return
-        }
-        setResult({ prefix_group: [], inner_group: [], found: false })
-        reportMissedSearchDirect(captured).catch(() => {})
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -239,15 +268,46 @@ export default function SelectionPopup() {
                     </div>
                   )}
 
-                  {/* กรณีเจอคำเต็ม */}
-                  {result.found && !result.char_results && (() => {
+                  {result.found && (() => {
                     const exactMatch = result.prefix_group?.find((w) => w.chinese === query)
                     if (exactMatch) {
                       // เจอตรงๆ → แสดงแค่ตัวนั้นเลย
                       return <WordCard key={exactMatch.id} word={exactMatch} />
                     }
+
                     return (
                       <>
+                        {/* per-char sections ก่อน (multi-char queries) */}
+                        {result.char_results?.map(({ char, prefix_group, inner_group }) => (
+                          <div key={char} className="space-y-3">
+                            <div className="flex items-center gap-2">
+                              <span className="font-chinese text-xl text-chinese-red font-bold">{char}</span>
+                              <div className="flex-1 h-px bg-gray-200" />
+                            </div>
+                            {prefix_group.length > 0 && (
+                              <div>
+                                <h2 className="text-xs font-semibold text-chinese-gold uppercase tracking-wider mb-2">
+                                  คำที่ขึ้นต้นด้วย "{char}"
+                                </h2>
+                                <div className="space-y-2">
+                                  {prefix_group.map((w) => <WordCard key={w.id} word={w} />)}
+                                </div>
+                              </div>
+                            )}
+                            {inner_group.length > 0 && (
+                              <div>
+                                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                                  คำที่มี "{char}" อยู่ข้างใน
+                                </h2>
+                                <div className="space-y-2">
+                                  {inner_group.map((w) => <WordCard key={w.id} word={w} />)}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+
+                        {/* combined sections: คำที่มี query ทั้งชุด */}
                         {result.prefix_group?.length > 0 && (
                           <div>
                             <h2 className="text-xs font-semibold text-chinese-gold uppercase tracking-wider mb-2">
@@ -275,36 +335,6 @@ export default function SelectionPopup() {
                       </>
                     )
                   })()}
-
-                  {/* กรณี fallback ค้นรายตัวอักษร */}
-                  {result.found && result.char_results && result.char_results.map(({ char, prefix_group, inner_group }) => (
-                    <div key={char} className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-chinese text-xl text-chinese-red font-bold">{char}</span>
-                        <div className="flex-1 h-px bg-gray-200" />
-                      </div>
-                      {prefix_group.length > 0 && (
-                        <div>
-                          <h2 className="text-xs font-semibold text-chinese-gold uppercase tracking-wider mb-2">
-                            คำที่ขึ้นต้นด้วย "{char}"
-                          </h2>
-                          <div className="space-y-2">
-                            {prefix_group.map((w) => <WordCard key={w.id} word={w} />)}
-                          </div>
-                        </div>
-                      )}
-                      {inner_group.length > 0 && (
-                        <div>
-                          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                            คำที่มี "{char}" อยู่ข้างใน
-                          </h2>
-                          <div className="space-y-2">
-                            {inner_group.map((w) => <WordCard key={w.id} word={w} />)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
                 </>
               )}
             </div>
