@@ -303,6 +303,7 @@ def generate_examples_for_word(chinese: str, pinyin: str, thai: str, category: s
                 if results:
                     return results
             except Exception:
-                if attempt == 2:
-                    return []
+                pass
+        return []
+    except Exception:
         return []
