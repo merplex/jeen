@@ -25,11 +25,13 @@ export default function WritingPractice() {
   const [hintLevel, setHintLevel] = useState(0)
   const [charError, setCharError] = useState(false)
   const [showHintBadge, setShowHintBadge] = useState(false)
+  const [hintAnimating, setHintAnimating] = useState(false)
 
   const svgRef = useRef(null)
   const writerRef = useRef(null)
   const writerIdRef = useRef(0)
   const totalStrokesRef = useRef(0)
+  const hintedStrokesRef = useRef(0)
   const phaseRef = useRef('quiz')
 
   useEffect(() => { phaseRef.current = phase }, [phase])
@@ -62,7 +64,9 @@ export default function WritingPractice() {
     setHintLevel(0)
     setCharError(false)
     setShowHintBadge(false)
+    setHintAnimating(false)
     totalStrokesRef.current = 0
+    hintedStrokesRef.current = 0
     phaseRef.current = 'quiz'
 
     writerIdRef.current += 1
@@ -93,45 +97,69 @@ export default function WritingPractice() {
 
     writerRef.current = writer
 
-    writer.quiz({
-      onCorrectStroke: (data) => {
-        if (writerIdRef.current !== myId) return
-        // Update total strokes from live data (strokesRemaining = strokes left after this one)
-        const total = (data.strokeNum + 1) + (data.strokesRemaining || 0)
-        if (total > totalStrokesRef.current) totalStrokesRef.current = total
-      },
-      onMistake: () => {},
-      onComplete: (data) => {
-        if (writerIdRef.current !== myId) return
-        const total = totalStrokesRef.current || 1
-        const score = Math.max(0, Math.round(100 - (data.totalMistakes / total) * 100))
-        setScoreInfo({ score, totalMistakes: data.totalMistakes, total })
-        setPhase('result')
-        phaseRef.current = 'result'
-        if (score >= 90) {
-          setTimeout(() => {
-            if (writerIdRef.current === myId) writer.animateCharacter()
-          }, 400)
-        }
-      },
-    })
+    const startQuiz = (fromStroke = 0) => {
+      writer.quiz({
+        quizStartStrokeNum: fromStroke,
+        onCorrectStroke: (data) => {
+          if (writerIdRef.current !== myId) return
+          const total = (data.strokeNum + 1) + (data.strokesRemaining || 0)
+          if (total > totalStrokesRef.current) totalStrokesRef.current = total
+        },
+        onMistake: () => {},
+        onComplete: (data) => {
+          if (writerIdRef.current !== myId) return
+          const total = totalStrokesRef.current || 1
+          const drawnStrokes = Math.max(1, total - hintedStrokesRef.current)
+          const score = Math.max(0, Math.round(100 - (data.totalMistakes / drawnStrokes) * 100))
+          setScoreInfo({ score, totalMistakes: data.totalMistakes, total })
+          setPhase('result')
+          phaseRef.current = 'result'
+          if (score >= 90) {
+            setTimeout(() => {
+              if (writerIdRef.current === myId) writer.animateCharacter()
+            }, 400)
+          }
+        },
+      })
+    }
+
+    // เก็บ startQuiz ไว้ใน ref เพื่อให้ handleHint เรียกได้
+    writer._startQuiz = startQuiz
+    startQuiz(0)
   }, [currentChar])
 
   const handleHint = () => {
-    if (phaseRef.current !== 'quiz' || !writerRef.current) return
+    if (phaseRef.current !== 'quiz' || !writerRef.current || hintAnimating) return
     const total = totalStrokesRef.current || 8
     const count = Math.max(1, Math.floor(total * 0.2))
+    const currentHinted = hintedStrokesRef.current
+    // เหลือ stroke สุดท้ายให้ user เขียนเองอย่างน้อย 1 stroke
+    const newHinted = Math.min(currentHinted + count, total - 1)
+    if (newHinted <= currentHinted) return
+
     const myId = writerIdRef.current
     const w = writerRef.current
-    for (let i = 0; i < count; i++) {
-      setTimeout(() => {
-        if (writerIdRef.current === myId && phaseRef.current === 'quiz') {
-          w.showHint()
-        }
-      }, i * 380)
-    }
+
+    // cancel quiz เดิม แล้ว animate ให้ดูลำดับขีด
+    try { w.cancelQuiz() } catch (e) {}
+    setHintAnimating(true)
+    hintedStrokesRef.current = newHinted
     setHintLevel((h) => h + 1)
     setShowHintBadge(true)
+
+    // animate ทั้งตัวอักษรให้ user ดูลำดับขีด แล้ว restart quiz จาก stroke ที่ hint ไปแล้ว
+    Promise.resolve(w.animateCharacter()).then(() => {
+      if (writerIdRef.current !== myId || phaseRef.current !== 'quiz') return
+      w._startQuiz?.(newHinted)
+      setHintAnimating(false)
+    }).catch(() => {
+      // fallback ถ้า animateCharacter ไม่ return Promise
+      setTimeout(() => {
+        if (writerIdRef.current !== myId || phaseRef.current !== 'quiz') return
+        w._startQuiz?.(newHinted)
+        setHintAnimating(false)
+      }, 3000)
+    })
   }
 
   const handleShowAnimation = () => {
@@ -272,9 +300,10 @@ export default function WritingPractice() {
           <div className="flex gap-3 w-full max-w-sm">
             <button
               onClick={handleHint}
-              className="flex-1 bg-amber-50 border border-amber-200 text-amber-600 rounded-xl py-3 text-sm font-medium active:scale-95"
+              disabled={hintAnimating}
+              className="flex-1 bg-amber-50 border border-amber-200 text-amber-600 rounded-xl py-3 text-sm font-medium active:scale-95 disabled:opacity-50"
             >
-              💡 คำใบ้ {hintLevel > 0 && `(${hintLevel})`}
+              {hintAnimating ? '▶ ดูอยู่...' : `💡 คำใบ้ ${hintLevel > 0 ? `(${hintLevel})` : ''}`}
             </button>
             <button
               onClick={handleNext}
