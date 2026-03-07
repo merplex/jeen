@@ -202,7 +202,7 @@ export default function Search() {
               value={query}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              placeholder='汉字 Pinyin ไทย  ..ใช้ "@" แทนคำได้'
+              placeholder='汉字 Pinyin ไทย  .. ใช้ "@" แทนคำศัพท์ได้ ..'
               className="w-full rounded-xl px-4 py-3 pr-10 text-gray-800 bg-white shadow-lg text-base focus:outline-none focus:ring-2 focus:ring-chinese-gold"
               autoFocus
             />
