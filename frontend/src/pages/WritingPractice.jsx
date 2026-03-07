@@ -23,7 +23,8 @@ export default function WritingPractice() {
   const [phase, setPhase] = useState('quiz') // 'quiz' | 'hint_done' | 'result' | 'finished'
   const [scoreInfo, setScoreInfo] = useState(null)
   const [hintLevel, setHintLevel] = useState(0)
-  const [hintShowing, setHintShowing] = useState(false) // character shown temporarily
+  const [hintShowing, setHintShowing] = useState(false)
+  const [hintOverlay, setHintOverlay] = useState(false) // CSS overlay — does NOT touch quiz state
   const [charError, setCharError] = useState(false)
   const [showHintBadge, setShowHintBadge] = useState(false)
 
@@ -61,6 +62,7 @@ export default function WritingPractice() {
     setScoreInfo(null)
     setHintLevel(0)
     setHintShowing(false)
+    setHintOverlay(false)
     setCharError(false)
     setShowHintBadge(false)
     totalStrokesRef.current = 0
@@ -126,17 +128,19 @@ export default function WritingPractice() {
     const myId = writerIdRef.current
 
     if (newLevel >= 3) {
-      w.showCharacter()
+      // Show overlay permanently, cancel quiz, wait for user to skip
+      setHintOverlay(true)
       try { w.cancelQuiz() } catch (e) {}
       setPhase('hint_done')
       phaseRef.current = 'hint_done'
     } else {
+      // Show CSS overlay for N seconds — quiz state is completely untouched
       const duration = newLevel === 1 ? 2000 : 5000
-      w.showCharacter()
+      setHintOverlay(true)
       setHintShowing(true)
       setTimeout(() => {
         if (writerIdRef.current !== myId) return
-        w.hideCharacter()
+        setHintOverlay(false)
         setHintShowing(false)
       }, duration)
     }
@@ -317,6 +321,18 @@ export default function WritingPractice() {
               <div ref={svgRef} style={{ width: 260, height: 260 }} />
             )}
           </div>
+
+          {/* Hint overlay — CSS only, quiz state untouched */}
+          {hintOverlay && (
+            <div className="absolute inset-0 flex items-center justify-center rounded-2xl pointer-events-none">
+              <span
+                className="font-chinese leading-none select-none"
+                style={{ fontSize: 200, color: color.hex, opacity: 0.25 }}
+              >
+                {currentChar}
+              </span>
+            </div>
+          )}
 
           {/* Score overlay on result */}
           {phase === 'result' && scoreInfo && (
