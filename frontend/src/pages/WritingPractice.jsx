@@ -267,6 +267,24 @@ export default function WritingPractice() {
           </div>
         </div>
 
+        {/* Phase: quiz controls — เหนือ canvas เพื่อให้เห็นชัด */}
+        {phase === 'quiz' && !charError && (
+          <div className="flex gap-3 w-full max-w-sm">
+            <button
+              onClick={handleHint}
+              className="flex-1 bg-amber-50 border border-amber-200 text-amber-600 rounded-xl py-3 text-sm font-medium active:scale-95"
+            >
+              💡 คำใบ้ {hintLevel > 0 && `(${hintLevel})`}
+            </button>
+            <button
+              onClick={handleNext}
+              className="flex-1 bg-gray-100 text-gray-600 rounded-xl py-3 text-sm font-medium active:scale-95"
+            >
+              ข้าม →
+            </button>
+          </div>
+        )}
+
         {/* Hanzi writer area */}
         <div className="relative">
           <div className="bg-white rounded-2xl shadow-md p-3">
@@ -293,24 +311,6 @@ export default function WritingPractice() {
             </div>
           )}
         </div>
-
-        {/* Phase: quiz controls */}
-        {phase === 'quiz' && !charError && (
-          <div className="flex gap-3 w-full max-w-sm">
-            <button
-              onClick={handleHint}
-              className="flex-1 bg-amber-50 border border-amber-200 text-amber-600 rounded-xl py-3 text-sm font-medium active:scale-95"
-            >
-              💡 คำใบ้ {hintLevel > 0 && `(${hintLevel})`}
-            </button>
-            <button
-              onClick={handleNext}
-              className="flex-1 bg-gray-100 text-gray-600 rounded-xl py-3 text-sm font-medium active:scale-95"
-            >
-              ข้าม →
-            </button>
-          </div>
-        )}
 
         {/* charError skip */}
         {charError && (

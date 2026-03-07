@@ -20,6 +20,16 @@ def _strip_markdown(text: str) -> str:
     return text.strip()
 
 
+def _clean_json(text: str) -> str:
+    """ลบ comment //... และ trailing comma ออกจาก JSON string"""
+    import re
+    # ลบบรรทัดที่ขึ้นต้นด้วย // (comment)
+    text = re.sub(r'^\s*//.*$', '', text, flags=re.MULTILINE)
+    # ลบ trailing comma ก่อน ] หรือ }
+    text = re.sub(r',\s*([\]\}])', r'\1', text)
+    return text.strip()
+
+
 def _get_text(response) -> str:
     """Extract only non-thinking parts from Gemini response."""
     parts = []
@@ -283,8 +293,16 @@ def generate_examples_for_word(chinese: str, pinyin: str, thai: str, category: s
                 + ']'
             )
 
-        response = _model.generate_content(prompt)
-        raw = _strip_markdown(_get_text(response))
-        return json.loads(raw)
-    except Exception:
+        for attempt in range(3):
+            try:
+                response = _model.generate_content(prompt)
+                raw = _clean_json(_strip_markdown(_get_text(response)))
+                results = json.loads(raw)
+                # กรอง placeholder ที่ Gemini ไม่ได้แทนค่า
+                results = [r for r in results if isinstance(r, dict) and r.get("chinese", "") not in ("", "...")]
+                if results:
+                    return results
+            except Exception:
+                if attempt == 2:
+                    return []
         return []
