@@ -94,11 +94,15 @@ export default function Search() {
       const res = await searchWords(q.trim())
       if (q !== currentQueryRef.current) return
       setResult(res.data)
-      const firstWordId = res.data.prefix_group?.[0]?.id ?? res.data.inner_group?.[0]?.id ?? null
+      const perCharWords = res.data.per_char_groups?.flatMap(g => [...g.prefix_group, ...g.inner_group]) ?? []
+      const firstWordId =
+        res.data.prefix_group?.[0]?.id ??
+        res.data.inner_group?.[0]?.id ??
+        perCharWords[0]?.id ?? null
 
       // นับหมวดหมู่จากผลค้นหา เพื่อให้หมวดที่ค้นบ่อยขึ้นมาด้านหน้า
       if (res.data.found) {
-        const allWords = [...(res.data.prefix_group || []), ...(res.data.inner_group || [])]
+        const allWords = [...(res.data.prefix_group || []), ...(res.data.inner_group || []), ...perCharWords]
         const catCounts = {}
         allWords.forEach((w) => { if (w.category) catCounts[w.category] = (catCounts[w.category] || 0) + 1 })
         if (Object.keys(catCounts).length > 0) {
@@ -198,7 +202,7 @@ export default function Search() {
               value={query}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              placeholder="ค้นหาภาษาจีน พินอิน หรือไทย..."
+              placeholder="汉字 Pinyin ไทย"
               className="w-full rounded-xl px-4 py-3 pr-10 text-gray-800 bg-white shadow-lg text-base focus:outline-none focus:ring-2 focus:ring-chinese-gold"
               autoFocus
             />
@@ -333,10 +337,11 @@ export default function Search() {
               </div>
             )}
 
-            {prefix.length > 0 && (
+            {/* Position search results */}
+            {result.search_mode === 'position' && prefix.length > 0 && (
               <div>
                 <h2 className="text-xs font-semibold text-chinese-gold uppercase tracking-wider mb-2">
-                  คำที่ขึ้นต้นด้วย "{result.query}"
+                  @คำที่ค้นหาได้
                 </h2>
                 <div className="space-y-2">
                   {prefix.map((w) => <WordCard key={w.id} word={w} />)}
@@ -344,16 +349,56 @@ export default function Search() {
               </div>
             )}
 
-            {inner.length > 0 && (
-              <div>
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                  คำที่มี "{result.query}" อยู่ข้างใน
-                </h2>
-                <div className="space-y-2">
-                  {inner.map((w) => <WordCard key={w.id} word={w} />)}
-                </div>
-              </div>
+            {/* Normal / mixed search results */}
+            {result.search_mode !== 'position' && result.search_mode !== 'per_char' && (
+              <>
+                {prefix.length > 0 && (
+                  <div>
+                    <h2 className="text-xs font-semibold text-chinese-gold uppercase tracking-wider mb-2">
+                      คำที่ขึ้นต้นด้วย "{result.query}"
+                    </h2>
+                    <div className="space-y-2">
+                      {prefix.map((w) => <WordCard key={w.id} word={w} />)}
+                    </div>
+                  </div>
+                )}
+                {inner.length > 0 && (
+                  <div>
+                    <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                      คำที่มี "{result.query}" อยู่ข้างใน
+                    </h2>
+                    <div className="space-y-2">
+                      {inner.map((w) => <WordCard key={w.id} word={w} />)}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
+
+            {/* Per-char fallback results */}
+            {result.search_mode === 'per_char' && result.per_char_groups?.map((group) => (
+              <div key={group.char}>
+                <h2 className="text-sm font-semibold text-gray-600 mb-2 mt-3">
+                  ผลการค้นหา "<span className="font-chinese text-chinese-red">{group.char}</span>"
+                </h2>
+                {group.prefix_group?.length > 0 && (
+                  <div className="mb-2">
+                    <p className="text-xs text-chinese-gold mb-1.5">คำที่ขึ้นต้นด้วย "{group.char}"</p>
+                    <div className="space-y-2">
+                      {filterByCategory(group.prefix_group).map((w) => <WordCard key={w.id} word={w} />)}
+                    </div>
+                  </div>
+                )}
+                {group.inner_group?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1.5">คำที่มี "{group.char}" อยู่ข้างใน</p>
+                    <div className="space-y-2">
+                      {filterByCategory(group.inner_group).map((w) => <WordCard key={w.id} word={w} />)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </>
         )}
 
