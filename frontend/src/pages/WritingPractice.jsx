@@ -272,7 +272,7 @@ export default function WritingPractice() {
                     i === charIndex
                       ? `${color.text} font-bold`
                       : i < charIndex
-                      ? 'text-gray-300 line-through'
+                      ? 'text-gray-300'
                       : 'text-gray-300'
                   }`}
                 >
