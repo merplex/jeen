@@ -14,7 +14,7 @@ export default function Learning() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const { subscription, fetch: fetchSub } = useSubscriptionStore()
-  const [tab, setTab] = useState('flashcard') // 'flashcard' | 'speaking'
+  const [tab, setTab] = useState('flashcard') // 'flashcard' | 'writing' | 'speaking'
 
   // Flashcard state
   const [selectedDeck, setSelectedDeck] = useState(1)
@@ -34,7 +34,7 @@ export default function Learning() {
   }, [user])
 
   useEffect(() => {
-    if (!user || tab !== 'flashcard') return
+    if (!user || (tab !== 'flashcard' && tab !== 'writing')) return
     loadDeck(selectedDeck)
   }, [user, tab, selectedDeck])
 
@@ -94,6 +94,12 @@ export default function Learning() {
           📇 Flashcard
         </button>
         <button
+          onClick={() => setTab('writing')}
+          className={`flex-1 py-3 text-sm font-medium ${tab === 'writing' ? 'text-chinese-red border-b-2 border-chinese-red' : 'text-gray-500'}`}
+        >
+          ✏️ Writing
+        </button>
+        <button
           onClick={() => setTab('speaking')}
           className={`flex-1 py-3 text-sm font-medium ${tab === 'speaking' ? 'text-chinese-red border-b-2 border-chinese-red' : 'text-gray-500'}`}
         >
@@ -103,91 +109,38 @@ export default function Learning() {
 
       {/* ===== FLASHCARD TAB ===== */}
       {tab === 'flashcard' && (
-        <div className="px-4 pt-4 space-y-4">
-          {/* Deck selector */}
-          <div className="grid grid-cols-3 gap-3">
-            {[1, 2, 3].map((deck) => {
-              const c = DECK_COLORS[deck]
-              const count = stats[String(deck)] || 0
-              const locked = deck > 1 && !isPremium
-              const active = selectedDeck === deck
-              return (
-                <button
-                  key={deck}
-                  onClick={() => !locked && setSelectedDeck(deck)}
-                  className={`relative rounded-xl p-3 border-2 transition-all ${
-                    active ? `${c.bg} border-transparent text-white` : `bg-white ${c.border} ${c.text}`
-                  } ${locked ? 'opacity-50' : 'active:scale-95'}`}
-                >
-                  {locked && (
-                    <span className="absolute top-1.5 right-1.5 text-[10px]">🔒</span>
-                  )}
-                  <div className={`text-xs font-medium mb-1 ${active ? 'text-white/80' : 'text-gray-400'}`}>
-                    ชุดที่ {deck}
-                  </div>
-                  <div className={`text-2xl font-bold ${active ? 'text-white' : c.text}`}>{count}</div>
-                  <div className={`text-xs ${active ? 'text-white/70' : 'text-gray-400'}`}>คำ</div>
-                  {deck > 1 && !isPremium && (
-                    <div className="text-[9px] text-gray-400 mt-1">Premium</div>
-                  )}
-                </button>
-              )
-            })}
-          </div>
+        <DeckTab
+          stats={stats}
+          selectedDeck={selectedDeck}
+          setSelectedDeck={setSelectedDeck}
+          isPremium={isPremium}
+          cardsLoading={cardsLoading}
+          cards={cards}
+          handleRemove={handleRemove}
+          emptyIcon="📇"
+          emptyText={`ยังไม่มีการ์ดในชุดที่ ${selectedDeck}`}
+          emptyHint={`กดสี่เหลี่ยม ${selectedDeck} ในหน้าคำศัพท์เพื่อเพิ่ม`}
+          startLabel="เริ่มเรียน"
+          onStart={(deck) => navigate(`/learning/play/${deck}`)}
+        />
+      )}
 
-          {/* Word list */}
-          {selectedDeck > 1 && !isPremium ? (
-            <div className="bg-white rounded-xl p-6 text-center shadow-sm">
-              <div className="text-3xl mb-2">🔒</div>
-              <p className="text-gray-600 font-medium">ชุดที่ {selectedDeck} สำหรับสมาชิก</p>
-              <p className="text-xs text-gray-400 mt-1">อัปเกรดเพื่อใช้การ์ดหลายชุด</p>
-            </div>
-          ) : cardsLoading ? (
-            <div className="text-center text-gray-400 py-8 text-sm">กำลังโหลด...</div>
-          ) : cards.length === 0 ? (
-            <div className="bg-white rounded-xl p-6 text-center shadow-sm">
-              <div className="text-4xl mb-2">📇</div>
-              <p className="text-gray-500 text-sm">ยังไม่มีการ์ดในชุดที่ {selectedDeck}</p>
-              <p className="text-xs text-gray-400 mt-1">กดสี่เหลี่ยม {selectedDeck} ในหน้าคำศัพท์เพื่อเพิ่ม</p>
-            </div>
-          ) : (
-            <>
-              {/* Stats */}
-              <div className="flex items-center justify-between px-1">
-                <span className="text-xs text-gray-400">{cards.length} คำในชุดนี้</span>
-                <button
-                  onClick={() => navigate(`/learning/play/${selectedDeck}`)}
-                  className={`${DECK_COLORS[selectedDeck].bg} text-white px-4 py-2 rounded-lg text-sm font-medium active:scale-95`}
-                >
-                  เริ่มเรียน →
-                </button>
-              </div>
-
-              {/* List */}
-              <div className="space-y-2">
-                {cards.map((card) => (
-                  <div key={card.id} className="bg-white rounded-xl px-4 py-3 shadow-sm flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2">
-                        <span className="font-chinese text-xl text-chinese-red">{card.word.chinese}</span>
-                        <span className="text-xs text-gray-400">{card.word.pinyin}</span>
-                      </div>
-                      <div className="text-xs text-gray-600 truncate">
-                        {card.word.thai_meaning.split('\n')[0]}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleRemove(card.word_id)}
-                      className="text-gray-300 text-lg hover:text-red-400 transition-colors px-1"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+      {/* ===== WRITING TAB ===== */}
+      {tab === 'writing' && (
+        <DeckTab
+          stats={stats}
+          selectedDeck={selectedDeck}
+          setSelectedDeck={setSelectedDeck}
+          isPremium={isPremium}
+          cardsLoading={cardsLoading}
+          cards={cards}
+          handleRemove={handleRemove}
+          emptyIcon="✏️"
+          emptyText={`ยังไม่มีการ์ดในชุดที่ ${selectedDeck}`}
+          emptyHint={`กดสี่เหลี่ยม ${selectedDeck} ในหน้าคำศัพท์เพื่อเพิ่ม`}
+          startLabel="เริ่มเรียน"
+          onStart={(deck) => navigate(`/learning/write/${deck}`)}
+        />
       )}
 
       {/* ===== SPEAKING TAB ===== */}
@@ -275,6 +228,89 @@ export default function Learning() {
             </div>
           )}
         </div>
+      )}
+    </div>
+  )
+}
+
+function DeckTab({ stats, selectedDeck, setSelectedDeck, isPremium, cardsLoading, cards, handleRemove, emptyIcon, emptyText, emptyHint, startLabel, onStart }) {
+  return (
+    <div className="px-4 pt-4 space-y-4">
+      {/* Deck selector */}
+      <div className="grid grid-cols-3 gap-3">
+        {[1, 2, 3].map((deck) => {
+          const c = DECK_COLORS[deck]
+          const count = stats[String(deck)] || 0
+          const locked = deck > 1 && !isPremium
+          const active = selectedDeck === deck
+          return (
+            <button
+              key={deck}
+              onClick={() => !locked && setSelectedDeck(deck)}
+              className={`relative rounded-xl p-3 border-2 transition-all ${
+                active ? `${c.bg} border-transparent text-white` : `bg-white ${c.border} ${c.text}`
+              } ${locked ? 'opacity-50' : 'active:scale-95'}`}
+            >
+              {locked && <span className="absolute top-1.5 right-1.5 text-[10px]">🔒</span>}
+              <div className={`text-xs font-medium mb-1 ${active ? 'text-white/80' : 'text-gray-400'}`}>
+                ชุดที่ {deck}
+              </div>
+              <div className={`text-2xl font-bold ${active ? 'text-white' : c.text}`}>{count}</div>
+              <div className={`text-xs ${active ? 'text-white/70' : 'text-gray-400'}`}>คำ</div>
+              {deck > 1 && !isPremium && <div className="text-[9px] text-gray-400 mt-1">Premium</div>}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Content */}
+      {selectedDeck > 1 && !isPremium ? (
+        <div className="bg-white rounded-xl p-6 text-center shadow-sm">
+          <div className="text-3xl mb-2">🔒</div>
+          <p className="text-gray-600 font-medium">ชุดที่ {selectedDeck} สำหรับสมาชิก</p>
+          <p className="text-xs text-gray-400 mt-1">อัปเกรดเพื่อใช้การ์ดหลายชุด</p>
+        </div>
+      ) : cardsLoading ? (
+        <div className="text-center text-gray-400 py-8 text-sm">กำลังโหลด...</div>
+      ) : cards.length === 0 ? (
+        <div className="bg-white rounded-xl p-6 text-center shadow-sm">
+          <div className="text-4xl mb-2">{emptyIcon}</div>
+          <p className="text-gray-500 text-sm">{emptyText}</p>
+          <p className="text-xs text-gray-400 mt-1">{emptyHint}</p>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs text-gray-400">{cards.length} คำในชุดนี้</span>
+            <button
+              onClick={() => onStart(selectedDeck)}
+              className={`${DECK_COLORS[selectedDeck].bg} text-white px-4 py-2 rounded-lg text-sm font-medium active:scale-95`}
+            >
+              {startLabel} →
+            </button>
+          </div>
+          <div className="space-y-2">
+            {cards.map((card) => (
+              <div key={card.id} className="bg-white rounded-xl px-4 py-3 shadow-sm flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-chinese text-xl text-chinese-red">{card.word.chinese}</span>
+                    <span className="text-xs text-gray-400">{card.word.pinyin}</span>
+                  </div>
+                  <div className="text-xs text-gray-600 truncate">
+                    {card.word.thai_meaning.split('\n')[0]}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleRemove(card.word_id)}
+                  className="text-gray-300 text-lg hover:text-red-400 transition-colors px-1"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   )

@@ -7,6 +7,7 @@ import WordDetail from './pages/WordDetail'
 import History from './pages/History'
 import Learning from './pages/Learning'
 import FlashcardPlay from './pages/FlashcardPlay'
+import WritingPractice from './pages/WritingPractice'
 import SpeakingPractice from './pages/SpeakingPractice'
 import Notes from './pages/Notes'
 import Login from './pages/Login'
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="/flashcard" element={<Learning />} />
         <Route path="/learning" element={<Learning />} />
         <Route path="/learning/play/:deck" element={<FlashcardPlay />} />
+        <Route path="/learning/write/:deck" element={<WritingPractice />} />
         <Route path="/speaking/practice" element={<SpeakingPractice />} />
         <Route path="/notes" element={<Notes />} />
         <Route path="/login" element={<Login />} />

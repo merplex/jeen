@@ -99,12 +99,13 @@ export default function AddWord() {
 
           <div>
             <label className="text-sm text-gray-600 mb-1 block">ความหมายไทย *</label>
-            <input
+            <textarea
               value={form.thai_meaning}
               onChange={set('thai_meaning')}
-              placeholder="เรียนรู้, ศึกษา"
+              placeholder={"เรียนรู้\nศึกษา\n(แต่ละความหมายแยกบรรทัด)"}
               required
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-chinese-red text-sm"
+              rows={3}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-chinese-red text-sm resize-none"
             />
           </div>
 

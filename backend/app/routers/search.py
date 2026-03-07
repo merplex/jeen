@@ -30,6 +30,15 @@ def record_history(
     current_user: User = Depends(require_user),
 ):
     """บันทึกประวัติค้นหา — เรียกเฉพาะเมื่อ user หยุดพิมพ์ หรือกด Enter"""
+    # ถ้ามี record เดิมที่ query เหมือนกัน ลบทิ้งก่อน (เพื่อเลื่อนมาเป็นล่าสุด)
+    existing = (
+        db.query(SearchHistory)
+        .filter(SearchHistory.user_id == current_user.id, SearchHistory.query == q)
+        .first()
+    )
+    if existing:
+        db.delete(existing)
+
     db.add(SearchHistory(
         user_id=current_user.id,
         query=q,
