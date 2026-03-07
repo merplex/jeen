@@ -2,7 +2,8 @@
 // หรือ timezone-aware string (UTC+00:00) → ทั้งคู่ normalize เป็น Bangkok time
 function _parse(str) {
   if (!str) return null
-  const s = str.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(str) ? str : str + '+07:00'
+  // ถ้าไม่มี timezone suffix → ถือว่าเป็น UTC (PostgreSQL server คืน UTC naive)
+  const s = str.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(str) ? str : str + 'Z'
   return new Date(s)
 }
 

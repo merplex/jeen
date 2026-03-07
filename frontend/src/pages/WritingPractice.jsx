@@ -72,7 +72,8 @@ export default function WritingPractice() {
       width: 260,
       height: 260,
       padding: 10,
-      showOutline: true,
+      showOutline: false,
+      showCharacter: false,
       strokeColor: color.hex,
       outlineColor: '#e5e7eb',
       drawingColor: '#1f2937',
@@ -248,7 +249,7 @@ export default function WritingPractice() {
                       : 'text-gray-300'
                   }`}
                 >
-                  {i < charIndex ? ch : i === charIndex ? ch : '?'}
+                  {i < charIndex ? ch : '?'}
                 </span>
               ))}
               <span className="text-xs text-gray-400 ml-1">ตัวที่ {charIndex + 1}/{chars.length}</span>
