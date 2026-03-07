@@ -29,6 +29,7 @@ export default function WritingPractice() {
   const [showHintBadge, setShowHintBadge] = useState(false)
 
   const svgRef = useRef(null)
+  const hintSvgRef = useRef(null)   // second HanziWriter for hint overlay (always in DOM)
   const writerRef = useRef(null)
   const writerIdRef = useRef(0)
   const totalStrokesRef = useRef(0)
@@ -57,6 +58,7 @@ export default function WritingPractice() {
       try { writerRef.current.cancelQuiz() } catch (e) {}
     }
     svgRef.current.innerHTML = ''
+    if (hintSvgRef.current) hintSvgRef.current.innerHTML = ''
 
     setPhase('quiz')
     setScoreInfo(null)
@@ -95,6 +97,20 @@ export default function WritingPractice() {
     })
 
     writerRef.current = writer
+
+    // Hint writer — same character, showCharacter=true, no quiz
+    // Always rendered but invisible (opacity 0) until hint is pressed
+    if (hintSvgRef.current) {
+      HanziWriter.create(hintSvgRef.current, currentChar, {
+        width: 260,
+        height: 260,
+        padding: 10,
+        showOutline: false,
+        showCharacter: true,
+        strokeColor: color.hex,
+        drawingWidth: 4,
+      })
+    }
 
     writer.quiz({
       onComplete: (data) => {
@@ -322,17 +338,13 @@ export default function WritingPractice() {
             )}
           </div>
 
-          {/* Hint overlay — CSS only, quiz state untouched */}
-          {hintOverlay && (
-            <div className="absolute inset-0 flex items-center justify-center rounded-2xl pointer-events-none">
-              <span
-                className="font-chinese leading-none select-none"
-                style={{ fontSize: 200, color: color.hex, opacity: 0.25 }}
-              >
-                {currentChar}
-              </span>
-            </div>
-          )}
+          {/* Hint overlay — second HanziWriter, always in DOM, opacity controlled */}
+          <div
+            className="absolute inset-0 rounded-2xl pointer-events-none p-3"
+            style={{ opacity: hintOverlay ? 0.25 : 0 }}
+          >
+            <div ref={hintSvgRef} style={{ width: 260, height: 260 }} />
+          </div>
 
           {/* Score overlay on result */}
           {phase === 'result' && scoreInfo && (
