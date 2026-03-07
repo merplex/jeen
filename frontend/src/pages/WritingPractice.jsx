@@ -20,18 +20,17 @@ export default function WritingPractice() {
   const [cardIndex, setCardIndex] = useState(0)
   const [charIndex, setCharIndex] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [phase, setPhase] = useState('quiz') // 'quiz' | 'result' | 'finished'
+  const [phase, setPhase] = useState('quiz') // 'quiz' | 'hint_done' | 'result' | 'finished'
   const [scoreInfo, setScoreInfo] = useState(null)
   const [hintLevel, setHintLevel] = useState(0)
+  const [hintShowing, setHintShowing] = useState(false) // character shown temporarily
   const [charError, setCharError] = useState(false)
   const [showHintBadge, setShowHintBadge] = useState(false)
-  const [hintAnimating, setHintAnimating] = useState(false)
 
   const svgRef = useRef(null)
   const writerRef = useRef(null)
   const writerIdRef = useRef(0)
   const totalStrokesRef = useRef(0)
-  const hintedStrokesRef = useRef(0)
   const phaseRef = useRef('quiz')
 
   useEffect(() => { phaseRef.current = phase }, [phase])
@@ -53,7 +52,6 @@ export default function WritingPractice() {
   useEffect(() => {
     if (!currentChar || !svgRef.current) return
 
-    // Cleanup previous writer
     if (writerRef.current) {
       try { writerRef.current.cancelQuiz() } catch (e) {}
     }
@@ -62,11 +60,10 @@ export default function WritingPractice() {
     setPhase('quiz')
     setScoreInfo(null)
     setHintLevel(0)
+    setHintShowing(false)
     setCharError(false)
     setShowHintBadge(false)
-    setHintAnimating(false)
     totalStrokesRef.current = 0
-    hintedStrokesRef.current = 0
     phaseRef.current = 'quiz'
 
     writerIdRef.current += 1
@@ -97,69 +94,52 @@ export default function WritingPractice() {
 
     writerRef.current = writer
 
-    const startQuiz = (fromStroke = 0) => {
-      writer.quiz({
-        quizStartStrokeNum: fromStroke,
-        onCorrectStroke: (data) => {
-          if (writerIdRef.current !== myId) return
-          const total = (data.strokeNum + 1) + (data.strokesRemaining || 0)
-          if (total > totalStrokesRef.current) totalStrokesRef.current = total
-        },
-        onMistake: () => {},
-        onComplete: (data) => {
-          if (writerIdRef.current !== myId) return
-          const total = totalStrokesRef.current || 1
-          const drawnStrokes = Math.max(1, total - hintedStrokesRef.current)
-          const score = Math.max(0, Math.round(100 - (data.totalMistakes / drawnStrokes) * 100))
-          setScoreInfo({ score, totalMistakes: data.totalMistakes, total })
-          setPhase('result')
-          phaseRef.current = 'result'
-          if (score >= 90) {
-            setTimeout(() => {
-              if (writerIdRef.current === myId) writer.animateCharacter()
-            }, 400)
-          }
-        },
-      })
-    }
-
-    // เก็บ startQuiz ไว้ใน ref เพื่อให้ handleHint เรียกได้
-    writer._startQuiz = startQuiz
-    startQuiz(0)
+    writer.quiz({
+      onComplete: (data) => {
+        if (writerIdRef.current !== myId) return
+        const total = totalStrokesRef.current || 1
+        const score = Math.max(0, Math.round(100 - (data.totalMistakes / total) * 100))
+        setScoreInfo({ score, totalMistakes: data.totalMistakes, total })
+        setPhase('result')
+        phaseRef.current = 'result'
+        if (score >= 90) {
+          setTimeout(() => {
+            if (writerIdRef.current === myId) writer.animateCharacter()
+          }, 400)
+        }
+      },
+    })
   }, [currentChar])
 
+  // Hint system:
+  //   Press 1 → show character 2 seconds then hide (quiz continues)
+  //   Press 2 → show character 5 seconds then hide (quiz continues)
+  //   Press 3 → show character permanently, cancel quiz, show "ถัดไป" button
   const handleHint = () => {
-    if (phaseRef.current !== 'quiz' || !writerRef.current || hintAnimating) return
-    const total = totalStrokesRef.current || 8
-    const count = Math.max(1, Math.floor(total * 0.2))
-    const currentHinted = hintedStrokesRef.current
-    // เหลือ stroke สุดท้ายให้ user เขียนเองอย่างน้อย 1 stroke
-    const newHinted = Math.min(currentHinted + count, total - 1)
-    if (newHinted <= currentHinted) return
+    if (phaseRef.current !== 'quiz' || !writerRef.current || hintShowing) return
 
-    const myId = writerIdRef.current
-    const w = writerRef.current
-
-    // cancel quiz เดิม แล้ว animate ให้ดูลำดับขีด
-    try { w.cancelQuiz() } catch (e) {}
-    setHintAnimating(true)
-    hintedStrokesRef.current = newHinted
-    setHintLevel((h) => h + 1)
+    const newLevel = hintLevel + 1
+    setHintLevel(newLevel)
     setShowHintBadge(true)
 
-    // animate ทั้งตัวอักษรให้ user ดูลำดับขีด แล้ว restart quiz จาก stroke ที่ hint ไปแล้ว
-    Promise.resolve(w.animateCharacter()).then(() => {
-      if (writerIdRef.current !== myId || phaseRef.current !== 'quiz') return
-      w._startQuiz?.(newHinted)
-      setHintAnimating(false)
-    }).catch(() => {
-      // fallback ถ้า animateCharacter ไม่ return Promise
+    const w = writerRef.current
+    const myId = writerIdRef.current
+
+    if (newLevel >= 3) {
+      w.showCharacter()
+      try { w.cancelQuiz() } catch (e) {}
+      setPhase('hint_done')
+      phaseRef.current = 'hint_done'
+    } else {
+      const duration = newLevel === 1 ? 2000 : 5000
+      w.showCharacter()
+      setHintShowing(true)
       setTimeout(() => {
-        if (writerIdRef.current !== myId || phaseRef.current !== 'quiz') return
-        w._startQuiz?.(newHinted)
-        setHintAnimating(false)
-      }, 3000)
-    })
+        if (writerIdRef.current !== myId) return
+        w.hideCharacter()
+        setHintShowing(false)
+      }, duration)
+    }
   }
 
   const handleShowAnimation = () => {
@@ -263,7 +243,6 @@ export default function WritingPractice() {
       <div className="px-4 py-4 flex flex-col items-center gap-4">
         {/* Word hint area */}
         <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm px-5 py-4">
-          {/* All chars of word with indicator */}
           {chars.length > 1 && (
             <div className="flex gap-2 items-center mb-3">
               {chars.map((ch, i) => (
@@ -284,10 +263,7 @@ export default function WritingPractice() {
             </div>
           )}
 
-          {/* Pinyin hint */}
           <div className="text-blue-400 text-sm font-mono mb-1">{word?.pinyin}</div>
-
-          {/* Meaning hint */}
           <div className="text-gray-600 text-sm leading-relaxed">
             {word?.thai_meaning?.split('\n').filter(Boolean).slice(0, 2).map((line, i) => (
               <div key={i}>{line}</div>
@@ -295,21 +271,36 @@ export default function WritingPractice() {
           </div>
         </div>
 
-        {/* Phase: quiz controls — เหนือ canvas เพื่อให้เห็นชัด */}
+        {/* Quiz controls */}
         {phase === 'quiz' && !charError && (
           <div className="flex gap-3 w-full max-w-sm">
             <button
               onClick={handleHint}
-              disabled={hintAnimating}
+              disabled={hintShowing}
               className="flex-1 bg-amber-50 border border-amber-200 text-amber-600 rounded-xl py-3 text-sm font-medium active:scale-95 disabled:opacity-50"
             >
-              {hintAnimating ? '▶ ดูอยู่...' : `💡 คำใบ้ ${hintLevel > 0 ? `(${hintLevel})` : ''}`}
+              {hintShowing
+                ? `👁 กำลังแสดง...`
+                : `💡 คำใบ้${hintLevel > 0 ? ` (${hintLevel})` : ''}`}
             </button>
             <button
               onClick={handleNext}
               className="flex-1 bg-gray-100 text-gray-600 rounded-xl py-3 text-sm font-medium active:scale-95"
             >
               ข้าม →
+            </button>
+          </div>
+        )}
+
+        {/* Hint done: character shown permanently, wait for next */}
+        {phase === 'hint_done' && !charError && (
+          <div className="w-full max-w-sm">
+            <p className="text-center text-xs text-amber-500 mb-3">จำรูปอักษรไว้นะ แล้วเขียนเองได้เลย</p>
+            <button
+              onClick={goNext}
+              className={`w-full ${headerColor.bg} text-white rounded-xl py-3 text-sm font-semibold active:scale-95`}
+            >
+              ถัดไป →
             </button>
           </div>
         )}
@@ -351,10 +342,9 @@ export default function WritingPractice() {
           </button>
         )}
 
-        {/* Phase: result controls */}
+        {/* Result controls */}
         {phase === 'result' && scoreInfo && (
           <div className="flex flex-col gap-3 w-full max-w-sm">
-            {/* Score message */}
             <div className={`text-center text-sm font-medium ${scoreColor}`}>
               {scoreInfo.score >= 90
                 ? '🎉 เยี่ยม! แสดงลำดับขีดให้ดูแล้ว'
