@@ -22,7 +22,7 @@ export default function FlashcardPlay() {
   useEffect(() => {
     if (!user) return
     getFlashcards(deckNum)
-      .then((r) => setCards(r.data))
+      .then((r) => setCards([...r.data].sort(() => Math.random() - 0.5)))
       .finally(() => setLoading(false))
   }, [user, deckNum])
 
