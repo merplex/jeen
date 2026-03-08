@@ -86,6 +86,7 @@ export default function WritingPractice() {
       strokeAnimationSpeed: 1,
       delayBetweenStrokes: 250,
       highlightColor: '#f59e0b',
+      leniency: 1.5,
       onLoadCharDataSuccess: (charData) => {
         if (writerIdRef.current !== myId) return
         totalStrokesRef.current = charData.strokes.length
@@ -151,7 +152,7 @@ export default function WritingPractice() {
       phaseRef.current = 'hint_done'
     } else {
       // Show CSS overlay for N seconds — quiz state is completely untouched
-      const duration = newLevel === 1 ? 2000 : 5000
+      const duration = newLevel === 1 ? 1000 : 2000
       setHintOverlay(true)
       setHintShowing(true)
       setTimeout(() => {
