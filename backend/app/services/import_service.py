@@ -56,7 +56,7 @@ def _parse_thai_meaning(raw: str) -> list[tuple[str, str | None]]:
         m = re.match(r'^\(([^)]+)\)', sense)
         if m:
             category = m.group(1).strip()
-        clean = re.sub(r'\([^)]+\)\s*', '', sense)
+        clean = re.sub(r'^\([^)]+\)\s*', '', sense)
         clean = re.sub(r'\s*,\s*', ', ', clean)
         clean = clean.strip().strip(',').strip()
         if clean:
@@ -183,7 +183,16 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
                 # upsert: อัปเดต thai_meaning ด้วยเวอร์ชัน merge จากไฟล์
                 word = existing_words[key]
                 old_thai = word.thai_meaning or ""
-                if old_thai != thai:
+                old_cat = word.category or ""
+                new_cat = g["category"] or ""
+                thai_changed = old_thai != thai
+                cat_changed = g["category"] and old_cat != new_cat
+
+                if not thai_changed and not cat_changed:
+                    skipped += 1
+                    continue
+
+                if thai_changed:
                     updated_words.append({
                         "id": word.id,
                         "chinese": chinese,
