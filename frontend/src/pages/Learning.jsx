@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getFlashcards, getFlashcardStats, removeFlashcard, getSpeakingHistory, getSpeakingDailyStatus } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
+import TonedChinese from '../components/TonedChinese'
 
 const DECK_COLORS = {
   1: { bg: 'bg-chinese-red', border: 'border-chinese-red', text: 'text-chinese-red', light: 'bg-red-50' },
@@ -182,7 +183,7 @@ export default function Learning() {
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-chinese text-lg text-gray-800 leading-snug">{r.example_chinese}</span>
+                          <TonedChinese chinese={r.example_chinese} pinyin={r.example_pinyin} className="font-chinese text-lg leading-snug" />
                           {r.is_generated && (
                             <span className="text-[9px] bg-purple-100 text-purple-500 px-1 py-0.5 rounded">gen</span>
                           )}
@@ -191,7 +192,7 @@ export default function Learning() {
                           <div className="text-xs text-blue-400 mt-0.5">{r.example_pinyin}</div>
                         )}
                         {r.word && (
-                          <div className="text-xs text-gray-400 mt-0.5">{r.word.chinese} · {r.word.pinyin}</div>
+                          <div className="text-xs text-gray-400 mt-0.5"><TonedChinese chinese={r.word.chinese} pinyin={r.word.pinyin} className="font-chinese" /> · {r.word.pinyin}</div>
                         )}
                       </div>
                       <div className="text-right shrink-0">
@@ -294,7 +295,7 @@ function DeckTab({ stats, selectedDeck, setSelectedDeck, isPremium, cardsLoading
               <div key={card.id} className="bg-white rounded-xl px-4 py-3 shadow-sm flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2">
-                    <span className="font-chinese text-xl text-chinese-red">{card.word.chinese}</span>
+                    <TonedChinese chinese={card.word.chinese} pinyin={card.word.pinyin} className="font-chinese text-xl" />
                     <span className="text-xs text-gray-400">{card.word.pinyin}</span>
                   </div>
                   <div className="text-xs text-gray-600 truncate">
