@@ -1,7 +1,7 @@
 import re
 from collections import Counter
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+
 from ..models.word import Word
 from ..models.missed_search import MissedSearch
 from ..schemas.search import SearchResult, PerCharGroup
@@ -238,17 +238,17 @@ def search_words(db: Session, query: str) -> SearchResult:
         # 3) Gemini fallback
         return _search_english(db, q)
 
-    # Chinese or Thai
+    # Chinese or Thai — query column ตาม lang เท่านั้น (ไม่ OR ข้าม column เพื่อความเร็ว)
+    if lang == 'chinese':
+        prefix_col = Word.chinese.like(f'{q}%')
+        inner_col = Word.chinese.like(f'%{q}%')
+    else:  # thai
+        prefix_col = Word.thai_meaning.like(f'{q}%')
+        inner_col = Word.thai_meaning.like(f'%{q}%')
+
     prefix_results = (
         db.query(Word)
-        .filter(
-            Word.status == 'verified',
-            or_(
-                Word.chinese.like(f'{q}%'),
-                Word.pinyin_plain.ilike(f'{q}%'),
-                Word.thai_meaning.like(f'{q}%'),
-            ),
-        )
+        .filter(Word.status == 'verified', prefix_col)
         .order_by(Word.char_count.asc())
         .all()
     )
@@ -257,15 +257,7 @@ def search_words(db: Session, query: str) -> SearchResult:
 
     inner_results = (
         db.query(Word)
-        .filter(
-            Word.status == 'verified',
-            Word.id.notin_(prefix_ids),
-            or_(
-                Word.chinese.like(f'%{q}%'),
-                Word.pinyin_plain.ilike(f'%{q}%'),
-                Word.thai_meaning.like(f'%{q}%'),
-            ),
-        )
+        .filter(Word.status == 'verified', Word.id.notin_(prefix_ids), inner_col)
         .order_by(Word.char_count.asc())
         .all()
     )
