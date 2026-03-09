@@ -384,11 +384,11 @@ def validate_and_record_missed(db: Session, query: str) -> bool:
 
 
 def _record_missed(db: Session, query: str):
+    from datetime import datetime, timezone
     missed = db.query(MissedSearch).filter(MissedSearch.query == query).first()
     if missed:
         missed.count += 1
-        from sqlalchemy import func
-        missed.last_searched_at = func.now()
+        missed.last_searched_at = datetime.now(timezone.utc).replace(tzinfo=None)
     else:
         missed = MissedSearch(query=query, count=1)
         db.add(missed)

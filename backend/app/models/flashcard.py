@@ -1,6 +1,9 @@
-from sqlalchemy import Column, Integer, DateTime, ForeignKey, UniqueConstraint, func
+from datetime import datetime, timezone
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from ..database import Base
+
+_utcnow = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class Flashcard(Base):
@@ -10,7 +13,7 @@ class Flashcard(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     word_id = Column(Integer, ForeignKey("words.id"), nullable=False)
     deck = Column(Integer, nullable=False, default=1)  # 1, 2, 3
-    added_at = Column(DateTime, default=func.now())
+    added_at = Column(DateTime, default=_utcnow)
 
     user = relationship("User", back_populates="flashcards")
     word = relationship("Word", back_populates="flashcards")

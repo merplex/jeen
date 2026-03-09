@@ -1,5 +1,8 @@
-from sqlalchemy import Column, Integer, String, DateTime, func
+from datetime import datetime, timezone
+from sqlalchemy import Column, Integer, String, DateTime
 from ..database import Base
+
+_utcnow = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class MissedSearch(Base):
@@ -8,4 +11,4 @@ class MissedSearch(Base):
     id = Column(Integer, primary_key=True, index=True)
     query = Column(String(200), unique=True, nullable=False)
     count = Column(Integer, default=1)
-    last_searched_at = Column(DateTime, default=func.now())
+    last_searched_at = Column(DateTime, default=_utcnow)

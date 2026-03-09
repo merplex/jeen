@@ -1,4 +1,7 @@
-from sqlalchemy import Column, Integer, Float, String, Boolean, DateTime, ForeignKey, UniqueConstraint, func
+from datetime import datetime, timezone
+from sqlalchemy import Column, Integer, Float, String, Boolean, DateTime, ForeignKey, UniqueConstraint
+
+_utcnow = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
 from sqlalchemy.orm import relationship
 from ..database import Base
 
@@ -21,7 +24,7 @@ class SpeakingRecord(Base):
     practice_count = Column(Integer, default=1)
     daily_assess_count = Column(Integer, default=0)  # จำนวนครั้ง assess วันนี้ (reset ทุกวันโดย logic)
     daily_gen_count = Column(Integer, default=0)     # จำนวนครั้ง gen ประโยควันนี้
-    practiced_at = Column(DateTime, default=func.now())
+    practiced_at = Column(DateTime, default=_utcnow)
 
     user = relationship("User")
     word = relationship("Word")

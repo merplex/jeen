@@ -115,12 +115,11 @@ export default function Search() {
         }
       }
 
-      if (!res.data.found) {
+      const effectivelyNotFound = !res.data.found || res.data.search_mode === 'per_char'
+      if (effectivelyNotFound) {
         scheduleMissedReport(q.trim())
       } else {
         enterPressedRef.current = false
-      }
-      if (res.data.found) {
         scheduleHistory(q.trim(), firstWordId, true)
       }
     } catch {
@@ -164,7 +163,8 @@ export default function Search() {
     clearTimeout(historyTimerRef.current)
     if (result && result.query === query.trim()) {
       const firstWordId = result.prefix_group?.[0]?.id ?? result.inner_group?.[0]?.id ?? null
-      if (!result.found) {
+      const isPerChar = result.search_mode === 'per_char'
+      if (!result.found || isPerChar) {
         reportMissedSearch(query.trim()).catch(() => {})
       } else {
         recordHistoryNow(query.trim(), firstWordId, true)
