@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords, scanOcr } from '../services/api'
 import WordCard from '../components/WordCard'
+import TonedChinese from '../components/TonedChinese'
 import { SEARCH_CATEGORIES } from '../utils/categories'
 import useAuthStore from '../stores/authStore'
 
@@ -421,7 +422,7 @@ export default function Search() {
                     onClick={() => navigate(`/word/${w.id}`)}
                     className="bg-white rounded-xl p-3 text-left shadow-sm border border-gray-100 active:scale-95 transition-transform"
                   >
-                    <div className="font-chinese text-2xl text-chinese-red leading-tight">{w.chinese}</div>
+                    <TonedChinese chinese={w.chinese} pinyin={w.pinyin} className="font-chinese text-2xl leading-tight" />
                     <div className="text-[11px] text-gray-400 mt-0.5">{w.pinyin}</div>
                     <div className="text-xs text-gray-600 mt-1 line-clamp-2 leading-snug">
                       {w.thai_meaning.split('\n')[0]}

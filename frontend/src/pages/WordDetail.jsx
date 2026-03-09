@@ -4,6 +4,7 @@ import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, cr
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import SelectionPopup from '../components/SelectionPopup'
+import TonedChinese from '../components/TonedChinese'
 
 const DECK_STYLE = {
   1: { active: 'bg-chinese-red border-chinese-red text-white', inactive: 'bg-transparent border-chinese-red text-chinese-red' },
@@ -198,7 +199,7 @@ export default function WordDetail() {
               🔊
             </button>
           </div>
-          <div className="font-chinese text-5xl text-white">{word.chinese}</div>
+          <TonedChinese chinese={word.chinese} pinyin={word.pinyin} className="font-chinese text-5xl text-white" />
         </div>
         <div className="text-chinese-gold text-lg text-center mb-4">{word.pinyin}</div>
 
