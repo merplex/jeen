@@ -83,7 +83,9 @@ export default function SelectionPopup() {
   // Helper: ค้นหาทุกตัวอักษรในคำ → คืนผลแยกรายตัว
   const searchByChars = useCallback(async (text, excludeIds = new Set()) => {
     const chars = [...new Set(text.split('').filter(isSearchable))]
-    const results = await Promise.all(chars.map((c) => searchWords(c).catch(() => null)))
+    const results = await Promise.all(
+      chars.map((c) => searchWords(c).catch(() => searchWords(c).catch(() => null)))
+    )
     const char_results = []
     for (let i = 0; i < chars.length; i++) {
       const r = results[i]
@@ -122,7 +124,10 @@ export default function SelectionPopup() {
           const fb = await searchByChars(captured, combinedIds)
           const hasResults = prefix_group.length + inner_group.length + fb.char_results.length > 0
           bgResultRef.current = { prefix_group, inner_group, char_results: fb.char_results, found: hasResults }
-          if (!hasResults) reportMissedSearchDirect(captured).catch(() => {})
+          // รายงาน missed ถ้าคำหลักไม่มีในดิก (แม้ per-char จะมีผล)
+          if (prefix_group.length + inner_group.length === 0) {
+            reportMissedSearchDirect(captured).catch(() => {})
+          }
           return
         }
 
@@ -162,7 +167,9 @@ export default function SelectionPopup() {
           const fb = await searchByChars(captured, combinedIds)
           const hasResults = prefix_group.length + inner_group.length + fb.char_results.length > 0
           setResult({ prefix_group, inner_group, char_results: fb.char_results, found: hasResults })
-          if (!hasResults) reportMissedSearchDirect(captured).catch(() => {})
+          if (prefix_group.length + inner_group.length === 0) {
+            reportMissedSearchDirect(captured).catch(() => {})
+          }
           return
         }
 

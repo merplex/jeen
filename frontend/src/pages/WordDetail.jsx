@@ -286,7 +286,7 @@ export default function WordDetail() {
               const meaningLines = word.thai_meaning.split('\n').filter((l) => l.trim())
               const byLine = {}
               for (const ex of word.examples) {
-                const line = ex.meaning_line ?? 0
+                const line = Math.min(ex.meaning_line ?? 0, meaningLines.length - 1)
                 if (!byLine[line]) byLine[line] = []
                 byLine[line].push(ex)
               }
