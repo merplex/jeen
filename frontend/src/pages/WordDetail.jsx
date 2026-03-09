@@ -177,15 +177,10 @@ export default function WordDetail() {
       <SelectionPopup />
       {/* Header */}
       <div className="bg-chinese-red px-4 pt-12 pb-5">
-        <div className="relative flex items-center justify-center mb-1">
-          <button
-            onClick={() => navigate(-1)}
-            className="absolute left-0 text-white text-2xl"
-          >
-            ←
-          </button>
-          {/* ปุ่ม ออกเสียง + รายงาน อยู่ขวา */}
-          <div className="absolute right-0 flex items-center gap-2">
+        {/* Nav row */}
+        <div className="flex items-center justify-between mb-3">
+          <button onClick={() => navigate(-1)} className="text-white text-2xl">←</button>
+          <div className="flex items-center gap-2">
             {isPremium && (
               <button
                 onClick={() => setShowReportModal(true)}
@@ -199,9 +194,18 @@ export default function WordDetail() {
               🔊
             </button>
           </div>
-          <TonedChinese chinese={word.chinese} pinyin={word.pinyin} className="font-chinese text-5xl text-white" />
         </div>
-        <div className="text-chinese-gold text-lg text-center mb-4">{word.pinyin}</div>
+        {/* White card — คำศัพท์ */}
+        <div className="bg-white rounded-xl px-4 py-3 mb-4">
+          <div className="text-center leading-tight [word-break:break-all]">
+            <TonedChinese
+              chinese={word.chinese}
+              pinyin={word.pinyin}
+              className="font-chinese text-5xl"
+            />
+          </div>
+          <div className="text-chinese-gold text-base text-center mt-1">{word.pinyin}</div>
+        </div>
 
         {/* Flashcard deck buttons */}
         {user && (
