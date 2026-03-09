@@ -120,12 +120,17 @@ export default function SelectionPopup() {
           : raw_inner
 
         if (captured.length > 1) {
-          // multi-char: แสดง combined (filtered) + per-char เสมอ
-          const combinedIds = new Set([...prefix_group, ...inner_group].map((w) => w.id))
-          const fb = await searchByChars(captured, combinedIds)
-          const hasResults = prefix_group.length + inner_group.length + fb.char_results.length > 0
-          bgResultRef.current = { prefix_group, inner_group, char_results: fb.char_results, found: hasResults }
-          // รายงาน missed ถ้าคำหลักไม่มีในดิก (แม้ per-char จะมีผล)
+          if (isChineseQuery) {
+            // Chinese multi-char: per-char fallback มีประโยชน์
+            const combinedIds = new Set([...prefix_group, ...inner_group].map((w) => w.id))
+            const fb = await searchByChars(captured, combinedIds)
+            const hasResults = prefix_group.length + inner_group.length + fb.char_results.length > 0
+            bgResultRef.current = { prefix_group, inner_group, char_results: fb.char_results, found: hasResults }
+          } else {
+            // Thai/other: แสดงผลรวมตรงๆ ไม่ต้องแยกทีละตัวอักษร
+            const hasResults = prefix_group.length + inner_group.length > 0
+            bgResultRef.current = { prefix_group, inner_group, found: hasResults }
+          }
           if (prefix_group.length + inner_group.length === 0) {
             reportMissedSearchDirect(captured).catch(() => {})
           }
@@ -164,10 +169,15 @@ export default function SelectionPopup() {
           : raw_inner
 
         if (captured.length > 1) {
-          const combinedIds = new Set([...prefix_group, ...inner_group].map((w) => w.id))
-          const fb = await searchByChars(captured, combinedIds)
-          const hasResults = prefix_group.length + inner_group.length + fb.char_results.length > 0
-          setResult({ prefix_group, inner_group, char_results: fb.char_results, found: hasResults })
+          if (isChineseQuery) {
+            const combinedIds = new Set([...prefix_group, ...inner_group].map((w) => w.id))
+            const fb = await searchByChars(captured, combinedIds)
+            const hasResults = prefix_group.length + inner_group.length + fb.char_results.length > 0
+            setResult({ prefix_group, inner_group, char_results: fb.char_results, found: hasResults })
+          } else {
+            const hasResults = prefix_group.length + inner_group.length > 0
+            setResult({ prefix_group, inner_group, found: hasResults })
+          }
           if (prefix_group.length + inner_group.length === 0) {
             reportMissedSearchDirect(captured).catch(() => {})
           }

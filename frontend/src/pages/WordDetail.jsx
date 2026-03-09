@@ -155,6 +155,19 @@ export default function WordDetail() {
     speechSynthesis.speak(u)
   }
 
+  const highlightInText = (text, keyword, className = '') => {
+    if (!text || !keyword) return <span className={className}>{text}</span>
+    const idx = text.indexOf(keyword)
+    if (idx === -1) return <span className={className}>{text}</span>
+    return (
+      <span className={className}>
+        {text.slice(0, idx)}
+        <span className="font-bold text-chinese-red">{text.slice(idx, idx + keyword.length)}</span>
+        {text.slice(idx + keyword.length)}
+      </span>
+    )
+  }
+
   if (!word) return (
     <div className="flex items-center justify-center min-h-screen bg-chinese-cream">
       <div className="text-gray-400">กำลังโหลด...</div>
@@ -337,9 +350,15 @@ export default function WordDetail() {
                                   Speak Training
                                 </button>
                               </div>
-                              <div className="font-chinese text-lg text-gray-800">{ex.chinese}</div>
+                              <div className="font-chinese text-lg text-gray-800">
+                                {highlightInText(ex.chinese, word.chinese)}
+                              </div>
                               {ex.pinyin && <div className="text-sm text-gray-500">{ex.pinyin}</div>}
-                              {ex.thai && <div className="text-sm text-gray-700">{ex.thai}</div>}
+                              {ex.thai && (
+                                <div className="text-sm text-gray-700">
+                                  {highlightInText(ex.thai, word.thai_meaning.split('\n')[0].trim())}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
