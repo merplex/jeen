@@ -99,6 +99,8 @@ export const adminBulkGenerateExamples = (limit = 30) =>
   api.post('/admin/bulk-generate-examples', null, { params: { limit } })
 export const adminRegenExamplesByCategory = (category, limit = 20, offset = 0) =>
   api.post('/admin/regen-examples-by-category', null, { params: { category, limit, offset } })
+export const adminBulkRegenShortExamples = (limit = 30, min_length = 10) =>
+  api.post('/admin/bulk-regen-short-examples', null, { params: { limit, min_length } })
 export const adminEnglishStats = () =>
   api.get('/admin/english-stats')
 export const adminBulkGenerateEnglish = (limit = 50) =>

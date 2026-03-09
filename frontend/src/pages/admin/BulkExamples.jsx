@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import {
   adminExamplesStats, adminWipeAllExamples, adminBulkGenerateExamples,
   adminEnglishStats, adminBulkGenerateEnglish, adminFixLongEnglish,
-  adminRegenExamplesByCategory,
+  adminRegenExamplesByCategory, adminBulkRegenShortExamples,
 } from '../../services/api'
 
 const REGEN_CATEGORIES = ['แพทย์', 'กฎหมาย', 'สำนวน', 'วิศวกรรม', 'เทคนิค']
@@ -78,6 +78,31 @@ export default function BulkExamples() {
   const stopAll = () => {
     stopRef.current = true
     addLog('หยุดหลังรอบนี้เสร็จ...')
+  }
+
+  const runRegenShort = async () => {
+    if (running) return
+    setRunning(true)
+    stopRef.current = false
+    setLog([])
+    addLog('เริ่ม regen ตัวอย่างสั้น (< 10 ตัวอักษร)...')
+    let total = 0
+    while (!stopRef.current) {
+      try {
+        const r = await adminBulkRegenShortExamples(30, 10)
+        const { done, errors, remaining, last_error } = r.data
+        total += done
+        const errNote = last_error ? ` (${last_error})` : ''
+        addLog(`✓ regen ${done} คำ | error ${errors}${errNote} | เหลือ ${remaining} คำ`)
+        if (remaining === 0 || (done === 0 && errors > 0)) break
+      } catch (e) {
+        addLog(`✗ ${e.response?.data?.detail || e.message}`)
+        break
+      }
+    }
+    addLog(`เสร็จ — regen รวม ${total} คำ`)
+    setRunning(false)
+    loadStats()
   }
 
   const runRegenByCategory = async () => {
@@ -171,7 +196,14 @@ export default function BulkExamples() {
       <div className="bg-white rounded-xl p-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-gray-500">ตัวอย่างประโยค</h2>
-          {exStats && <span className="text-xs text-gray-400">{exStats.with_examples} / {exStats.total_verified} คำ</span>}
+          {exStats && (
+            <div className="text-right">
+              <span className="text-xs text-gray-400">{exStats.with_examples} / {exStats.total_verified} คำ</span>
+              {exStats.with_short_examples > 0 && (
+                <span className="ml-2 text-xs text-amber-500">⚠️ สั้น {exStats.with_short_examples} คำ</span>
+              )}
+            </div>
+          )}
         </div>
         {exStats ? (
           <>
@@ -194,6 +226,15 @@ export default function BulkExamples() {
               )}
               <button onClick={loadStats} disabled={running} className="px-3 border border-gray-200 rounded-lg text-sm text-gray-500 disabled:opacity-40">🔄</button>
             </div>
+            {exStats.with_short_examples > 0 && (
+              <button
+                onClick={runRegenShort}
+                disabled={running}
+                className="w-full mt-2 bg-amber-500 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
+              >
+                🔧 Regen ตัวอย่างสั้นเกิน ({exStats.with_short_examples} คำ, &lt;10 ตัวอักษร)
+              </button>
+            )}
             <button
               onClick={wipeAll}
               disabled={running}

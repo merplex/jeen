@@ -364,10 +364,12 @@ def test_gemini(_: User = Depends(require_admin)):
 
 @router.get("/examples-stats")
 def examples_stats(
+    min_length: int = 10,
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    """จำนวน verified words ที่มี/ไม่มี examples"""
+    """จำนวน verified words ที่มี/ไม่มี examples และมี examples สั้นเกินไป"""
+    from sqlalchemy import func as sqlfunc
     total = db.query(Word).filter(Word.status == "verified").count()
     with_ex = (
         db.query(Word)
@@ -375,10 +377,25 @@ def examples_stats(
         .filter(Word.id.in_(select(Example.word_id).distinct()))
         .count()
     )
+    # words ที่มี example แต่ทุก example สั้นกว่า min_length (น่าจะเป็น example ที่ผิดพลาด)
+    short_word_ids = (
+        db.query(Example.word_id)
+        .group_by(Example.word_id)
+        .having(sqlfunc.max(sqlfunc.length(Example.chinese)) < min_length)
+        .subquery()
+    )
+    with_short = (
+        db.query(Word)
+        .filter(Word.status == "verified")
+        .filter(Word.id.in_(select(short_word_ids.c.word_id)))
+        .count()
+    )
     return {
         "total_verified": total,
         "with_examples": with_ex,
         "without_examples": total - with_ex,
+        "with_short_examples": with_short,
+        "min_length": min_length,
     }
 
 
@@ -500,6 +517,81 @@ def bulk_generate_examples(
         db.query(Word)
         .filter(Word.status == "verified")
         .filter(Word.id.notin_(select(Example.word_id).distinct()))
+        .count()
+    )
+    return {"done": done, "errors": errors, "remaining": remaining, "last_error": last_error}
+
+
+@router.post("/bulk-regen-short-examples")
+def bulk_regen_short_examples(
+    limit: int = 30,
+    min_length: int = 10,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """ลบและ gen ใหม่สำหรับคำที่มี examples แต่สั้นเกินไป (max chinese length < min_length)"""
+    from sqlalchemy import func as sqlfunc
+    limit = min(max(limit, 1), 100)
+
+    short_word_ids = (
+        db.query(Example.word_id)
+        .group_by(Example.word_id)
+        .having(sqlfunc.max(sqlfunc.length(Example.chinese)) < min_length)
+        .subquery()
+    )
+    words = (
+        db.query(Word)
+        .filter(Word.status == "verified")
+        .filter(Word.id.in_(select(short_word_ids.c.word_id)))
+        .limit(limit)
+        .all()
+    )
+
+    done = 0
+    errors = 0
+    last_error = None
+    for word in words:
+        try:
+            examples = generate_examples_for_word(
+                word.chinese, word.pinyin or "", word.thai_meaning or "", word.category or ""
+            )
+            if not examples:
+                errors += 1
+                last_error = f"{word.chinese}: Gemini returned empty"
+            else:
+                db.query(Example).filter(Example.word_id == word.id).delete()
+                for idx, ex in enumerate(examples):
+                    db.add(Example(
+                        word_id=word.id,
+                        chinese=ex.get("chinese", ""),
+                        pinyin=ex.get("pinyin"),
+                        thai=ex.get("thai"),
+                        type=ex.get("type"),
+                        meaning_line=_to_int(ex.get("meaning_line")),
+                        sort_order=idx,
+                    ))
+                db.commit()
+                done += 1
+        except Exception as e:
+            errors += 1
+            last_error = str(e)
+        time.sleep(0.3)
+
+    if done > 0:
+        _log(db, "bulk_examples", detail=f"regen short examples {done} คำ")
+        db.commit()
+
+    # นับที่เหลือ
+    remaining_short_ids = (
+        db.query(Example.word_id)
+        .group_by(Example.word_id)
+        .having(sqlfunc.max(sqlfunc.length(Example.chinese)) < min_length)
+        .subquery()
+    )
+    remaining = (
+        db.query(Word)
+        .filter(Word.status == "verified")
+        .filter(Word.id.in_(select(remaining_short_ids.c.word_id)))
         .count()
     )
     return {"done": done, "errors": errors, "remaining": remaining, "last_error": last_error}
