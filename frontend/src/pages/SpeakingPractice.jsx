@@ -198,16 +198,16 @@ export default function SpeakingPractice() {
         </div>
 
         {/* ประโยคที่กำลังฝึก */}
-        <div className="bg-white/15 rounded-xl p-3">
+        <div className="bg-white rounded-xl p-3">
           <div className="flex items-center gap-2 mb-1">
-            <TonedChinese chinese={current.chinese} pinyin={current.pinyin} className="font-chinese text-2xl leading-tight text-white" />
-            <button onClick={() => speak()} className="text-white/70 text-xl shrink-0">🔊</button>
+            <TonedChinese chinese={current.chinese} pinyin={current.pinyin} className="font-chinese text-2xl leading-tight" />
+            <button onClick={() => speak()} className="text-gray-400 text-xl shrink-0">🔊</button>
             {!current.isOriginal && (
-              <span className="ml-auto text-[10px] bg-white/20 text-white px-1.5 py-0.5 rounded">gen</span>
+              <span className="ml-auto text-[10px] bg-purple-100 text-purple-500 px-1.5 py-0.5 rounded">gen</span>
             )}
           </div>
           {current.pinyin && <div className="text-chinese-gold text-sm">{current.pinyin}</div>}
-          {current.thai && <div className="text-white/80 text-xs mt-0.5">{current.thai}</div>}
+          {current.thai && <div className="text-gray-500 text-xs mt-0.5">{current.thai}</div>}
         </div>
 
         {/* Sentence tabs */}
