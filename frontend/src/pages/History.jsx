@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getHistory, deleteHistory } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import { thaiDateTime } from '../utils/time'
+import TonedChinese from '../components/TonedChinese'
 
 export default function History() {
   const navigate = useNavigate()
@@ -57,7 +58,7 @@ export default function History() {
                       : navigate(`/?q=${encodeURIComponent(h.query)}`)
                   }
                 >
-                  <div className="font-medium text-gray-800">{h.query}</div>
+                  <TonedChinese chinese={h.query} pinyin={h.result_word_pinyin} className="font-medium text-gray-800 font-chinese" />
                   <div className="text-xs text-gray-400">
                     {thaiDateTime(h.searched_at)}
                     {!h.found && <span className="ml-2 text-red-400">ไม่พบ</span>}

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { searchWords, reportMissedSearchDirect } from '../services/api'
 import WordCard from './WordCard'
+import TonedChinese from './TonedChinese'
 
 const CHINESE_RE = /[\u4e00-\u9fff]/
 const THAI_RE = /[\u0e00-\u0e7f]/
@@ -285,10 +286,12 @@ export default function SelectionPopup() {
                     return (
                       <>
                         {/* per-char sections ก่อน (multi-char queries) */}
-                        {result.char_results?.map(({ char, prefix_group, inner_group }) => (
+                        {result.char_results?.map(({ char, prefix_group, inner_group }) => {
+                          const charWord = [...prefix_group, ...inner_group].find((w) => w.chinese === char)
+                          return (
                           <div key={char} className="space-y-3">
                             <div className="flex items-center gap-2">
-                              <span className="font-chinese text-xl text-chinese-red font-bold">{char}</span>
+                              <TonedChinese chinese={char} pinyin={charWord?.pinyin} className="font-chinese text-xl font-bold" />
                               <div className="flex-1 h-px bg-gray-200" />
                             </div>
                             {prefix_group.length > 0 && (
@@ -312,7 +315,7 @@ export default function SelectionPopup() {
                               </div>
                             )}
                           </div>
-                        ))}
+                        )})}
 
                         {/* combined sections: คำที่มี query ทั้งชุด */}
                         {result.prefix_group?.length > 0 && (

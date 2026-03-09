@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import TonedChinese from './TonedChinese'
 
 export default function WordCard({ word }) {
   const navigate = useNavigate()
@@ -9,7 +10,7 @@ export default function WordCard({ word }) {
     >
       <div className="flex items-start justify-between gap-2">
         <div>
-          <span className="font-chinese text-2xl text-chinese-red">{word.chinese}</span>
+          <TonedChinese chinese={word.chinese} pinyin={word.pinyin} className="font-chinese text-2xl" />
           {word.has_multiple_readings && (
             <div className="text-[10px] text-gray-400 leading-none -mt-0.5">(1)</div>
           )}

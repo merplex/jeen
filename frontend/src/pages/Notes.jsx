@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getNotes, deleteNote } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import { thaiDateTime } from '../utils/time'
+import TonedChinese from '../components/TonedChinese'
 
 export default function Notes() {
   const navigate = useNavigate()
@@ -64,9 +65,7 @@ export default function Notes() {
                   onClick={() => navigate(`/word/${note.word_id}`)}
                   className="text-left flex-1"
                 >
-                  <div className="font-chinese text-xl text-chinese-red">
-                    {note.word?.chinese}
-                  </div>
+                  <TonedChinese chinese={note.word?.chinese} pinyin={note.word?.pinyin} className="font-chinese text-xl" />
                   <div className="text-sm text-gray-500">{note.word?.pinyin}</div>
                   <div className="text-gray-700 text-sm mt-2 whitespace-pre-wrap line-clamp-3">
                     {note.note_text}

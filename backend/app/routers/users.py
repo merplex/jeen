@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.user import User
 from ..models.search_history import SearchHistory
+from ..models.word import Word
 from ..schemas.user import UserLogin, UserOut, Token
 from ..schemas.word import WordOut
 from ..auth import create_token, require_user
@@ -43,7 +44,8 @@ def get_history(
     current_user: User = Depends(require_user),
 ):
     records = (
-        db.query(SearchHistory)
+        db.query(SearchHistory, Word.pinyin)
+        .outerjoin(Word, SearchHistory.result_word_id == Word.id)
         .filter(SearchHistory.user_id == current_user.id)
         .order_by(SearchHistory.searched_at.desc())
         .limit(100)
@@ -56,8 +58,9 @@ def get_history(
             "found": r.found,
             "searched_at": r.searched_at,
             "result_word_id": r.result_word_id,
+            "result_word_pinyin": pinyin,
         }
-        for r in records
+        for r, pinyin in records
     ]
 
 

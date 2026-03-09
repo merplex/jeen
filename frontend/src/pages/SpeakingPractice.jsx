@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { assessSpeaking, getSpeakingDailyStatus, generateSpeakingSentences } from '../services/api'
 import useAuthStore from '../stores/authStore'
+import TonedChinese from '../components/TonedChinese'
 
 function writeString(view, offset, str) {
   for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i))
@@ -199,7 +200,7 @@ export default function SpeakingPractice() {
         {/* ประโยคที่กำลังฝึก */}
         <div className="bg-white/15 rounded-xl p-3">
           <div className="flex items-center gap-2 mb-1">
-            <span className="font-chinese text-2xl text-white leading-tight">{current.chinese}</span>
+            <TonedChinese chinese={current.chinese} pinyin={current.pinyin} className="font-chinese text-2xl leading-tight text-white" />
             <button onClick={() => speak()} className="text-white/70 text-xl shrink-0">🔊</button>
             {!current.isOriginal && (
               <span className="ml-auto text-[10px] bg-white/20 text-white px-1.5 py-0.5 rounded">gen</span>

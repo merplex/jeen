@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getFlashcards, removeFlashcard } from '../services/api'
 import useAuthStore from '../stores/authStore'
+import TonedChinese from '../components/TonedChinese'
 
 export default function Flashcard() {
   const navigate = useNavigate()
@@ -65,7 +66,7 @@ export default function Flashcard() {
           >
             {!flipped ? (
               <>
-                <div className="font-chinese text-5xl text-chinese-red">{word?.chinese}</div>
+                <TonedChinese chinese={word?.chinese} pinyin={word?.pinyin} className="font-chinese text-5xl" />
                 <div className="text-gray-400 text-sm">{word?.pinyin}</div>
                 <div className="text-xs text-gray-300 mt-4">แตะเพื่อดูความหมาย</div>
               </>

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import HanziWriter from 'hanzi-writer'
 import { getFlashcards } from '../services/api'
 import useAuthStore from '../stores/authStore'
+import TonedChinese from '../components/TonedChinese'
 
 const DECK_COLORS = {
   1: { bg: 'bg-chinese-red', hex: '#cc2929', border: 'border-chinese-red', text: 'text-chinese-red' },
@@ -267,18 +268,23 @@ export default function WritingPractice() {
           {chars.length > 1 && (
             <div className="flex gap-2 items-center mb-3">
               {chars.map((ch, i) => (
-                <span
-                  key={i}
-                  className={`font-chinese text-2xl transition-all ${
-                    i === charIndex
-                      ? `${color.text} font-bold`
-                      : i < charIndex
-                      ? 'text-gray-300'
-                      : 'text-gray-300'
-                  }`}
-                >
-                  {i < charIndex ? ch : '?'}
-                </span>
+                i < charIndex ? (
+                  <TonedChinese
+                    key={i}
+                    chinese={ch}
+                    pinyin={word?.pinyin?.trim().split(/\s+/)[i]}
+                    className="font-chinese text-2xl transition-all"
+                  />
+                ) : (
+                  <span
+                    key={i}
+                    className={`font-chinese text-2xl transition-all ${
+                      i === charIndex ? `${color.text} font-bold` : 'text-gray-300'
+                    }`}
+                  >
+                    {i === charIndex ? '?' : '?'}
+                  </span>
+                )
               ))}
               <span className="text-xs text-gray-400 ml-1">ตัวที่ {charIndex + 1}/{chars.length}</span>
             </div>
