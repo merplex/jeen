@@ -19,6 +19,8 @@ export default function SelectionPopup() {
   const selTextRef = useRef('')
   // cache ผลจาก background search — พอกดปุ่มแสดงได้เลย ไม่ต้องรอ
   const bgResultRef = useRef(null)
+  // flag ยกเลิก bg search เมื่อ user tap ก่อน bg เสร็จ (ป้องกันค้น 2 ครั้ง)
+  const bgCancelRef = useRef(false)
   const location = useLocation()
 
   // ตรวจจับการเลือกข้อความ
@@ -100,17 +102,21 @@ export default function SelectionPopup() {
     return { char_results }
   }, [])
 
-  // Background search ทันทีที่เลือกข้อความ — auto-report ถ้าไม่เจอ + cache ผลไว้
+  // Background search ทันทีที่เลือกข้อความ — cache ผลไว้ให้ handleSearch ใช้
+  // ไม่ call reportMissedSearch โดยตรง — ใช้ flag missed แทน เพื่อป้องกัน report 2 ครั้ง
   useEffect(() => {
     if (!selText) return
     const captured = selText
+    bgCancelRef.current = false
+    bgResultRef.current = null
 
     searchWords(captured)
       .then(async (r) => {
+        if (bgCancelRef.current) return  // user tap แล้ว ยกเลิก
+
         const raw_prefix = r.data?.prefix_group || []
         const raw_inner = r.data?.inner_group || []
 
-        // กรอง: เฉพาะคำที่ chinese จริงๆ มี query อยู่ (ป้องกัน thai_meaning false positive)
         const isChineseQuery = CHINESE_RE.test(captured)
         const prefix_group = isChineseQuery
           ? raw_prefix.filter((w) => w.chinese?.startsWith(captured))
@@ -121,33 +127,24 @@ export default function SelectionPopup() {
 
         if (captured.length > 1) {
           if (isChineseQuery) {
-            const hasExactMatch = prefix_group.some((w) => w.chinese === captured)
-            if (hasExactMatch || prefix_group.length + inner_group.length > 0) {
-              // มีผลอยู่แล้ว → ข้าม per-char เพื่อความเร็ว
+            if (prefix_group.length + inner_group.length > 0) {
               bgResultRef.current = { prefix_group, inner_group, found: true }
             } else {
-              // ไม่เจอเลย → per-char fallback
               const fb = await searchByChars(captured, new Set())
+              if (bgCancelRef.current) return  // user tap ระหว่าง per-char
               const hasResults = fb.char_results.length > 0
-              bgResultRef.current = { prefix_group: [], inner_group: [], char_results: fb.char_results, found: hasResults }
-              reportMissedSearchDirect(captured).catch(() => {})
+              bgResultRef.current = { prefix_group: [], inner_group: [], char_results: fb.char_results, found: hasResults, missed: !hasResults }
             }
           } else {
-            // Thai/other: แสดงผลรวมตรงๆ ไม่ต้องแยกทีละตัวอักษร
             const hasResults = prefix_group.length + inner_group.length > 0
-            bgResultRef.current = { prefix_group, inner_group, found: hasResults }
-            if (!hasResults) reportMissedSearchDirect(captured).catch(() => {})
+            bgResultRef.current = { prefix_group, inner_group, found: hasResults, missed: !hasResults }
           }
           return
         }
 
         // single char
-        if (prefix_group.length + inner_group.length > 0) {
-          bgResultRef.current = { prefix_group, inner_group, found: true }
-        } else {
-          bgResultRef.current = { prefix_group: [], inner_group: [], found: false }
-          reportMissedSearchDirect(captured).catch(() => {})
-        }
+        const hasResults = prefix_group.length + inner_group.length > 0
+        bgResultRef.current = { prefix_group, inner_group, found: hasResults, missed: !hasResults }
       })
       .catch(() => {})
   }, [selText, searchByChars])
@@ -204,17 +201,20 @@ export default function SelectionPopup() {
   const handleSearch = useCallback(() => {
     const text = selTextRef.current
     if (!text) return
+    bgCancelRef.current = true  // ยกเลิก bg search ที่ยังค้างอยู่
     selTextRef.current = ''
     setSelText('')
     setIconPos(null)
     setOpen(true)
-    // ถ้า background search เสร็จแล้ว → แสดงผลเลย ไม่ต้องรอ
     if (bgResultRef.current !== null) {
-      setResult(bgResultRef.current)
+      // bg เสร็จแล้ว → ใช้ผลทันที + report missed ถ้ามี flag
+      const r = bgResultRef.current
+      if (r.missed) reportMissedSearchDirect(text).catch(() => {})
+      setResult(r)
       setLoading(false)
       bgResultRef.current = null
     } else {
-      // ยังไม่เสร็จ → ให้ useEffect([query]) จัดการ
+      // bg ยังไม่เสร็จ (หรือถูกยกเลิก) → foreground จัดการ
       setLoading(true)
     }
     setQuery(text)
