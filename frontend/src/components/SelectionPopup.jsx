@@ -121,18 +121,22 @@ export default function SelectionPopup() {
 
         if (captured.length > 1) {
           if (isChineseQuery) {
-            // Chinese multi-char: per-char fallback มีประโยชน์
-            const combinedIds = new Set([...prefix_group, ...inner_group].map((w) => w.id))
-            const fb = await searchByChars(captured, combinedIds)
-            const hasResults = prefix_group.length + inner_group.length + fb.char_results.length > 0
-            bgResultRef.current = { prefix_group, inner_group, char_results: fb.char_results, found: hasResults }
+            const hasExactMatch = prefix_group.some((w) => w.chinese === captured)
+            if (hasExactMatch || prefix_group.length + inner_group.length > 0) {
+              // มีผลอยู่แล้ว → ข้าม per-char เพื่อความเร็ว
+              bgResultRef.current = { prefix_group, inner_group, found: true }
+            } else {
+              // ไม่เจอเลย → per-char fallback
+              const fb = await searchByChars(captured, new Set())
+              const hasResults = fb.char_results.length > 0
+              bgResultRef.current = { prefix_group: [], inner_group: [], char_results: fb.char_results, found: hasResults }
+              reportMissedSearchDirect(captured).catch(() => {})
+            }
           } else {
             // Thai/other: แสดงผลรวมตรงๆ ไม่ต้องแยกทีละตัวอักษร
             const hasResults = prefix_group.length + inner_group.length > 0
             bgResultRef.current = { prefix_group, inner_group, found: hasResults }
-          }
-          if (prefix_group.length + inner_group.length === 0) {
-            reportMissedSearchDirect(captured).catch(() => {})
+            if (!hasResults) reportMissedSearchDirect(captured).catch(() => {})
           }
           return
         }
@@ -170,16 +174,18 @@ export default function SelectionPopup() {
 
         if (captured.length > 1) {
           if (isChineseQuery) {
-            const combinedIds = new Set([...prefix_group, ...inner_group].map((w) => w.id))
-            const fb = await searchByChars(captured, combinedIds)
-            const hasResults = prefix_group.length + inner_group.length + fb.char_results.length > 0
-            setResult({ prefix_group, inner_group, char_results: fb.char_results, found: hasResults })
+            if (prefix_group.length + inner_group.length > 0) {
+              setResult({ prefix_group, inner_group, found: true })
+            } else {
+              const fb = await searchByChars(captured, new Set())
+              const hasResults = fb.char_results.length > 0
+              setResult({ prefix_group: [], inner_group: [], char_results: fb.char_results, found: hasResults })
+              reportMissedSearchDirect(captured).catch(() => {})
+            }
           } else {
             const hasResults = prefix_group.length + inner_group.length > 0
             setResult({ prefix_group, inner_group, found: hasResults })
-          }
-          if (prefix_group.length + inner_group.length === 0) {
-            reportMissedSearchDirect(captured).catch(() => {})
+            if (!hasResults) reportMissedSearchDirect(captured).catch(() => {})
           }
           return
         }
