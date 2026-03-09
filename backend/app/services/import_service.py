@@ -7,10 +7,10 @@ from ..models.word import Word, WordPending
 
 
 COLUMN_ALIASES = {
-    "chinese": ["chinese", "จีน", "ภาษาจีน", "hanzi", "汉字", "中文"],
+    "chinese": ["chinese", "จีน", "ภาษาจีน", "ภาษาจีน (chinese)", "hanzi", "汉字", "中文"],
     "pinyin": ["pinyin", "พินอิน", "pin_yin", "拼音"],
-    "thai_meaning": ["thai", "thai_meaning", "ความหมาย", "ความหมายไทย", "ไทย", "thai meaning"],
-    "english_meaning": ["english", "english_meaning", "eng", "อังกฤษ"],
+    "thai_meaning": ["thai", "thai_meaning", "ความหมาย", "ความหมายไทย", "ไทย", "thai meaning", "ภาษาไทย", "ภาษาไทย (thai)"],
+    "english_meaning": ["english", "english_meaning", "eng", "อังกฤษ", "ภาษาอังกฤษ", "ภาษาอังกฤษ (english)"],
     "category": ["category", "หมวดหมู่", "หมวด", "cat"],
 }
 
@@ -65,30 +65,39 @@ def _parse_thai_meaning(raw: str) -> list[tuple[str, str | None]]:
     return result if result else [("", None)]
 
 
-def _load_df(file_path: str, suffix: str) -> pd.DataFrame:
-    """อ่านไฟล์ — รองรับทั้งมี header และไม่มี header (auto-detect)"""
+def _load_single_df(file_path: str, suffix: str, sheet: int | str = 0) -> pd.DataFrame:
+    """อ่าน 1 sheet — รองรับทั้งมี header และไม่มี header (auto-detect)"""
     read_kw = {"dtype": str}
     if suffix == ".csv":
         read_kw["encoding"] = "utf-8-sig"
 
-    # ลองอ่านแบบมี header ก่อน
     if suffix in (".xlsx", ".xls"):
-        df = pd.read_excel(file_path, **read_kw)
+        df = pd.read_excel(file_path, sheet_name=sheet, **read_kw)
     else:
         df = pd.read_csv(file_path, **read_kw)
 
     df = _normalize_columns(df)
 
-    # ถ้าหา chinese column ไม่เจอ → ไฟล์ไม่มี header → อ่านใหม่แบบ no header
     if "chinese" not in df.columns:
         if suffix in (".xlsx", ".xls"):
-            df = pd.read_excel(file_path, header=None, **read_kw)
+            df = pd.read_excel(file_path, sheet_name=sheet, header=None, **read_kw)
         else:
             df = pd.read_csv(file_path, header=None, **read_kw)
-        # กำหนด column ตาม index: 0=chinese, 1=thai_meaning
         df = df.rename(columns={0: "chinese", 1: "thai_meaning"})
 
     return df
+
+
+def _load_df(file_path: str, suffix: str) -> pd.DataFrame:
+    """อ่านไฟล์ — รองรับทั้งมี header และไม่มี header, รองรับหลาย sheet (Excel)"""
+    if suffix not in (".xlsx", ".xls"):
+        return _load_single_df(file_path, suffix)
+
+    # Excel: อ่านชื่อ sheet ทั้งหมด แล้วรวมกัน
+    xl = pd.ExcelFile(file_path)
+    sheets = xl.sheet_names
+    dfs = [_load_single_df(file_path, suffix, sheet=s) for s in sheets]
+    return pd.concat(dfs, ignore_index=True)
 
 
 def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
@@ -120,7 +129,7 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
 
     for _, row in df.iterrows():
         chinese = str(row.get("chinese", "")).strip()
-        if not chinese:
+        if not chinese or not re.search(r'[\u4e00-\u9fff\u3400-\u4dbf\u20000-\u2a6df]', chinese):
             continue
 
         raw_pinyin = str(row.get("pinyin", "")).strip()
