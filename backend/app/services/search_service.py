@@ -78,6 +78,7 @@ def _search_by_position(db: Session, q: str) -> SearchResult:
         db.query(Word)
         .filter(*filters)
         .order_by(Word.char_count.asc())
+        .limit(100)
         .all()
     )
 
@@ -250,6 +251,7 @@ def search_words(db: Session, query: str) -> SearchResult:
         db.query(Word)
         .filter(Word.status == 'verified', prefix_col)
         .order_by(Word.char_count.asc())
+        .limit(80)
         .all()
     )
 
@@ -259,6 +261,7 @@ def search_words(db: Session, query: str) -> SearchResult:
         db.query(Word)
         .filter(Word.status == 'verified', Word.id.notin_(prefix_ids), inner_col)
         .order_by(Word.char_count.asc())
+        .limit(80)
         .all()
     )
 
@@ -304,6 +307,7 @@ def _search_by_pinyin(db: Session, q: str) -> SearchResult:
         db.query(Word)
         .filter(Word.status == 'verified', pinyin_ns.ilike(f'{q_ns}%'))
         .order_by(Word.char_count.asc())
+        .limit(80)
         .all()
     )
     prefix_ids = {w.id for w in prefix}
@@ -315,6 +319,7 @@ def _search_by_pinyin(db: Session, q: str) -> SearchResult:
             pinyin_ns.ilike(f'%{q_ns}%'),
         )
         .order_by(Word.char_count.asc())
+        .limit(80)
         .all()
     )
     total = len(prefix) + len(inner)
@@ -327,6 +332,7 @@ def _search_by_english_meaning(db: Session, q: str) -> SearchResult:
         db.query(Word)
         .filter(Word.status == 'verified', Word.english_meaning.ilike(f'{q}%'))
         .order_by(Word.char_count.asc())
+        .limit(80)
         .all()
     )
     prefix_ids = {w.id for w in prefix}
@@ -338,6 +344,7 @@ def _search_by_english_meaning(db: Session, q: str) -> SearchResult:
             Word.english_meaning.ilike(f'%{q}%'),
         )
         .order_by(Word.char_count.asc())
+        .limit(80)
         .all()
     )
     total = len(prefix) + len(inner)

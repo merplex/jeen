@@ -16,6 +16,22 @@ class ExampleOut(BaseModel):
         from_attributes = True
 
 
+class WordSearchOut(BaseModel):
+    """Lightweight schema สำหรับ search results — ไม่มี examples เพื่อป้องกัน N+1 query"""
+    id: int
+    chinese: str
+    pinyin: str
+    pinyin_plain: Optional[str] = None
+    thai_meaning: str
+    category: Optional[str] = None
+    char_count: Optional[int] = None
+    status: str
+    has_multiple_readings: bool = False
+
+    class Config:
+        from_attributes = True
+
+
 class WordOut(BaseModel):
     id: int
     chinese: str
