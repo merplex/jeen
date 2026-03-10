@@ -104,19 +104,27 @@ def _assess_sdk_sync(audio_bytes: bytes, reference_text: str, key: str, region: 
             return None
         pa = speechsdk.PronunciationAssessmentResult(result)
         word_results = []
-        for w in (pa.words or []):
-            error = w.error_type.name if w.error_type else "None"
-            word_results.append({
-                "word": w.word,
-                "accuracy_score": round(w.accuracy_score or 0, 1),
-                "error_type": error,
-            })
+        try:
+            for w in (pa.words or []):
+                try:
+                    error = w.error_type.name if w.error_type is not None else "None"
+                except Exception:
+                    error = "None"
+                word_results.append({
+                    "word": w.word,
+                    "accuracy_score": round(w.accuracy_score or 0, 1),
+                    "error_type": error,
+                })
+        except Exception:
+            word_results = []
         return {
             "pronunciation_score": round(pa.accuracy_score or 0, 1),
             "tone_score": round(pa.prosody_score or 0, 1),
             "fluency_score": round(pa.fluency_score or 0, 1),
             "words": word_results,
         }
+    except Exception:
+        return None
     finally:
         _os.unlink(tmp.name)
 
@@ -130,9 +138,12 @@ async def _assess_azure(audio_base64: str, reference_text: str) -> dict | None:
     import asyncio, concurrent.futures
     audio_bytes = base64.b64decode(audio_base64)
     loop = asyncio.get_event_loop()
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        result = await loop.run_in_executor(pool, _assess_sdk_sync, audio_bytes, reference_text, key, region)
-    return result
+    try:
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            result = await loop.run_in_executor(pool, _assess_sdk_sync, audio_bytes, reference_text, key, region)
+        return result
+    except Exception:
+        return None
 
 
 def _mock_scores(reference_text: str = "") -> dict:
