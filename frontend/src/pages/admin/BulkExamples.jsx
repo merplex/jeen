@@ -103,10 +103,10 @@ export default function BulkExamples() {
     while (!stopRef.current) {
       try {
         const r = await adminBulkRegenSingleEnglish(50, apiCat)
-        const { done, errors, remaining } = r.data
+        const { done, skipped, errors, remaining } = r.data
         total += done
-        addLog(`✓ อัปเดต ${done} คำ | error ${errors} | เหลือ ${remaining} คำ`)
-        if (remaining === 0 || (done === 0 && errors > 0)) break
+        addLog(`✓ อัปเดต ${done} คำ | ข้าม ${skipped} (ยังคำเดียว) | error ${errors} | เหลือ ${remaining} คำ`)
+        if (remaining === 0 || done === 0) break
       } catch (e) {
         addLog(`✗ ${e.response?.data?.detail || e.message}`)
         break

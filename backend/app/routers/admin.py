@@ -531,22 +531,32 @@ def bulk_regen_single_english(
     results = batch_generate_english(batch)
 
     done = 0
+    skipped = 0  # Gemini คืนคำเดียวอีก ไม่อัปเดต
     errors = len(words) - len(results) if results else len(words)
     for item in results:
         word = next((w for w in words if w.id == item.get("id")), None)
-        if word and item.get("english"):
-            word.english_meaning = item["english"]
-            thai_addition = str(item.get("thai_addition", "")).strip()
-            if thai_addition and thai_addition not in (word.thai_meaning or ""):
-                word.thai_meaning = (word.thai_meaning or "") + "\n" + thai_addition
-            done += 1
+        if not word:
+            continue
+        new_eng = item.get("english", "").strip()
+        if not new_eng:
+            errors += 1
+            continue
+        if "," not in new_eng:
+            # ยังคืนคำเดียวอยู่ — ไม่นับว่าแก้แล้ว ข้ามไป
+            skipped += 1
+            continue
+        word.english_meaning = new_eng
+        thai_addition = str(item.get("thai_addition", "")).strip()
+        if thai_addition and thai_addition not in (word.thai_meaning or ""):
+            word.thai_meaning = (word.thai_meaning or "") + "\n" + thai_addition
+        done += 1
 
     if done > 0:
         _log(db, "regen_single_english", detail=f"อัปเดต {done} คำ (single→multi)")
     db.commit()
 
     remaining = _single_english_base_query(db, category).count()
-    return {"done": done, "errors": errors, "remaining": remaining}
+    return {"done": done, "skipped": skipped, "errors": errors, "remaining": remaining}
 
 
 @router.post("/bulk-generate-examples")
