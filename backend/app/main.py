@@ -28,6 +28,7 @@ ALLOWED_ORIGINS = [
     "http://localhost:5173",
     os.getenv("FRONTEND_URL", ""),
     "https://thaidict.vercel.app",
+    "https://believable-passion-production-bc48.up.railway.app",
     # Capacitor Android
     "capacitor://localhost",
     "http://localhost",
