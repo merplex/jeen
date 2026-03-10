@@ -8,7 +8,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.user import User
-from ..auth import create_token
+from ..auth import create_token, create_verify_token, decode_verify_token
 from ..config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -172,25 +172,25 @@ def email_verify_otp(body: OTPVerifyRequest):
     if body.otp.strip() != stored_otp:
         raise HTTPException(status_code=400, detail="OTP ไม่ถูกต้อง")
     del _otp_store[email]
-    # mark verified — มีเวลา 5 นาทีตั้ง password
-    _verified_store[email] = datetime.utcnow() + timedelta(minutes=5)
-    return {"verified": True, "email": email}
+    verify_token = create_verify_token(email)
+    return {"verified": True, "email": email, "verify_token": verify_token}
 
 
 class EmailSetPasswordRequest(BaseModel):
     email: EmailStr
     password: str
+    verify_token: str
 
 
 @router.post("/email/set-password")
 def email_set_password(body: EmailSetPasswordRequest, db: Session = Depends(get_db)):
     """ตั้ง password หลัง OTP ผ่านแล้ว — ใช้สำหรับสมัครใหม่ และรีเซ็ตรหัสผ่าน"""
-    email = body.email.lower()
-    exp = _verified_store.get(email)
-    if not exp or datetime.utcnow() > exp:
+    verified_email = decode_verify_token(body.verify_token)
+    if not verified_email or verified_email != body.email.lower():
         raise HTTPException(status_code=400, detail="กรุณายืนยัน OTP ก่อน หรือ OTP หมดอายุแล้ว")
     if len(body.password) < 6:
         raise HTTPException(status_code=400, detail="รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร")
+    email = body.email.lower()
     hashed = pwd_context.hash(body.password)
     user = db.query(User).filter(User.identifier == email).first()
     if not user:
@@ -200,7 +200,6 @@ def email_set_password(body: EmailSetPasswordRequest, db: Session = Depends(get_
         user.password_hash = hashed
     db.commit()
     db.refresh(user)
-    del _verified_store[email]
     jwt_token = create_token(user.id)
     return {"token": jwt_token, "user": {"id": user.id, "display_name": user.display_name, "is_admin": user.is_admin}}
 

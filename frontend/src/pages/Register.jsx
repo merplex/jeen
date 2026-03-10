@@ -15,6 +15,7 @@ export default function Register() {
   const [otp, setOtp] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
+  const [verifyToken, setVerifyToken] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
@@ -41,7 +42,8 @@ export default function Register() {
     setError('')
     setLoading(true)
     try {
-      await verifyEmailOtp(email.trim().toLowerCase(), otp.trim())
+      const res = await verifyEmailOtp(email.trim().toLowerCase(), otp.trim())
+      setVerifyToken(res.data.verify_token)
       setStep('password')
       setInfo('')
     } catch (err) {
@@ -58,7 +60,7 @@ export default function Register() {
     setError('')
     setLoading(true)
     try {
-      const res = await emailSetPassword(email.trim().toLowerCase(), password)
+      const res = await emailSetPassword(email.trim().toLowerCase(), password, verifyToken)
       const token = res.data.token
       localStorage.setItem('token', token)
       useAuthStore.setState({ token })
