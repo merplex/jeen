@@ -346,12 +346,12 @@ export default function Search() {
       {/* OCR Mode Sheet */}
       {showOcrSheet && (
         <div
-          className="fixed inset-0 z-40 flex items-end"
+          className="fixed inset-0 z-40 flex items-center justify-center px-6"
           onClick={() => setShowOcrSheet(false)}
         >
           <div className="absolute inset-0 bg-black/40" />
           <div
-            className="relative w-full max-w-lg mx-auto bg-white rounded-t-2xl px-4 pt-4 pb-10 shadow-2xl"
+            className="relative w-full max-w-sm bg-white rounded-2xl px-4 pt-5 pb-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
