@@ -83,7 +83,7 @@ def _assess_sdk_sync(audio_bytes: bytes, reference_text: str, key: str, region: 
     pa_config = speechsdk.PronunciationAssessmentConfig(
         reference_text=reference_text,
         grading_system=speechsdk.PronunciationAssessmentGradingSystem.HundredMark,
-        granularity=speechsdk.PronunciationAssessmentGranularity.FullText,
+        granularity=speechsdk.PronunciationAssessmentGranularity.Word,
         enable_miscue=True,
     )
     pa_config.enable_prosody_assessment()
@@ -103,10 +103,19 @@ def _assess_sdk_sync(audio_bytes: bytes, reference_text: str, key: str, region: 
             print(f"[Azure SDK] reason={result.reason}")
             return None
         pa = speechsdk.PronunciationAssessmentResult(result)
+        word_results = []
+        for w in (pa.words or []):
+            error = w.error_type.name if w.error_type else "None"
+            word_results.append({
+                "word": w.word,
+                "accuracy_score": round(w.accuracy_score or 0, 1),
+                "error_type": error,
+            })
         return {
             "pronunciation_score": round(pa.accuracy_score or 0, 1),
             "tone_score": round(pa.prosody_score or 0, 1),
             "fluency_score": round(pa.fluency_score or 0, 1),
+            "words": word_results,
         }
     finally:
         _os.unlink(tmp.name)
@@ -126,12 +135,20 @@ async def _assess_azure(audio_base64: str, reference_text: str) -> dict | None:
     return result
 
 
-def _mock_scores() -> dict:
+def _mock_scores(reference_text: str = "") -> dict:
     """Mock ที่สมจริงกว่า — โทนยากสุด, ไม่ค่อยได้คะแนนสูง"""
+    # Mock word-level: แตกเป็น token ตามตัวอักษรจีน (แต่ละตัว = 1 word)
+    word_results = []
+    for char in reference_text:
+        if '\u4e00' <= char <= '\u9fff':
+            score = round(random.triangular(10, 100, 55), 1)
+            error = random.choices(["None", "Mispronunciation"], weights=[70, 30])[0]
+            word_results.append({"word": char, "accuracy_score": score, "error_type": error})
     return {
         "pronunciation_score": round(random.triangular(10, 80, 42), 1),
-        "tone_score": round(random.triangular(5, 70, 28), 1),   # โทนยากสุด
+        "tone_score": round(random.triangular(5, 70, 28), 1),
         "fluency_score": round(random.triangular(15, 78, 38), 1),
+        "words": word_results,
     }
 
 
@@ -177,7 +194,10 @@ async def assess_speaking(
     scores = await _assess_azure(body.audio_base64, body.example_chinese)
     is_mock = scores is None
     if scores is None:
-        scores = _mock_scores()
+        scores = _mock_scores(body.example_chinese)
+
+    # แยก word-level ออกก่อน — ไม่บันทึกลง DB (per-session only)
+    word_scores = scores.pop("words", [])
 
     new_total = scores["pronunciation_score"] + scores["tone_score"] + scores["fluency_score"]
     is_improved = False
@@ -251,7 +271,7 @@ async def assess_speaking(
             db.refresh(record)
             is_improved = True
 
-    return {**scores, "is_improved": is_improved, "today_assess": today_assess + 1, "mock": is_mock}
+    return {**scores, "words": word_scores, "is_improved": is_improved, "today_assess": today_assess + 1, "mock": is_mock}
 
 
 @router.post("/generate-sentences")

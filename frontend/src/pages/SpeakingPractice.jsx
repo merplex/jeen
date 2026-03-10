@@ -327,7 +327,7 @@ export default function SpeakingPractice() {
                 )
               })}
 
-              <div className="pt-1 border-t border-gray-100 flex justify-between text-xs text-gray-400">
+                <div className="pt-1 border-t border-gray-100 flex justify-between text-xs text-gray-400">
                 <span className="flex items-center gap-1.5">
                   รวม
                   {result.mock && (
@@ -342,6 +342,53 @@ export default function SpeakingPractice() {
                 </span>
               </div>
             </div>
+
+            {/* Word-level breakdown */}
+            {result.words?.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-md p-4">
+                <p className="text-xs text-gray-400 mb-3 font-medium">ผลรายคำ</p>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {result.words.map((w, i) => {
+                    const score = Math.round(w.accuracy_score)
+                    const isMiss = w.error_type === 'Mispronunciation'
+                    const isOmit = w.error_type === 'Omission'
+                    const cardCls = score >= 80
+                      ? 'border-green-400 bg-green-50'
+                      : score >= 60
+                      ? 'border-yellow-400 bg-yellow-50'
+                      : 'border-red-400 bg-red-50'
+                    const numCls = score >= 80 ? 'text-green-600'
+                      : score >= 60 ? 'text-yellow-600'
+                      : 'text-red-500'
+                    return (
+                      <div
+                        key={i}
+                        className={`flex flex-col items-center border-2 rounded-xl px-3 py-2 min-w-[52px] ${cardCls} ${isOmit ? 'opacity-40' : ''}`}
+                      >
+                        <span className={`font-chinese text-2xl leading-tight ${isOmit ? 'line-through' : ''}`}>
+                          {w.word}
+                        </span>
+                        <span className={`text-xs font-bold mt-0.5 ${numCls}`}>{score}</span>
+                        {isMiss && <span className="text-[9px] text-red-400 leading-none mt-0.5">ผิด</span>}
+                        {isOmit && <span className="text-[9px] text-gray-400 leading-none mt-0.5">ขาด</span>}
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="flex items-center justify-center gap-4 mt-3">
+                  {[
+                    { color: 'bg-green-400', label: '≥80 ดี' },
+                    { color: 'bg-yellow-400', label: '60–79 พอใช้' },
+                    { color: 'bg-red-400', label: '<60 ต้องฝึก' },
+                  ].map(({ color, label }) => (
+                    <span key={label} className="flex items-center gap-1 text-xs text-gray-400">
+                      <span className={`inline-block w-2.5 h-2.5 rounded-full ${color}`} />
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {quotaMsg && !quotaMsg.includes('สร้าง') && (
               <p className="text-center text-xs text-orange-500">{quotaMsg}</p>
