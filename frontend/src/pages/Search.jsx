@@ -225,14 +225,20 @@ export default function Search() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
             </svg>
           </button>
-          <div className="relative flex-1">
+          <div className="relative flex-1 bg-white rounded-xl shadow-lg focus-within:ring-2 focus-within:ring-chinese-gold">
+            {!query && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-3">
+                <span className="text-gray-400 text-sm leading-tight">汉字 · Pinyin · ไทย</span>
+                <span className="text-gray-300 text-[11px] leading-tight mt-0.5">ใช้ "@" แทนตำแหน่งได้</span>
+              </div>
+            )}
             <input
               type="text"
               value={query}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              placeholder='汉字 Pinyin ไทย  .. ใช้ "@" แทนคำศัพท์ได้ ..'
-              className="w-full rounded-xl px-4 py-3 pr-10 text-gray-800 bg-white shadow-lg text-base focus:outline-none focus:ring-2 focus:ring-chinese-gold"
+              placeholder=""
+              className="w-full rounded-xl px-4 py-3 pr-10 text-gray-800 bg-transparent text-base focus:outline-none"
               autoFocus
             />
             {query && (
