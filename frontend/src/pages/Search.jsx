@@ -26,7 +26,8 @@ export default function Search() {
   const [ocrResult, setOcrResult] = useState(null)  // { text, translation, words }
   const [ocrLoading, setOcrLoading] = useState(false)
   const [showOcrSheet, setShowOcrSheet] = useState(false)
-  const ocrInputRef = useRef(null)
+  const ocrInputRef = useRef(null)    // album (no capture)
+  const ocrCameraRef = useRef(null)  // camera only
 
   const sortedCategories = [
     'ทั้งหมด',
@@ -265,6 +266,13 @@ export default function Search() {
             ref={ocrInputRef}
             type="file"
             accept="image/*"
+            className="hidden"
+            onChange={handleOcrFile}
+          />
+          <input
+            ref={ocrCameraRef}
+            type="file"
+            accept="image/*"
             capture="environment"
             className="hidden"
             onChange={handleOcrFile}
@@ -373,17 +381,35 @@ export default function Search() {
                 </div>
               </button>
               <button
+                onClick={() => { setShowOcrSheet(false); ocrCameraRef.current?.click() }}
+                className="w-full flex items-center gap-4 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-4 active:scale-95 transition-transform"
+              >
+                <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center shrink-0">
+                  <svg className="w-7 h-7 text-white" viewBox="0 0 28 28" fill="none">
+                    <rect x="2" y="8" width="24" height="17" rx="3.5" fill="currentColor" opacity="0.9"/>
+                    <path d="M9 8V6.5C9 5.67 9.67 5 10.5 5h7C18.33 5 19 5.67 19 6.5V8" fill="currentColor" opacity="0.9"/>
+                    <circle cx="14" cy="16.5" r="4.5" stroke="white" strokeWidth="2"/>
+                    <circle cx="14" cy="16.5" r="2.5" fill="white" opacity="0.25"/>
+                    <circle cx="22" cy="11" r="1.2" fill="white" opacity="0.6"/>
+                  </svg>
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold text-gray-800">ถ่ายรูป</p>
+                  <p className="text-xs text-gray-400 mt-0.5">เปิดกล้องถ่ายภาพทันที</p>
+                </div>
+              </button>
+              <button
                 onClick={() => { setShowOcrSheet(false); ocrInputRef.current?.click() }}
                 className="w-full flex items-center gap-4 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-4 active:scale-95 transition-transform"
               >
-                <div className="w-12 h-12 bg-gray-600 rounded-xl flex items-center justify-center shrink-0">
+                <div className="w-12 h-12 bg-gray-500 rounded-xl flex items-center justify-center shrink-0">
                   <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9H18.75" />
                   </svg>
                 </div>
                 <div className="text-left">
-                  <p className="font-semibold text-gray-800">จากรูปภาพ</p>
-                  <p className="text-xs text-gray-400 mt-0.5">เลือกรูปจาก Gallery หรือถ่ายรูป</p>
+                  <p className="font-semibold text-gray-800">เลือกจากอัลบัม</p>
+                  <p className="text-xs text-gray-400 mt-0.5">เลือกรูปที่มีอยู่แล้วในโทรศัพท์</p>
                 </div>
               </button>
             </div>
