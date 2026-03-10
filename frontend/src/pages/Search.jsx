@@ -25,6 +25,7 @@ export default function Search() {
   const [catUsage, setCatUsage] = useState(loadCatUsage)
   const [ocrResult, setOcrResult] = useState(null)  // { text, translation, words }
   const [ocrLoading, setOcrLoading] = useState(false)
+  const [showOcrSheet, setShowOcrSheet] = useState(false)
   const ocrInputRef = useRef(null)
 
   const sortedCategories = [
@@ -235,7 +236,7 @@ export default function Search() {
             )}
           </div>
           <button
-            onClick={() => ocrInputRef.current?.click()}
+            onClick={() => setShowOcrSheet(true)}
             disabled={ocrLoading}
             className="w-12 h-12 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center shadow-lg transition-colors disabled:opacity-50"
           >
@@ -341,6 +342,54 @@ export default function Search() {
           </button>
         ))}
       </div>
+
+      {/* OCR Mode Sheet */}
+      {showOcrSheet && (
+        <div
+          className="fixed inset-0 z-40 flex items-end"
+          onClick={() => setShowOcrSheet(false)}
+        >
+          <div className="absolute inset-0 bg-black/40" />
+          <div
+            className="relative w-full max-w-lg mx-auto bg-white rounded-t-2xl px-4 pt-4 pb-10 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+            <p className="text-sm font-semibold text-gray-600 mb-3 text-center">เลือกโหมด OCR</p>
+            <div className="space-y-3">
+              <button
+                onClick={() => { setShowOcrSheet(false); navigate('/ocr/live') }}
+                className="w-full flex items-center gap-4 bg-chinese-red/5 border border-chinese-red/20 rounded-2xl px-4 py-4 active:scale-95 transition-transform"
+              >
+                <div className="w-12 h-12 bg-chinese-red rounded-xl flex items-center justify-center shrink-0">
+                  <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                    <circle cx="12" cy="12" r="3.5" />
+                    <path strokeLinecap="round" d="M6.5 3h-2A1.5 1.5 0 003 4.5v2M17.5 3h2A1.5 1.5 0 0121 4.5v2M3 17.5v2A1.5 1.5 0 004.5 21h2M21 17.5v2a1.5 1.5 0 01-1.5 1.5h-2" />
+                  </svg>
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold text-gray-800">ส่องกล้อง Live</p>
+                  <p className="text-xs text-gray-400 mt-0.5">สแกนอัตโนมัติ แปลแบบ Realtime</p>
+                </div>
+              </button>
+              <button
+                onClick={() => { setShowOcrSheet(false); ocrInputRef.current?.click() }}
+                className="w-full flex items-center gap-4 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-4 active:scale-95 transition-transform"
+              >
+                <div className="w-12 h-12 bg-gray-600 rounded-xl flex items-center justify-center shrink-0">
+                  <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9H18.75" />
+                  </svg>
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold text-gray-800">จากรูปภาพ</p>
+                  <p className="text-xs text-gray-400 mt-0.5">เลือกรูปจาก Gallery หรือถ่ายรูป</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="px-4 space-y-4">
         {loading && (

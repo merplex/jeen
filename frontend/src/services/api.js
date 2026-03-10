@@ -126,6 +126,7 @@ export const adminUnflagUser = (userId) => api.post(`/admin/users/${userId}/unfl
 
 // OCR
 export const scanOcr = (data) => api.post('/ocr/scan', data)
+export const scanOcrStructured = (data) => api.post('/ocr/scan-structured', data)
 
 // Subscription
 export const getSubscriptionStatus = () => api.get('/subscription/status')

@@ -22,6 +22,7 @@ import AddWord from './pages/admin/AddWord'
 import BulkExamples from './pages/admin/BulkExamples'
 import ActivityLog from './pages/admin/ActivityLog'
 import Subscriptions from './pages/admin/Subscriptions'
+import OcrLive from './pages/OcrLive'
 
 function AdminGuard({ children }) {
   const user = useAuthStore((s) => s.user)
@@ -49,6 +50,7 @@ export default function App() {
         <Route path="/learning/play/:deck" element={<FlashcardPlay />} />
         <Route path="/learning/write/:deck" element={<WritingPractice />} />
         <Route path="/speaking/practice" element={<SpeakingPractice />} />
+        <Route path="/ocr/live" element={<OcrLive />} />
         <Route path="/notes" element={<Notes />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
