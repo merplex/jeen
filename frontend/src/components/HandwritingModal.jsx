@@ -149,11 +149,11 @@ export default function HandwritingModal({ onConfirm, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center px-4" onClick={onClose}>
       {showOfflineAlert && <OfflineAlert onClose={() => setShowOfflineAlert(false)} />}
       <div className="absolute inset-0 bg-black/50" />
       <div
-        className="relative w-full max-w-lg mx-auto bg-white rounded-t-2xl shadow-2xl"
+        className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -221,7 +221,7 @@ export default function HandwritingModal({ onConfirm, onClose }) {
         </div>
 
         {/* Controls */}
-        <div className="flex gap-2 px-4 pb-10 pt-1">
+        <div className="flex gap-2 px-4 pb-4 pt-1">
           <button
             onClick={undoStroke}
             disabled={!strokes.length}
