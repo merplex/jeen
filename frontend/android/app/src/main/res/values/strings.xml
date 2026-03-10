@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">字典 Jeen</string>
+    <string name="title_activity_main">字典 Jeen</string>
+    <string name="package_name">com.jeen.dictionary</string>
+    <string name="custom_url_scheme">com.jeen.dictionary</string>
+</resources>

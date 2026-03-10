@@ -1,6 +1,5 @@
 node_modules/
 dist/
-android/
 ios/
 .env
 .env.local
