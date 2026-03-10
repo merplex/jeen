@@ -42,19 +42,30 @@ def _get_text(response) -> str:
         return response.text.strip()
 
 
-def generate_english_meaning(chinese: str, thai: str) -> str:
+def generate_english_meaning(chinese: str, thai: str) -> dict:
+    """Returns {"english": "...", "thai_addition": "..."}
+    thai_addition is non-empty only if Chinese has a meaning absent from Thai.
+    """
     if not _has_api_key():
-        return ""
+        return {"english": "", "thai_addition": ""}
     try:
         prompt = (
             f"Chinese word: {chinese}\n"
-            f"Thai meaning: {thai}\n"
-            "Give a concise English translation (1-5 words). Return only the English text, no explanation."
+            f"Thai meaning (context only): {thai}\n\n"
+            "Tasks:\n"
+            "1. Translate the Chinese word to English (1-5 words), based on Chinese meaning as the primary source.\n"
+            "2. If multiple English synonyms are equally valid for the same meaning, use the Thai meaning to pick the most fitting one.\n"
+            "3. If the Chinese word has a meaning completely absent from the Thai meaning, provide a short Thai phrase for that missing meaning (1-5 words). Leave empty string if all meanings are already covered.\n\n"
+            'Return JSON only, no explanation: {"english":"...","thai_addition":""}'
         )
         response = _model.generate_content(prompt)
-        return _get_text(response)
+        data = json.loads(_strip_markdown(_get_text(response)))
+        return {
+            "english": str(data.get("english", "")).strip(),
+            "thai_addition": str(data.get("thai_addition", "")).strip(),
+        }
     except Exception:
-        return ""
+        return {"english": "", "thai_addition": ""}
 
 
 def search_by_english(english_query: str) -> list[dict]:
@@ -76,8 +87,9 @@ def search_by_english(english_query: str) -> list[dict]:
 def batch_generate_english(words: list[dict]) -> list[dict]:
     """
     รับ [{"id": x, "chinese": "...", "thai": "..."}]
-    คืน [{"id": x, "english": "all, english, meanings"}]
+    คืน [{"id": x, "english": "all, english, meanings", "thai_addition": "..."}]
     — ใส่ทุก meaning ที่เป็นไปได้ คั่นด้วย comma
+    — thai_addition: ความหมายที่มีในจีนแต่ไม่มีในไทย (ถ้ามี)
     """
     if not _has_api_key() or not words:
         return []
@@ -88,12 +100,15 @@ def batch_generate_english(words: list[dict]) -> list[dict]:
         )
         prompt = (
             "For each Chinese word below, list ALL common English translations (comma-separated).\n"
+            "- Translate from Chinese primarily.\n"
+            "- If multiple English synonyms fit the same meaning, use Thai to pick the most appropriate one.\n"
+            "- If the Chinese word has meanings NOT covered by the Thai meaning at all, add short Thai phrases for those missing meanings in 'thai_addition' (comma-separated). Leave empty string if fully covered.\n"
             "Be comprehensive — include every meaning the word can have.\n"
             "IMPORTANT: In your response, keep the exact numeric 'id' value from the input.\n"
-            "Example: id=1042 chinese=出口 thai=ทางออก → {\"id\":1042,\"english\":\"exit, export, way out\"}\n"
+            "Example: id=1042 chinese=假期 thai=ช่วงปิดเทอม → {\"id\":1042,\"english\":\"holiday, vacation, break\",\"thai_addition\":\"วันหยุดพักร้อน\"}\n"
             f"{items}\n\n"
             "Return a JSON array only, no explanation, no markdown:\n"
-            '[{"id":<exact id from input>,"english":"meaning1, meaning2"},...]'
+            '[{"id":<exact id from input>,"english":"meaning1, meaning2","thai_addition":""},...]'
         )
         response = _model.generate_content(prompt)
         return json.loads(_strip_markdown(_get_text(response)))

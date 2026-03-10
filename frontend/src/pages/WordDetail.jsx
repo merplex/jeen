@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, recordSearchHistory, reportWord, adminDeleteWordReport } from '../services/api'
+import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import SelectionPopup from '../components/SelectionPopup'
@@ -26,6 +26,7 @@ export default function WordDetail() {
   const [editData, setEditData] = useState(null) // null = ไม่ได้ edit
   const [editSaving, setEditSaving] = useState(false)
   const [genExLoading, setGenExLoading] = useState(false)
+  const [genEngLoading, setGenEngLoading] = useState(false)
   const [showReportModal, setShowReportModal] = useState(false)
   const [reportMsg, setReportMsg] = useState('')
   const [reportSending, setReportSending] = useState(false)
@@ -147,6 +148,17 @@ export default function WordDetail() {
       alert(e.response?.data?.detail || 'สร้างตัวอย่างไม่สำเร็จ')
     }
     setGenExLoading(false)
+  }
+
+  const generateEnglish = async () => {
+    setGenEngLoading(true)
+    try {
+      const r = await adminRegenerateEnglish(id)
+      setWord(r.data)
+    } catch (e) {
+      alert(e.response?.data?.detail || 'หาคำอังกฤษไม่สำเร็จ')
+    }
+    setGenEngLoading(false)
   }
 
   const speak = (text) => {
@@ -272,10 +284,21 @@ export default function WordDetail() {
               ))}
             </div>
           </div>
-          {word.english_meaning && (
+          {(word.english_meaning || user?.is_admin) && (
             <div>
-              <div className="text-xs text-gray-400 mb-1">English</div>
-              <div className="text-gray-600">{word.english_meaning}</div>
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-xs text-gray-400">English</div>
+                {user?.is_admin && (
+                  <button
+                    onClick={generateEnglish}
+                    disabled={genEngLoading}
+                    className="text-xs text-chinese-red disabled:opacity-50"
+                  >
+                    {genEngLoading ? '⏳ กำลังหา...' : word.english_meaning ? '🔄 หาใหม่' : '✨ หาคำอังกฤษ'}
+                  </button>
+                )}
+              </div>
+              {word.english_meaning && <div className="text-gray-600">{word.english_meaning}</div>}
             </div>
           )}
         </div>

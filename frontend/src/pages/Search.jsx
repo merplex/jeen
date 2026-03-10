@@ -35,12 +35,18 @@ export default function Search() {
 
   const missedTimerRef = useRef(null)
   const historyTimerRef = useRef(null)
+  const emptyTimerRef = useRef(null)
   const currentQueryRef = useRef('')
   const enterPressedRef = useRef(false)
 
   useEffect(() => () => {
     clearTimeout(missedTimerRef.current)
     clearTimeout(historyTimerRef.current)
+    clearTimeout(emptyTimerRef.current)
+  }, [])
+
+  const refreshRandom = useCallback((cat) => {
+    getRandomWords(30, cat).then((r) => setRandomWords(r.data)).catch(() => {})
   }, [])
 
   useEffect(() => { sessionStorage.setItem('search_query', query) }, [query])
@@ -58,7 +64,7 @@ export default function Search() {
   // โหลดคำสุ่มตอนเปิดครั้งแรก
   useEffect(() => {
     if (!token || query) return
-    getRandomWords(30).then((r) => setRandomWords(r.data)).catch(() => {})
+    refreshRandom(category)
   }, [token])
 
   const scheduleMissedReport = useCallback((q) => {
@@ -155,6 +161,12 @@ export default function Search() {
     const v = e.target.value
     setQuery(v)
     enterPressedRef.current = false
+    if (!v) {
+      clearTimeout(emptyTimerRef.current)
+      emptyTimerRef.current = setTimeout(() => refreshRandom(category), 10000)
+    } else {
+      clearTimeout(emptyTimerRef.current)
+    }
     doSearch(v)
   }
 
@@ -209,7 +221,13 @@ export default function Search() {
             />
             {query && (
               <button
-                onClick={() => { setQuery(''); setResult(null); sessionStorage.removeItem('search_result') }}
+                onClick={() => {
+                  setQuery('')
+                  setResult(null)
+                  sessionStorage.removeItem('search_result')
+                  clearTimeout(emptyTimerRef.current)
+                  emptyTimerRef.current = setTimeout(() => refreshRandom(category), 10000)
+                }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl"
               >
                 ×
@@ -311,6 +329,7 @@ export default function Search() {
                 setCatUsage(updated)
                 localStorage.setItem('cat_usage', JSON.stringify(updated))
               }
+              if (!query) refreshRandom(cat)
             }}
             className={`whitespace-nowrap px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
               category === cat
@@ -409,7 +428,7 @@ export default function Search() {
               <div className="flex items-center justify-between mb-2 px-1">
                 <span className="text-xs text-gray-400">คำศัพท์วันนี้</span>
                 <button
-                  onClick={() => getRandomWords(30).then((r) => setRandomWords(r.data)).catch(() => {})}
+                  onClick={() => refreshRandom(category)}
                   className="text-xs text-chinese-red"
                 >
                   สุ่มใหม่

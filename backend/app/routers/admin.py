@@ -72,7 +72,10 @@ def approve_pending(
 
     english = pending.english_meaning
     if not english and pending.chinese and thai:
-        english = generate_english_meaning(pending.chinese, thai)
+        eng_result = generate_english_meaning(pending.chinese, thai)
+        english = eng_result["english"]
+        if eng_result["thai_addition"] and eng_result["thai_addition"] not in thai:
+            thai = thai + "\n" + eng_result["thai_addition"]
 
     # ใช้ค่าที่ admin แก้ไข หรือ fallback จาก pending
     pinyin_val = body.pinyin or pending.pinyin or ""
@@ -316,6 +319,26 @@ def batch_metadata(
     return {"updated": updated}
 
 
+@router.post("/regenerate-english/{word_id}", response_model=WordOut)
+def regenerate_english(
+    word_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """หาคำแปลภาษาอังกฤษใหม่ให้คำศัพท์"""
+    word = db.query(Word).filter(Word.id == word_id, Word.status == "verified").first()
+    if not word:
+        raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์ที่ verified")
+    eng_result = generate_english_meaning(word.chinese, word.thai_meaning or "")
+    if eng_result["english"]:
+        word.english_meaning = eng_result["english"]
+        if eng_result["thai_addition"] and eng_result["thai_addition"] not in (word.thai_meaning or ""):
+            word.thai_meaning = (word.thai_meaning or "") + "\n" + eng_result["thai_addition"]
+        db.commit()
+        db.refresh(word)
+    return word
+
+
 @router.post("/generate-examples/{word_id}", response_model=WordOut)
 def generate_examples(
     word_id: int,
@@ -451,6 +474,9 @@ def bulk_generate_english(
         word = next((w for w in words if w.id == item.get("id")), None)
         if word and item.get("english"):
             word.english_meaning = item["english"]
+            thai_addition = str(item.get("thai_addition", "")).strip()
+            if thai_addition and thai_addition not in (word.thai_meaning or ""):
+                word.thai_meaning = (word.thai_meaning or "") + "\n" + thai_addition
             done += 1
     if done > 0:
         _log(db, "bulk_english", detail=f"อัปเดต {done} คำ")
@@ -729,9 +755,13 @@ def fix_long_english(
     fixed = 0
     failed = 0
     for w in bad_words:
-        new_eng = generate_english_meaning(w.chinese, w.thai_meaning or "")
+        eng_result = generate_english_meaning(w.chinese, w.thai_meaning or "")
+        new_eng = eng_result["english"]
         if new_eng and len(new_eng) <= max_len:
             w.english_meaning = new_eng
+            thai_addition = eng_result["thai_addition"]
+            if thai_addition and thai_addition not in (w.thai_meaning or ""):
+                w.thai_meaning = (w.thai_meaning or "") + "\n" + thai_addition
             fixed += 1
         else:
             failed += 1

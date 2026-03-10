@@ -84,18 +84,16 @@ router = APIRouter(prefix="/words", tags=["words"])
 @router.get("/random")
 def get_random_words(
     limit: int = 30,
+    category: str = None,
     db: Session = Depends(get_db),
     _: object = Depends(require_user),
 ):
     from sqlalchemy import func
     limit = min(max(limit, 1), 60)
-    words = (
-        db.query(Word)
-        .filter(Word.status == "verified")
-        .order_by(func.random())
-        .limit(limit)
-        .all()
-    )
+    q = db.query(Word).filter(Word.status == "verified")
+    if category and category != "ทั้งหมด":
+        q = q.filter(Word.category == category)
+    words = q.order_by(func.random()).limit(limit).all()
     return words
 
 

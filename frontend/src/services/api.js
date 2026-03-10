@@ -34,7 +34,8 @@ export const reportMissedSearchDirect = (q) => api.post('/search/report-missed',
 export const recordSearchHistory = (q, wordId, found) =>
   api.post('/search/record-history', null, { params: { q, word_id: wordId ?? undefined, found } })
 export const getWord = (id) => api.get(`/words/${id}`)
-export const getRandomWords = (limit = 30) => api.get('/words/random', { params: { limit } })
+export const getRandomWords = (limit = 30, category = null) =>
+  api.get('/words/random', { params: { limit, ...(category && category !== 'ทั้งหมด' ? { category } : {}) } })
 
 export const login = (data) => api.post('/users/login', data)
 export const requestEmailOtp = (email) => api.post('/auth/email/request-otp', { email })
@@ -91,6 +92,8 @@ export const adminImportWords = (words) =>
   api.post('/admin/import-words', { words })
 export const adminGenerateExamples = (id) =>
   api.post(`/admin/generate-examples/${id}`)
+export const adminRegenerateEnglish = (id) =>
+  api.post(`/admin/regenerate-english/${id}`)
 export const adminExamplesStats = () =>
   api.get('/admin/examples-stats')
 export const adminWipeAllExamples = () =>
