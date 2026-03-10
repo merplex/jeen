@@ -110,6 +110,10 @@ export const adminBulkGenerateEnglish = (limit = 50) =>
   api.post('/admin/bulk-generate-english', null, { params: { limit } })
 export const adminFixLongEnglish = (maxLen = 100) =>
   api.get('/admin/fix-long-english', { params: { max_len: maxLen } })
+export const adminSingleEnglishStats = (category = null) =>
+  api.get('/admin/single-english-stats', { params: { ...(category ? { category } : {}) } })
+export const adminBulkRegenSingleEnglish = (limit = 50, category = null) =>
+  api.post('/admin/bulk-regen-single-english', null, { params: { limit, ...(category ? { category } : {}) } })
 export const adminActivityLog = (limit = 50) =>
   api.get('/admin/activity-log', { params: { limit } })
 

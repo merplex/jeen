@@ -3,9 +3,12 @@ import {
   adminExamplesStats, adminWipeAllExamples, adminBulkGenerateExamples,
   adminEnglishStats, adminBulkGenerateEnglish, adminFixLongEnglish,
   adminRegenExamplesByCategory, adminBulkRegenShortExamples,
+  adminSingleEnglishStats, adminBulkRegenSingleEnglish,
 } from '../../services/api'
+import { CATEGORIES } from '../../utils/categories'
 
 const REGEN_CATEGORIES = ['แพทย์', 'กฎหมาย', 'สำนวน', 'วิศวกรรม', 'เทคนิค']
+const SINGLE_ENG_CATEGORIES = ['ทั้งหมด', ...CATEGORIES, 'ไม่มีหมวด']
 
 export default function BulkExamples() {
   const [exStats, setExStats] = useState(null)
@@ -15,6 +18,8 @@ export default function BulkExamples() {
   const stopRef = useRef(false)
   const [regenCat, setRegenCat] = useState('แพทย์')
   const [regenLimit, setRegenLimit] = useState(20)
+  const [singleEngCat, setSingleEngCat] = useState('ทั้งหมด')
+  const [singleEngCount, setSingleEngCount] = useState(null)
 
   const loadStats = async () => {
     const [ex, en] = await Promise.all([adminExamplesStats(), adminEnglishStats()])
@@ -22,7 +27,14 @@ export default function BulkExamples() {
     setEnStats(en.data)
   }
 
+  const loadSingleEngCount = async (cat) => {
+    const apiCat = cat === 'ทั้งหมด' ? null : cat === 'ไม่มีหมวด' ? '__none__' : cat
+    const r = await adminSingleEnglishStats(apiCat)
+    setSingleEngCount(r.data.count)
+  }
+
   useEffect(() => { loadStats() }, [])
+  useEffect(() => { loadSingleEngCount(singleEngCat) }, [singleEngCat])
 
   const addLog = (msg) => setLog((prev) => [...prev, msg])
 
@@ -78,6 +90,31 @@ export default function BulkExamples() {
   const stopAll = () => {
     stopRef.current = true
     addLog('หยุดหลังรอบนี้เสร็จ...')
+  }
+
+  const runRegenSingleEnglish = async () => {
+    if (running) return
+    setRunning(true)
+    stopRef.current = false
+    setLog([])
+    const apiCat = singleEngCat === 'ทั้งหมด' ? null : singleEngCat === 'ไม่มีหมวด' ? '__none__' : singleEngCat
+    addLog(`เริ่ม regen English คำเดียว${singleEngCat !== 'ทั้งหมด' ? ` หมวด "${singleEngCat}"` : ''}...`)
+    let total = 0
+    while (!stopRef.current) {
+      try {
+        const r = await adminBulkRegenSingleEnglish(50, apiCat)
+        const { done, errors, remaining } = r.data
+        total += done
+        addLog(`✓ อัปเดต ${done} คำ | error ${errors} | เหลือ ${remaining} คำ`)
+        if (remaining === 0 || (done === 0 && errors > 0)) break
+      } catch (e) {
+        addLog(`✗ ${e.response?.data?.detail || e.message}`)
+        break
+      }
+    }
+    addLog(`เสร็จ — รวม ${total} คำ`)
+    setRunning(false)
+    loadSingleEngCount(singleEngCat)
   }
 
   const runRegenShort = async () => {
@@ -190,6 +227,42 @@ export default function BulkExamples() {
             </button>
           </>
         ) : <p className="text-xs text-gray-400">กำลังโหลด...</p>}
+      </div>
+
+      {/* Regen single-english */}
+      <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-500">Regen English คำเดียว → หลายความหมาย</h2>
+          {singleEngCount !== null && (
+            <span className="text-xs text-gray-400">{singleEngCount} คำ</span>
+          )}
+        </div>
+        <p className="text-xs text-gray-400 mb-3">คำที่มี english_meaning แค่คำเดียว (ไม่มี comma) — ขอให้ Gemini เพิ่มความหมายให้ครอบคลุม</p>
+        <div className="flex gap-2 mb-3">
+          <select
+            value={singleEngCat}
+            onChange={(e) => setSingleEngCat(e.target.value)}
+            disabled={running}
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+          >
+            {SINGLE_ENG_CATEGORIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+        {!running ? (
+          <button
+            onClick={runRegenSingleEnglish}
+            disabled={running || singleEngCount === 0}
+            className="w-full bg-blue-500 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
+          >
+            🔁 Regen English คำเดียว{singleEngCount !== null ? ` (${singleEngCount} คำ)` : ''}
+          </button>
+        ) : (
+          <button onClick={stopAll} className="w-full bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium">
+            ⏹ หยุด
+          </button>
+        )}
       </div>
 
       {/* Examples stats */}

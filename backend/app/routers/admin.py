@@ -489,6 +489,66 @@ def bulk_generate_english(
     return {"done": done, "errors": errors, "remaining": remaining}
 
 
+def _single_english_base_query(db, category: str = None):
+    """คำที่มี english_meaning คำเดียว (ไม่มี comma) — filter by category ได้"""
+    q = db.query(Word).filter(
+        Word.status == "verified",
+        Word.english_meaning.isnot(None),
+        Word.english_meaning != "",
+        Word.english_meaning.notlike("%,%"),
+    )
+    if category == "__none__":
+        q = q.filter(or_(Word.category.is_(None), Word.category == ""))
+    elif category:
+        q = q.filter(Word.category == category)
+    return q
+
+
+@router.get("/single-english-stats")
+def single_english_stats(
+    category: str = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    return {"count": _single_english_base_query(db, category).count()}
+
+
+@router.post("/bulk-regen-single-english")
+def bulk_regen_single_english(
+    limit: int = 50,
+    category: str = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Regen english สำหรับคำที่มีแค่คำเดียว (ไม่มี comma) ให้ครอบคลุมทุกความหมาย"""
+    limit = min(max(limit, 1), 100)
+    words = _single_english_base_query(db, category).limit(limit).all()
+
+    if not words:
+        return {"done": 0, "errors": 0, "remaining": 0}
+
+    batch = [{"id": w.id, "chinese": w.chinese, "thai": w.thai_meaning or ""} for w in words]
+    results = batch_generate_english(batch)
+
+    done = 0
+    errors = len(words) - len(results) if results else len(words)
+    for item in results:
+        word = next((w for w in words if w.id == item.get("id")), None)
+        if word and item.get("english"):
+            word.english_meaning = item["english"]
+            thai_addition = str(item.get("thai_addition", "")).strip()
+            if thai_addition and thai_addition not in (word.thai_meaning or ""):
+                word.thai_meaning = (word.thai_meaning or "") + "\n" + thai_addition
+            done += 1
+
+    if done > 0:
+        _log(db, "regen_single_english", detail=f"อัปเดต {done} คำ (single→multi)")
+    db.commit()
+
+    remaining = _single_english_base_query(db, category).count()
+    return {"done": done, "errors": errors, "remaining": remaining}
+
+
 @router.post("/bulk-generate-examples")
 def bulk_generate_examples(
     limit: int = 30,
