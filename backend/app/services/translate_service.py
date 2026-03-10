@@ -100,16 +100,18 @@ def batch_generate_english(words: list[dict]) -> list[dict]:
             for w in words
         )
         prompt = (
-            "For each Chinese word below, list ALL common English translations (comma-separated).\n"
-            "- Translate from Chinese primarily.\n"
-            "- If multiple English synonyms fit the same meaning, use Thai to pick the most appropriate one.\n"
-            "- If the Chinese word has meanings NOT covered by the Thai meaning at all, add short Thai phrases for those missing meanings in 'thai_addition' (comma-separated). Leave empty string if fully covered.\n"
-            "Be comprehensive — include every meaning the word can have.\n"
-            "IMPORTANT: In your response, keep the exact numeric 'id' value from the input.\n"
-            "Example: id=1042 chinese=假期 thai=ช่วงปิดเทอม → {\"id\":1042,\"english\":\"holiday, vacation, break\",\"thai_addition\":\"วันหยุดพักร้อน\"}\n"
+            "For each Chinese word below, provide ALL English translations (comma-separated).\n"
+            "RULES:\n"
+            "- Always provide AT LEAST 2 English words (synonyms, related terms, or alternate translations).\n"
+            "- Translate from Chinese primarily — do NOT limit yourself to the Thai meaning.\n"
+            "- Use Thai meaning only as a hint when selecting between synonyms, not as a cap on how many to include.\n"
+            "- Include every distinct English meaning the Chinese word can have.\n"
+            "- If the Chinese word has meanings NOT covered by the Thai at all, list them in 'thai_addition'.\n"
+            "IMPORTANT: Keep the exact numeric 'id' from input.\n"
+            "Example: id=1042 chinese=假期 thai=ช่วงปิดเทอม → {\"id\":1042,\"english\":\"holiday, vacation, break, school break\",\"thai_addition\":\"วันหยุดพักร้อน\"}\n"
             f"{items}\n\n"
             "Return a JSON array only, no explanation, no markdown:\n"
-            '[{"id":<exact id from input>,"english":"meaning1, meaning2","thai_addition":""},...]'
+            '[{"id":<exact id from input>,"english":"word1, word2, word3","thai_addition":""},...]'
         )
         response = _model.generate_content(prompt)
         return json.loads(_strip_markdown(_get_text(response)))
