@@ -28,6 +28,12 @@ ALLOWED_ORIGINS = [
     "http://localhost:5173",
     os.getenv("FRONTEND_URL", ""),
     "https://thaidict.vercel.app",
+    # Capacitor Android
+    "capacitor://localhost",
+    "http://localhost",
+    # Capacitor iOS
+    "ionic://localhost",
+    "https://localhost",
 ]
 
 app.add_middleware(
