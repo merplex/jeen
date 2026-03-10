@@ -26,16 +26,17 @@ LINE_PROFILE_URL = "https://api.line.me/v2/profile"
 
 
 @router.get("/line")
-def line_login():
+def line_login(native: str = None):
     """Redirect ไปหน้า LINE authorization"""
     if not settings.LINE_CHANNEL_ID:
         raise HTTPException(status_code=503, detail="LINE Login ยังไม่ได้ตั้งค่า")
+    state = "jeen_login_native" if native else "jeen_login"
     params = (
         f"response_type=code"
         f"&client_id={settings.LINE_CHANNEL_ID}"
         f"&redirect_uri={settings.LINE_CALLBACK_URL}"
         f"&scope=profile"
-        f"&state=jeen_login"
+        f"&state={state}"
     )
     return RedirectResponse(f"{LINE_AUTH_URL}?{params}")
 
@@ -102,6 +103,8 @@ def line_callback(code: str = None, state: str = None, error: str = None, db: Se
     db.refresh(user)
 
     jwt_token = create_token(user.id)
+    if state == "jeen_login_native":
+        return RedirectResponse(f"com.jeen.dictionary://line-callback?token={jwt_token}")
     return RedirectResponse(f"{frontend}/line-callback?token={jwt_token}")
 
 

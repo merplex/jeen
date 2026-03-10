@@ -1,9 +1,13 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import useAuthStore from '../stores/authStore'
 import { emailLogin, getMe } from '../services/api'
 
-const LINE_LOGIN_URL = `${import.meta.env.VITE_API_URL || '/api'}/auth/line`
+const base = import.meta.env.VITE_API_URL || '/api'
+const LINE_LOGIN_URL = Capacitor.isNativePlatform()
+  ? `${base}/auth/line?native=1`
+  : `${base}/auth/line`
 
 export default function Login() {
   const navigate = useNavigate()
