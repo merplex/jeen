@@ -25,6 +25,7 @@ import ActivityLog from './pages/admin/ActivityLog'
 import Subscriptions from './pages/admin/Subscriptions'
 import OcrLive from './pages/OcrLive'
 import DownloadApp from './pages/DownloadApp'
+import PrivacyPolicy from './pages/PrivacyPolicy'
 
 function AdminGuard({ children }) {
   const user = useAuthStore((s) => s.user)
@@ -43,18 +44,27 @@ export default function App() {
     if (token) fetchMe()
   }, [token])
 
+  // Privacy policy accessible to everyone (web + native, no login needed)
+  if (window.location.pathname === '/privacy') return <PrivacyPolicy />
+
   // Web browser: รอโหลด user ก่อน แล้วเช็ค is_admin
   if (!isNative) {
-    // ยังโหลดอยู่ (มี token แต่ยังไม่รู้ว่า admin ไหม) → รอก่อน
-    if (token && fetchingMe) {
-      return (
-        <div className="min-h-screen bg-chinese-cream flex items-center justify-center">
-          <div className="text-gray-400 text-sm">กำลังโหลด...</div>
-        </div>
-      )
+    const path = window.location.pathname
+    // หน้า login/line-callback เข้าได้เสมอ
+    if (path === '/login' || path === '/line-callback') {
+      // render routes ปกติด้านล่าง
+    } else {
+      // ยังโหลดอยู่ (มี token แต่ยังไม่รู้ว่า admin ไหม) → รอก่อน
+      if (token && fetchingMe) {
+        return (
+          <div className="min-h-screen bg-chinese-cream flex items-center justify-center">
+            <div className="text-gray-400 text-sm">กำลังโหลด...</div>
+          </div>
+        )
+      }
+      // ไม่ใช่ admin → DownloadApp
+      if (!user?.is_admin) return <DownloadApp />
     }
-    // ไม่ใช่ admin (ไม่ login หรือ login แล้วแต่ไม่ใช่ admin) → DownloadApp
-    if (!user?.is_admin) return <DownloadApp />
   }
 
   return (
@@ -72,6 +82,7 @@ export default function App() {
         <Route path="/notes" element={<Notes />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/line-callback" element={<LineCallback />} />
         <Route path="/profile" element={<Profile />} />
         <Route
