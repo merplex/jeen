@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords, scanOcr } from '../services/api'
 import WordCard from '../components/WordCard'
 import TonedChinese from '../components/TonedChinese'
+import HandwritingModal from '../components/HandwritingModal'
 import { SEARCH_CATEGORIES } from '../utils/categories'
 import useAuthStore from '../stores/authStore'
 
@@ -26,6 +27,7 @@ export default function Search() {
   const [ocrResult, setOcrResult] = useState(null)  // { text, translation, words }
   const [ocrLoading, setOcrLoading] = useState(false)
   const [showOcrSheet, setShowOcrSheet] = useState(false)
+  const [showHandwriting, setShowHandwriting] = useState(false)
   const ocrInputRef = useRef(null)    // album (no capture)
   const ocrCameraRef = useRef(null)  // camera only
 
@@ -211,6 +213,16 @@ export default function Search() {
           字典 พจนานุกรมจีน-ไทย
         </h1>
         <div className="flex gap-2">
+          {/* ปุ่มเขียนด้วยมือ */}
+          <button
+            onClick={() => setShowHandwriting(true)}
+            className="w-12 h-12 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center shadow-lg transition-colors shrink-0"
+            title="เขียนด้วยมือ"
+          >
+            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+            </svg>
+          </button>
           <div className="relative flex-1">
             <input
               type="text"
@@ -350,6 +362,18 @@ export default function Search() {
           </button>
         ))}
       </div>
+
+      {/* Handwriting Modal */}
+      {showHandwriting && (
+        <HandwritingModal
+          onConfirm={(text) => {
+            const newQuery = query + text
+            setQuery(newQuery)
+            doSearch(newQuery)
+          }}
+          onClose={() => setShowHandwriting(false)}
+        />
+      )}
 
       {/* OCR Mode Sheet */}
       {showOcrSheet && (

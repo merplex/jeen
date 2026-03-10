@@ -124,6 +124,9 @@ export const adminDeleteWordReport = (id) => api.delete(`/admin/word-reports/${i
 export const adminGetFlaggedUsers = () => api.get('/admin/flagged-users')
 export const adminUnflagUser = (userId) => api.post(`/admin/users/${userId}/unflag`)
 
+// Handwriting
+export const recognizeHandwriting = (data) => api.post('/handwriting/recognize', data)
+
 // OCR
 export const scanOcr = (data) => api.post('/ocr/scan', data)
 export const scanOcrStructured = (data) => api.post('/ocr/scan-structured', data)
