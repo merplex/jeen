@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect } from 'react'
+import { Capacitor } from '@capacitor/core'
 import useAuthStore from './stores/authStore'
 import BottomNav from './components/BottomNav'
 import Search from './pages/Search'
@@ -23,6 +24,7 @@ import BulkExamples from './pages/admin/BulkExamples'
 import ActivityLog from './pages/admin/ActivityLog'
 import Subscriptions from './pages/admin/Subscriptions'
 import OcrLive from './pages/OcrLive'
+import DownloadApp from './pages/DownloadApp'
 
 function AdminGuard({ children }) {
   const user = useAuthStore((s) => s.user)
@@ -32,12 +34,28 @@ function AdminGuard({ children }) {
   return children
 }
 
+const isNative = Capacitor.isNativePlatform()
+
 export default function App() {
-  const { token, fetchMe } = useAuthStore()
+  const { token, fetchMe, user, fetchingMe } = useAuthStore()
 
   useEffect(() => {
     if (token) fetchMe()
   }, [token])
+
+  // Web browser: รอโหลด user ก่อน แล้วเช็ค is_admin
+  if (!isNative) {
+    // ยังโหลดอยู่ (มี token แต่ยังไม่รู้ว่า admin ไหม) → รอก่อน
+    if (token && fetchingMe) {
+      return (
+        <div className="min-h-screen bg-chinese-cream flex items-center justify-center">
+          <div className="text-gray-400 text-sm">กำลังโหลด...</div>
+        </div>
+      )
+    }
+    // ไม่ใช่ admin (ไม่ login หรือ login แล้วแต่ไม่ใช่ admin) → DownloadApp
+    if (!user?.is_admin) return <DownloadApp />
+  }
 
   return (
     <div className="max-w-lg mx-auto min-h-screen">
