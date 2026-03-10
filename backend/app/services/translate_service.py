@@ -137,7 +137,7 @@ def generate_daily_words(count: int, existing_chinese: set, category: str = None
         existing_sample = '、'.join(list(existing_chinese)[:300])
         allowed_cats = (
             "ทั่วไป, ชีวิตประจำวัน, อาหาร, สัตว์, สถานที่, ครอบครัว, บุคคล, ร่างกาย, "
-            "การงาน, การเดินทาง, กีฬา, แพทย์, วิศวกรรม, เทคนิค, ธุรกิจ, กฎหมาย, สำนวน"
+            "การงาน, การเดินทาง, กีฬา, แพทย์, วิศวกรรม, เทคนิค, ธุรกิจ, กฎหมาย, สำนวน, พิเศษ"
         )
 
         topic_instruction = ""
