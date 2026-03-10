@@ -53,9 +53,10 @@ def generate_english_meaning(chinese: str, thai: str) -> dict:
             f"Chinese word: {chinese}\n"
             f"Thai meaning (context only): {thai}\n\n"
             "Tasks:\n"
-            "1. Translate the Chinese word to English (1-5 words), based on Chinese meaning as the primary source.\n"
-            "2. If multiple English synonyms are equally valid for the same meaning, use the Thai meaning to pick the most fitting one.\n"
+            "1. List ALL common English translations for the Chinese word (comma-separated). Be comprehensive — include every meaning the word can have, based on Chinese as the primary source.\n"
+            "2. If multiple English synonyms fit the same meaning, use the Thai meaning to choose the most fitting one; include others as well.\n"
             "3. If the Chinese word has a meaning completely absent from the Thai meaning, provide a short Thai phrase for that missing meaning (1-5 words). Leave empty string if all meanings are already covered.\n\n"
+            'Example: {"english":"holiday, vacation, break, school break","thai_addition":""}\n'
             'Return JSON only, no explanation: {"english":"...","thai_addition":""}'
         )
         response = _model.generate_content(prompt)
