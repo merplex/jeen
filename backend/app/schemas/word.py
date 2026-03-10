@@ -19,6 +19,7 @@ class ExampleOut(BaseModel):
 class WordOut(BaseModel):
     id: int
     chinese: str
+    chinese_traditional: Optional[str] = None
     pinyin: str
     pinyin_plain: Optional[str] = None
     thai_meaning: str
@@ -52,6 +53,7 @@ class WordPublicOut(BaseModel):
 
 class WordCreate(BaseModel):
     chinese: str
+    chinese_traditional: Optional[str] = None
     pinyin: Optional[str] = None
     pinyin_plain: Optional[str] = None
     thai_meaning: str
@@ -61,6 +63,7 @@ class WordCreate(BaseModel):
 
 class WordUpdate(BaseModel):
     chinese: Optional[str] = None
+    chinese_traditional: Optional[str] = None
     pinyin: Optional[str] = None
     pinyin_plain: Optional[str] = None
     thai_meaning: Optional[str] = None

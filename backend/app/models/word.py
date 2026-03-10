@@ -8,6 +8,7 @@ class Word(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     chinese = Column(String(50), nullable=False, index=True)
+    chinese_traditional = Column(String(50), nullable=True, index=True)
     pinyin = Column(String(100), nullable=False)
     pinyin_plain = Column(String(100), index=True)
     thai_meaning = Column(Text, nullable=False, index=True)
@@ -30,6 +31,7 @@ class WordPending(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     chinese = Column(String(50), nullable=False)
+    chinese_traditional = Column(String(50), nullable=True)
     pinyin = Column(String(100))
     pinyin_plain = Column(String(100))
     thai_meaning = Column(Text)

@@ -12,6 +12,7 @@ COLUMN_ALIASES = {
     "thai_meaning": ["thai", "thai_meaning", "ความหมาย", "ความหมายไทย", "ไทย", "thai meaning", "ภาษาไทย", "ภาษาไทย (thai)"],
     "english_meaning": ["english", "english_meaning", "eng", "อังกฤษ", "ภาษาอังกฤษ", "ภาษาอังกฤษ (english)"],
     "category": ["category", "หมวดหมู่", "หมวด", "cat"],
+    "chinese_traditional": ["chinese_traditional", "traditional", "ตัวเต็ม", "จีนตัวเต็ม", "繁體", "繁体"],
 }
 
 
@@ -140,6 +141,7 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
         thai_raw = str(row.get("thai_meaning", "")).strip()
         english = str(row.get("english_meaning", "")).strip() or None
         category_col = str(row.get("category", "")).strip() or None
+        chinese_trad = str(row.get("chinese_traditional", "")).strip() or None
 
         if thai_raw:
             senses = _parse_thai_meaning(thai_raw)
@@ -157,6 +159,7 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
         if key not in groups:
             groups[key] = {
                 "chinese": chinese,
+                "chinese_traditional": None,
                 "pinyin": gen_pinyin,
                 "pinyin_plain": gen_pinyin_plain,
                 "thai_lines": [],
@@ -175,6 +178,8 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
             g["english"] = english
         if not g["category"] and cat:
             g["category"] = cat
+        if not g["chinese_traditional"] and chinese_trad:
+            g["chinese_traditional"] = chinese_trad
 
     # ─── Phase 2: insert ─────────────────────────────────────────────────────
     verified = 0
@@ -197,7 +202,8 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
                 thai_changed = old_thai != thai
                 cat_changed = g["category"] and old_cat != new_cat
 
-                if not thai_changed and not cat_changed:
+                trad_changed = g["chinese_traditional"] and word.chinese_traditional != g["chinese_traditional"]
+                if not thai_changed and not cat_changed and not trad_changed:
                     skipped += 1
                     continue
 
@@ -212,10 +218,13 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
                 word.thai_meaning = thai
                 if g["category"]:
                     word.category = g["category"]
+                if g["chinese_traditional"]:
+                    word.chinese_traditional = g["chinese_traditional"]
                 updated += 1
             else:
                 db.add(Word(
                     chinese=chinese,
+                    chinese_traditional=g["chinese_traditional"],
                     pinyin=g["pinyin"],
                     pinyin_plain=g["pinyin_plain"],
                     thai_meaning=thai,
