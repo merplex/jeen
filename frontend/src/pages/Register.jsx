@@ -4,6 +4,14 @@ import { Capacitor } from '@capacitor/core'
 import useAuthStore from '../stores/authStore'
 import { requestEmailOtp, verifyEmailOtp, emailSetPassword, getMe } from '../services/api'
 
+const errMsg = (err, fallback) => {
+  const d = err.response?.data?.detail
+  if (!d) return fallback
+  if (typeof d === 'string') return d
+  if (Array.isArray(d)) return d[0]?.msg || fallback
+  return fallback
+}
+
 export default function Register() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -30,7 +38,7 @@ export default function Register() {
       setStep('otp')
       setInfo(`ส่ง OTP ไปที่ ${email} แล้ว กรุณาตรวจสอบอีเมล (รวมถึงโฟลเดอร์ spam)`)
     } catch (err) {
-      setError(err.response?.data?.detail || 'ส่ง OTP ไม่สำเร็จ')
+      setError(errMsg(err, 'ส่ง OTP ไม่สำเร็จ'))
     } finally {
       setLoading(false)
     }
@@ -47,7 +55,7 @@ export default function Register() {
       setStep('password')
       setInfo('')
     } catch (err) {
-      setError(err.response?.data?.detail || 'OTP ไม่ถูกต้องหรือหมดอายุ')
+      setError(errMsg(err, 'OTP ไม่ถูกต้องหรือหมดอายุ'))
     } finally {
       setLoading(false)
     }
@@ -72,7 +80,7 @@ export default function Register() {
         navigate('/', { replace: true })
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'เกิดข้อผิดพลาด กรุณาลองใหม่')
+      setError(errMsg(err, 'เกิดข้อผิดพลาด กรุณาลองใหม่'))
     } finally {
       setLoading(false)
     }
@@ -86,7 +94,7 @@ export default function Register() {
       await requestEmailOtp(email.trim().toLowerCase())
       setInfo('ส่ง OTP ใหม่แล้ว กรุณาตรวจสอบอีเมล')
     } catch (err) {
-      setError(err.response?.data?.detail || 'ส่ง OTP ไม่สำเร็จ')
+      setError(errMsg(err, 'ส่ง OTP ไม่สำเร็จ'))
     } finally {
       setLoading(false)
     }
