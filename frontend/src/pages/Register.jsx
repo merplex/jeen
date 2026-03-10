@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import useAuthStore from '../stores/authStore'
 import { requestEmailOtp, verifyEmailOtp, emailSetPassword, getMe } from '../services/api'
 
@@ -63,7 +64,11 @@ export default function Register() {
       useAuthStore.setState({ token })
       const meRes = await getMe()
       useAuthStore.setState({ user: meRes.data })
-      navigate('/', { replace: true })
+      if (!Capacitor.isNativePlatform() && !meRes.data?.is_admin) {
+        navigate('/login', { replace: true })
+      } else {
+        navigate('/', { replace: true })
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {

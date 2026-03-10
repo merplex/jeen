@@ -51,7 +51,7 @@ export default function App() {
   if (!isNative) {
     const path = window.location.pathname
     // หน้า login/line-callback เข้าได้เสมอ
-    if (path === '/login' || path === '/line-callback') {
+    if (path === '/login' || path === '/register' || path === '/line-callback') {
       // render routes ปกติด้านล่าง
     } else {
       // ยังโหลดอยู่ (มี token แต่ยังไม่รู้ว่า admin ไหม) → รอก่อน

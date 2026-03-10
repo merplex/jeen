@@ -35,7 +35,11 @@ export default function Login() {
       useAuthStore.setState({ token })
       const meRes = await getMe()
       useAuthStore.setState({ user: meRes.data })
-      navigate('/', { replace: true })
+      if (!Capacitor.isNativePlatform() && !meRes.data?.is_admin) {
+        setError('บัญชีนี้ไม่มีสิทธิ์เข้าใช้งานเว็บ')
+      } else {
+        navigate('/', { replace: true })
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'เข้าสู่ระบบไม่สำเร็จ')
     } finally {
