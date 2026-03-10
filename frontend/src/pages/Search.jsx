@@ -4,6 +4,7 @@ import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords, s
 import WordCard from '../components/WordCard'
 import TonedChinese from '../components/TonedChinese'
 import HandwritingModal from '../components/HandwritingModal'
+import OfflineAlert from '../components/OfflineAlert'
 import { SEARCH_CATEGORIES } from '../utils/categories'
 import useAuthStore from '../stores/authStore'
 
@@ -28,6 +29,7 @@ export default function Search() {
   const [ocrLoading, setOcrLoading] = useState(false)
   const [showOcrSheet, setShowOcrSheet] = useState(false)
   const [showHandwriting, setShowHandwriting] = useState(false)
+  const [showOfflineAlert, setShowOfflineAlert] = useState(false)
   const ocrInputRef = useRef(null)    // album (no capture)
   const ocrCameraRef = useRef(null)  // camera only
 
@@ -215,7 +217,7 @@ export default function Search() {
         <div className="flex gap-2">
           {/* ปุ่มเขียนด้วยมือ */}
           <button
-            onClick={() => setShowHandwriting(true)}
+            onClick={() => navigator.onLine ? setShowHandwriting(true) : setShowOfflineAlert(true)}
             className="w-12 h-12 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center shadow-lg transition-colors shrink-0"
             title="เขียนด้วยมือ"
           >
@@ -249,7 +251,7 @@ export default function Search() {
             )}
           </div>
           <button
-            onClick={() => setShowOcrSheet(true)}
+            onClick={() => navigator.onLine ? setShowOcrSheet(true) : setShowOfflineAlert(true)}
             disabled={ocrLoading}
             className="w-12 h-12 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center shadow-lg transition-colors disabled:opacity-50"
           >
@@ -363,6 +365,8 @@ export default function Search() {
         ))}
       </div>
 
+      {showOfflineAlert && <OfflineAlert onClose={() => setShowOfflineAlert(false)} />}
+
       {/* Handwriting Modal */}
       {showHandwriting && (
         <HandwritingModal
@@ -390,7 +394,7 @@ export default function Search() {
             <p className="text-sm font-semibold text-gray-600 mb-3 text-center">เลือกโหมด OCR</p>
             <div className="space-y-3">
               <button
-                onClick={() => { setShowOcrSheet(false); navigate('/ocr/live') }}
+                onClick={() => { setShowOcrSheet(false); if (!navigator.onLine) { setShowOfflineAlert(true); return; } navigate('/ocr/live') }}
                 className="w-full flex items-center gap-4 bg-chinese-red/5 border border-chinese-red/20 rounded-2xl px-4 py-4 active:scale-95 transition-transform"
               >
                 <div className="w-12 h-12 bg-chinese-red rounded-xl flex items-center justify-center shrink-0">

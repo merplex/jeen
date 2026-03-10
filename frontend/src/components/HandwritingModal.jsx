@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { recognizeHandwriting } from '../services/api'
+import OfflineAlert from './OfflineAlert'
 
 export default function HandwritingModal({ onConfirm, onClose }) {
   const canvasRef = useRef(null)
@@ -8,6 +9,7 @@ export default function HandwritingModal({ onConfirm, onClose }) {
   const [candidates, setCandidates] = useState([])
   const [buffer, setBuffer] = useState('')
   const [recognizing, setRecognizing] = useState(false)
+  const [showOfflineAlert, setShowOfflineAlert] = useState(false)
   const recognizeTimerRef = useRef(null)
   const startTimeRef = useRef(0)
   const currentStrokeRef = useRef({ xs: [], ys: [], ts: [] })
@@ -57,6 +59,7 @@ export default function HandwritingModal({ onConfirm, onClose }) {
 
   const doRecognize = useCallback(async (strokesData) => {
     if (!strokesData.length) return
+    if (!navigator.onLine) { setShowOfflineAlert(true); return }
     const canvas = canvasRef.current
     setRecognizing(true)
     try {
@@ -147,6 +150,7 @@ export default function HandwritingModal({ onConfirm, onClose }) {
 
   return (
     <div className="fixed inset-0 z-40 flex items-end" onClick={onClose}>
+      {showOfflineAlert && <OfflineAlert onClose={() => setShowOfflineAlert(false)} />}
       <div className="absolute inset-0 bg-black/50" />
       <div
         className="relative w-full max-w-lg mx-auto bg-white rounded-t-2xl shadow-2xl"

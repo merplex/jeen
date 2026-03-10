@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { assessSpeaking, getSpeakingDailyStatus, generateSpeakingSentences } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import TonedChinese from '../components/TonedChinese'
+import OfflineAlert from '../components/OfflineAlert'
 
 function writeString(view, offset, str) {
   for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i))
@@ -70,6 +71,7 @@ export default function SpeakingPractice() {
   const [errorMsg, setErrorMsg] = useState('')
   const [genLoading, setGenLoading] = useState(false)
   const [quotaMsg, setQuotaMsg] = useState('')
+  const [showOfflineAlert, setShowOfflineAlert] = useState(false)
 
   const showQuotaMsg = (msg) => {
     setQuotaMsg(msg)
@@ -187,6 +189,7 @@ export default function SpeakingPractice() {
 
   return (
     <div className="min-h-screen bg-chinese-cream pb-24">
+      {showOfflineAlert && <OfflineAlert onClose={() => setShowOfflineAlert(false)} />}
       {/* Header */}
       <div className="bg-chinese-red px-4 pt-12 pb-4">
         <div className="flex items-center gap-3 mb-3">
@@ -255,7 +258,7 @@ export default function SpeakingPractice() {
                 : 'กำลังอัดเสียง... ปล่อยเพื่อหยุด'}
             </p>
             <button
-              onPointerDown={status === 'idle' && canPractice ? startRecording : undefined}
+              onPointerDown={status === 'idle' && canPractice ? (navigator.onLine ? startRecording : () => setShowOfflineAlert(true)) : undefined}
               onPointerUp={status === 'recording' ? stopRecording : undefined}
               disabled={!canPractice}
               className={`w-28 h-28 rounded-full flex items-center justify-center text-4xl shadow-lg transition-all active:scale-95 disabled:opacity-40 select-none ${
