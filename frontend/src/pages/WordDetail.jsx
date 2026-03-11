@@ -384,7 +384,7 @@ export default function WordDetail() {
                               {ex.pinyin && <div className="text-sm text-gray-500">{ex.pinyin}</div>}
                               {ex.thai && (
                                 <div className="text-sm text-gray-700">
-                                  {highlightInText(ex.thai, meaning)}
+                                  {highlightInText(ex.thai, [meaning, ...meaningLines.filter((_, i) => i !== lineIdx)].join('\n'))}
                                 </div>
                               )}
                             </div>
