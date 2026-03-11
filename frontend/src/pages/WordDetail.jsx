@@ -251,9 +251,9 @@ export default function WordDetail() {
                   setFavorited(r.data.favorited)
                 }}
                 title={favorited ? 'ลบจากคำโปรด' : 'เพิ่มในคำโปรด'}
-                className="text-2xl leading-none"
+                className={`text-2xl leading-none flex items-center ${!favorited ? 'opacity-30' : ''}`}
               >
-                {favorited ? '⭐' : '☆'}
+                ⭐
               </button>
             )}
             <button onClick={() => speak(word.chinese)} className="text-white text-2xl" title="ออกเสียง">
