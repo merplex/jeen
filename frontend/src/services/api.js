@@ -130,6 +130,8 @@ export const getFavoriteStatus = (wordId) => api.get(`/words/${wordId}/favorite-
 
 // Admin image cache
 export const adminDeleteImageCache = (category) => api.delete('/admin/image-cache', { params: { category } })
+export const adminDeleteAllImageCache = (excludeCategories = []) =>
+  api.delete('/admin/image-cache/all', { params: { exclude_categories: excludeCategories.join(',') } })
 
 // Word reports
 export const reportWord = (wordId, message) => api.post(`/words/${wordId}/report`, { message })

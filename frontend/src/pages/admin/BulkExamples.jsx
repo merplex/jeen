@@ -4,7 +4,7 @@ import {
   adminEnglishStats, adminBulkGenerateEnglish, adminFixLongEnglish,
   adminRegenExamplesByCategory, adminBulkRegenShortExamples,
   adminSingleEnglishStats, adminBulkRegenSingleEnglish,
-  adminGetSettings, adminUpdateSettings, adminDeleteImageCache,
+  adminGetSettings, adminUpdateSettings, adminDeleteImageCache, adminDeleteAllImageCache,
 } from '../../services/api'
 import { CATEGORIES } from '../../utils/categories'
 
@@ -278,6 +278,17 @@ export default function BulkExamples() {
             className="w-full bg-chinese-red text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
           >
             {settingsSaving ? '⏳ กำลังบันทึก...' : '💾 บันทึกการตั้งค่า'}
+          </button>
+          <button
+            onClick={async () => {
+              const excStr = imageCategories.length > 0 ? ` (ยกเว้นหมวด: ${imageCategories.join(', ')})` : ''
+              if (!window.confirm(`ลบ cache รูปทั้งหมด${excStr}?`)) return
+              const r = await adminDeleteAllImageCache(imageCategories)
+              addLog(`🗑️ ลบ cache รูปทั้งหมดแล้ว ${r.data.deleted} รายการ${excStr}`)
+            }}
+            className="w-full mt-2 border border-gray-200 text-gray-500 rounded-lg py-2 text-sm"
+          >
+            🗑️ ลบ cache รูปทั้งหมด {imageCategories.length > 0 && `(ยกเว้น ${imageCategories.length} หมวดที่เลือก)`}
           </button>
         </div>
       </Section>

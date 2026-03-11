@@ -881,6 +881,21 @@ def delete_image_cache(category: str, db: Session = Depends(get_db), _: User = D
     return {"deleted": deleted, "category": category}
 
 
+@router.delete("/image-cache/all")
+def delete_all_image_cache(exclude_categories: str = "", db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    """ลบ cache รูปทั้งหมด ยกเว้น category ที่ระบุ (comma-separated)"""
+    excluded = [c.strip() for c in exclude_categories.split(",") if c.strip()]
+    q = db.query(WordImageCache)
+    if excluded:
+        keep_ids = db.query(Word.id).filter(Word.category.in_(excluded)).all()
+        keep_ids = [w[0] for w in keep_ids]
+        if keep_ids:
+            q = q.filter(~WordImageCache.word_id.in_(keep_ids))
+    deleted = q.delete(synchronize_session=False)
+    db.commit()
+    return {"deleted": deleted, "excluded_categories": excluded}
+
+
 @router.get("/activity-log", response_model=list[ActivityLogOut])
 def activity_log(
     limit: int = 50,
