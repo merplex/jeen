@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport } from '../services/api'
+import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, getPublicSettings, getWordImage } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import SelectionPopup from '../components/SelectionPopup'
@@ -35,6 +35,8 @@ export default function WordDetail() {
   const reportContext = location.state?.reportId ? location.state : null
 
   const isPremium = user?.is_admin || subscription?.active === true
+  const [imageCategories, setImageCategories] = useState([])
+  const [wordImageUrl, setWordImageUrl] = useState(undefined) // undefined=ยังไม่โหลด, null=ไม่มีรูป
 
   // redirect ถ้าไม่มี token
   useEffect(() => {
@@ -44,6 +46,11 @@ export default function WordDetail() {
   useEffect(() => {
     if (token && !subscription) fetchSub()
   }, [token])
+
+  // โหลด image categories settings (ครั้งเดียวต่อ session)
+  useEffect(() => {
+    getPublicSettings().then((r) => setImageCategories(r.data.image_categories || [])).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!token) return
@@ -65,6 +72,16 @@ export default function WordDetail() {
       })
     }
   }, [id, user])
+
+  // โหลดรูปภาพเมื่อ word โหลดแล้ว และ category อยู่ใน imageCategories
+  useEffect(() => {
+    if (!word || imageCategories.length === 0) return
+    if (!word.category || !imageCategories.includes(word.category)) return
+    setWordImageUrl(undefined)
+    getWordImage(word.id)
+      .then((r) => setWordImageUrl(r.data.url || null))
+      .catch(() => setWordImageUrl(null))
+  }, [word?.id, imageCategories])
 
   const toggleDeck = async (deck) => {
     if (!user) return navigate('/login')
@@ -169,7 +186,7 @@ export default function WordDetail() {
 
   const highlightInText = (text, keyword, className = '') => {
     if (!text || !keyword) return <span className={className}>{text}</span>
-    const parts = keyword.split(/[\n;]/).map(k => k.trim()).filter(Boolean)
+    const parts = keyword.split(/[\n;,]/).map(k => k.replace(/\(.*?\)/g, '').trim()).filter(Boolean)
     for (const kw of parts) {
       const idx = text.indexOf(kw)
       if (idx !== -1) {
@@ -281,31 +298,57 @@ export default function WordDetail() {
               <span className="text-[10px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full font-medium">✓ แก้แล้ว</span>
             )}
           </div>
-          <div className="mb-3">
-            <div className="text-xs text-gray-400 mb-1">ภาษาไทย</div>
-            <div className="text-gray-800 text-base space-y-1">
-              {word.thai_meaning.split('\n').filter((l) => l.trim()).map((line, i) => (
-                <div key={i}>{line}</div>
-              ))}
-            </div>
-          </div>
-          {(word.english_meaning || user?.is_admin) && (
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <div className="text-xs text-gray-400">English</div>
-                {user?.is_admin && (
-                  <button
-                    onClick={generateEnglish}
-                    disabled={genEngLoading}
-                    className="text-xs text-chinese-red disabled:opacity-50"
-                  >
-                    {genEngLoading ? '⏳ กำลังหา...' : word.english_meaning ? '🔄 หาใหม่' : '✨ หาคำอังกฤษ'}
-                  </button>
+          {/* layout: ถ้ามีรูป → 2/3 text + 1/3 image, ถ้าไม่มี → full width */}
+          {(() => {
+            const showImage = word.category && imageCategories.includes(word.category)
+            const textContent = (
+              <>
+                <div className="mb-3">
+                  <div className="text-xs text-gray-400 mb-1">ภาษาไทย</div>
+                  <div className="text-gray-800 text-base space-y-1">
+                    {word.thai_meaning.split('\n').filter((l) => l.trim()).map((line, i) => (
+                      <div key={i}>{line}</div>
+                    ))}
+                  </div>
+                </div>
+                {(word.english_meaning || user?.is_admin) && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-xs text-gray-400">English</div>
+                      {user?.is_admin && (
+                        <button
+                          onClick={generateEnglish}
+                          disabled={genEngLoading}
+                          className="text-xs text-chinese-red disabled:opacity-50"
+                        >
+                          {genEngLoading ? '⏳ กำลังหา...' : word.english_meaning ? '🔄 หาใหม่' : '✨ หาคำอังกฤษ'}
+                        </button>
+                      )}
+                    </div>
+                    {word.english_meaning && <div className="text-gray-600">{word.english_meaning}</div>}
+                  </div>
                 )}
+              </>
+            )
+            if (!showImage) return textContent
+            return (
+              <div className="flex gap-3 items-start">
+                <div className="flex-1 min-w-0">{textContent}</div>
+                <div className="w-1/3 flex-shrink-0">
+                  {wordImageUrl === undefined ? (
+                    <div className="w-full aspect-square rounded-lg bg-gray-100 animate-pulse" />
+                  ) : wordImageUrl ? (
+                    <img
+                      src={wordImageUrl}
+                      alt={word.chinese}
+                      className="w-full aspect-square object-cover rounded-lg"
+                      onError={() => setWordImageUrl(null)}
+                    />
+                  ) : null}
+                </div>
               </div>
-              {word.english_meaning && <div className="text-gray-600">{word.english_meaning}</div>}
-            </div>
-          )}
+            )
+          })()}
         </div>
 
         {/* Examples */}

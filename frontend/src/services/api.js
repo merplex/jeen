@@ -116,6 +116,12 @@ export const adminBulkRegenSingleEnglish = (limit = 50, category = null) =>
   api.post('/admin/bulk-regen-single-english', null, { params: { limit, ...(category ? { category } : {}) } })
 export const adminActivityLog = (limit = 50) =>
   api.get('/admin/activity-log', { params: { limit } })
+export const adminGetSettings = () => api.get('/admin/settings')
+export const adminUpdateSettings = (data) => api.put('/admin/settings', data)
+
+// Public settings (no auth)
+export const getPublicSettings = () => api.get('/words/public-settings')
+export const getWordImage = (wordId) => api.get(`/words/${wordId}/image`)
 
 // Word reports
 export const reportWord = (wordId, message) => api.post(`/words/${wordId}/report`, { message })

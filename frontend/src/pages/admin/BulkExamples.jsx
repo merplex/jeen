@@ -4,11 +4,31 @@ import {
   adminEnglishStats, adminBulkGenerateEnglish, adminFixLongEnglish,
   adminRegenExamplesByCategory, adminBulkRegenShortExamples,
   adminSingleEnglishStats, adminBulkRegenSingleEnglish,
+  adminGetSettings, adminUpdateSettings,
 } from '../../services/api'
 import { CATEGORIES } from '../../utils/categories'
 
 const REGEN_CATEGORIES = ['แพทย์', 'กฎหมาย', 'สำนวน', 'วิศวกรรม', 'เทคนิค']
 const SINGLE_ENG_CATEGORIES = ['ทั้งหมด', ...CATEGORIES, 'ไม่มีหมวด']
+
+function Section({ title, badge, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+      >
+        <span className="text-sm font-semibold text-gray-600">{title}</span>
+        <div className="flex items-center gap-2">
+          {badge && <span className="text-xs text-gray-400">{badge}</span>}
+          <span className="text-gray-400 text-sm">{open ? '▲' : '▼'}</span>
+        </div>
+      </button>
+      {open && <div className="px-4 pb-4 border-t border-gray-50">{children}</div>}
+    </div>
+  )
+}
 
 export default function BulkExamples() {
   const [exStats, setExStats] = useState(null)
@@ -20,6 +40,8 @@ export default function BulkExamples() {
   const [regenLimit, setRegenLimit] = useState(20)
   const [singleEngCat, setSingleEngCat] = useState('ทั้งหมด')
   const [singleEngCount, setSingleEngCount] = useState(null)
+  const [imageCategories, setImageCategories] = useState([])
+  const [settingsSaving, setSettingsSaving] = useState(false)
 
   const loadStats = async () => {
     const [ex, en] = await Promise.all([adminExamplesStats(), adminEnglishStats()])
@@ -33,7 +55,16 @@ export default function BulkExamples() {
     setSingleEngCount(r.data.count)
   }
 
-  useEffect(() => { loadStats() }, [])
+  const loadSettings = async () => {
+    try {
+      const r = await adminGetSettings()
+      setImageCategories(r.data.image_categories || [])
+    } catch (e) {
+      // ยังไม่มี settings
+    }
+  }
+
+  useEffect(() => { loadStats(); loadSettings() }, [])
   useEffect(() => { loadSingleEngCount(singleEngCat) }, [singleEngCat])
 
   const addLog = (msg) => setLog((prev) => [...prev, msg])
@@ -185,181 +216,224 @@ export default function BulkExamples() {
     loadStats()
   }
 
+  const toggleImageCategory = (cat) => {
+    setImageCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+    )
+  }
+
+  const saveImageSettings = async () => {
+    setSettingsSaving(true)
+    try {
+      await adminUpdateSettings({ image_categories: imageCategories })
+    } finally {
+      setSettingsSaving(false)
+    }
+  }
+
   const pctEx = exStats ? Math.round((exStats.with_examples / (exStats.total_verified || 1)) * 100) : 0
   const pctEn = enStats ? Math.round((enStats.with_english / (enStats.total_verified || 1)) * 100) : 0
 
   return (
-    <div className="px-4 py-6 space-y-4">
+    <div className="px-4 py-6 space-y-3">
+
+      {/* Image Settings */}
+      <Section title="ตั้งค่ารูปประกอบ" badge={imageCategories.length > 0 ? `${imageCategories.length} หมวด` : 'ปิด'}>
+        <div className="pt-3">
+          <p className="text-xs text-gray-400 mb-3">
+            หมวดที่เลือกจะแสดงรูปภาพประกอบในหน้าคำศัพท์ (ดึงจาก Wikipedia โดย AI)
+          </p>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => toggleImageCategory(cat)}
+                className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
+                  imageCategories.includes(cat)
+                    ? 'bg-chinese-red text-white border-chinese-red'
+                    : 'border-gray-200 text-gray-500'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={saveImageSettings}
+            disabled={settingsSaving}
+            className="w-full bg-chinese-red text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
+          >
+            {settingsSaving ? '⏳ กำลังบันทึก...' : '💾 บันทึกการตั้งค่า'}
+          </button>
+        </div>
+      </Section>
 
       {/* English meaning stats */}
-      <div className="bg-white rounded-xl p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-500">ความหมายอังกฤษ</h2>
-          {enStats && <span className="text-xs text-gray-400">{enStats.with_english} / {enStats.total_verified} คำ</span>}
+      <Section
+        title="ความหมายอังกฤษ"
+        badge={enStats ? `${enStats.with_english} / ${enStats.total_verified} คำ` : null}
+      >
+        <div className="pt-3">
+          {enStats ? (
+            <>
+              <div className="w-full bg-gray-100 rounded-full h-2 mb-3">
+                <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${pctEn}%` }} />
+              </div>
+              <button
+                onClick={runBulkEnglish}
+                disabled={running || enStats.without_english === 0}
+                className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
+              >
+                {running ? '⏳ กำลังทำงาน...' : `🌐 สร้างความหมายอังกฤษ (${enStats.without_english} คำที่เหลือ)`}
+              </button>
+              <button
+                onClick={async () => {
+                  addLog('ตรวจหาและแก้ไข english_meaning ที่ยาวเกิน...')
+                  try {
+                    const r = await adminFixLongEnglish(100)
+                    const { found, fixed, failed } = r.data
+                    addLog(`🔧 พบ ${found} คำ | แก้ไข ${fixed} | ล้มเหลว ${failed}`)
+                  } catch (e) {
+                    addLog(`✗ ${e.response?.data?.detail || e.message}`)
+                  }
+                }}
+                disabled={running}
+                className="w-full mt-2 border border-blue-200 text-blue-600 rounded-lg py-2 text-sm disabled:opacity-40"
+              >
+                🔧 แก้ไข English ที่ยาวเกิน (Gemini thinking)
+              </button>
+            </>
+          ) : <p className="text-xs text-gray-400 mt-2">กำลังโหลด...</p>}
         </div>
-        {enStats ? (
-          <>
-            <div className="w-full bg-gray-100 rounded-full h-2 mb-3">
-              <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${pctEn}%` }} />
-            </div>
-            <button
-              onClick={runBulkEnglish}
-              disabled={running || enStats.without_english === 0}
-              className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
-            >
-              {running ? '⏳ กำลังทำงาน...' : `🌐 สร้างความหมายอังกฤษ (${enStats.without_english} คำที่เหลือ)`}
-            </button>
-            <button
-              onClick={async () => {
-                addLog('ตรวจหาและแก้ไข english_meaning ที่ยาวเกิน...')
-                try {
-                  const r = await adminFixLongEnglish(100)
-                  const { found, fixed, failed } = r.data
-                  addLog(`🔧 พบ ${found} คำ | แก้ไข ${fixed} | ล้มเหลว ${failed}`)
-                } catch (e) {
-                  addLog(`✗ ${e.response?.data?.detail || e.message}`)
-                }
-              }}
-              disabled={running}
-              className="w-full mt-2 border border-blue-200 text-blue-600 rounded-lg py-2 text-sm disabled:opacity-40"
-            >
-              🔧 แก้ไข English ที่ยาวเกิน (Gemini thinking)
-            </button>
-          </>
-        ) : <p className="text-xs text-gray-400">กำลังโหลด...</p>}
-      </div>
+      </Section>
 
       {/* Regen single-english */}
-      <div className="bg-white rounded-xl p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-500 mb-1">Regen English คำเดียว → หลายความหมาย</h2>
-        <p className="text-xs text-gray-400 mb-3">คำที่มี english_meaning แค่คำเดียว (ไม่มี comma) — ขอให้ Gemini เพิ่มความหมายให้ครอบคลุม</p>
-        <select
-          value={singleEngCat}
-          onChange={(e) => setSingleEngCat(e.target.value)}
-          disabled={running}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2"
-        >
-          {SINGLE_ENG_CATEGORIES.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-        <div className="text-xs mb-3 min-h-[1.25rem]">
-          {singleEngCount === null
-            ? <span className="text-gray-300">กำลังตรวจ...</span>
-            : singleEngCount === 0
-              ? <span className="text-green-500">✓ ไม่มีคำที่ต้องแก้ในหมวดนี้</span>
-              : <span className="text-amber-600">⚠️ มี <strong>{singleEngCount}</strong> คำในหมวดนี้ที่ยังแปลอังกฤษแค่คำเดียว</span>
-          }
-        </div>
-        {!running ? (
-          <button
-            onClick={runRegenSingleEnglish}
-            disabled={running || singleEngCount === 0}
-            className="w-full bg-blue-500 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
-          >
-            🔁 Regen English คำเดียว
-          </button>
-        ) : (
-          <button onClick={stopAll} className="w-full bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium">
-            ⏹ หยุด
-          </button>
-        )}
-      </div>
-
-      {/* Examples stats */}
-      <div className="bg-white rounded-xl p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-500">ตัวอย่างประโยค</h2>
-          {exStats && (
-            <div className="text-right">
-              <span className="text-xs text-gray-400">{exStats.with_examples} / {exStats.total_verified} คำ</span>
-              {exStats.with_short_examples > 0 && (
-                <span className="ml-2 text-xs text-amber-500">⚠️ สั้น {exStats.with_short_examples} คำ</span>
-              )}
-            </div>
-          )}
-        </div>
-        {exStats ? (
-          <>
-            <div className="w-full bg-gray-100 rounded-full h-2 mb-3">
-              <div className="bg-green-500 h-2 rounded-full transition-all" style={{ width: `${pctEx}%` }} />
-            </div>
-            <div className="flex gap-2">
-              {!running ? (
-                <button
-                  onClick={runBulkExamples}
-                  disabled={exStats.without_examples === 0}
-                  className="flex-1 bg-chinese-red text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
-                >
-                  ✨ สร้างตัวอย่าง ({exStats.without_examples} คำที่เหลือ)
-                </button>
-              ) : (
-                <button onClick={stopAll} className="flex-1 bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium">
-                  ⏹ หยุด
-                </button>
-              )}
-              <button onClick={loadStats} disabled={running} className="px-3 border border-gray-200 rounded-lg text-sm text-gray-500 disabled:opacity-40">🔄</button>
-            </div>
-            {exStats.with_short_examples > 0 && (
-              <button
-                onClick={runRegenShort}
-                disabled={running}
-                className="w-full mt-2 bg-amber-500 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
-              >
-                🔧 Regen ตัวอย่างสั้นเกิน ({exStats.with_short_examples} คำ, &lt;10 ตัวอักษร)
-              </button>
-            )}
-            <button
-              onClick={wipeAll}
-              disabled={running}
-              className="w-full mt-2 border border-red-200 text-red-500 rounded-lg py-2 text-sm disabled:opacity-40"
-            >
-              🗑️ ลบตัวอย่างทั้งหมด (reset)
-            </button>
-          </>
-        ) : <p className="text-xs text-gray-400">กำลังโหลด...</p>}
-      </div>
-
-      {/* Regen by category */}
-      <div className="bg-white rounded-xl p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-500 mb-3">Regen ตัวอย่างตามหมวด (ลบ+gen ใหม่)</h2>
-        <p className="text-xs text-gray-400 mb-3">ใช้ logic ใหม่ — คำแพทย์/กฎหมาย/สำนวนที่ไม่ได้ใช้พูดจะได้ formal_0+formal_1 แทน conv</p>
-        <div className="flex gap-2 mb-3">
+      <Section title="Regen English คำเดียว → หลายความหมาย">
+        <div className="pt-3">
+          <p className="text-xs text-gray-400 mb-3">คำที่มี english_meaning แค่คำเดียว (ไม่มี comma) — ขอให้ Gemini เพิ่มความหมายให้ครอบคลุม</p>
           <select
-            value={regenCat}
-            onChange={(e) => setRegenCat(e.target.value)}
+            value={singleEngCat}
+            onChange={(e) => setSingleEngCat(e.target.value)}
             disabled={running}
-            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2"
           >
-            {REGEN_CATEGORIES.map((c) => (
+            {SINGLE_ENG_CATEGORIES.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
-          <select
-            value={regenLimit}
-            onChange={(e) => setRegenLimit(Number(e.target.value))}
-            disabled={running}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
-          >
-            {[10, 20, 30, 50].map((n) => (
-              <option key={n} value={n}>{n} คำ/รอบ</option>
-            ))}
-          </select>
+          <div className="text-xs mb-3 min-h-[1.25rem]">
+            {singleEngCount === null
+              ? <span className="text-gray-300">กำลังตรวจ...</span>
+              : singleEngCount === 0
+                ? <span className="text-green-500">✓ ไม่มีคำที่ต้องแก้ในหมวดนี้</span>
+                : <span className="text-amber-600">⚠️ มี <strong>{singleEngCount}</strong> คำในหมวดนี้ที่ยังแปลอังกฤษแค่คำเดียว</span>
+            }
+          </div>
+          {!running ? (
+            <button
+              onClick={runRegenSingleEnglish}
+              disabled={running || singleEngCount === 0}
+              className="w-full bg-blue-500 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
+            >
+              🔁 Regen English คำเดียว
+            </button>
+          ) : (
+            <button onClick={stopAll} className="w-full bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium">
+              ⏹ หยุด
+            </button>
+          )}
         </div>
-        {!running ? (
-          <button
-            onClick={runRegenByCategory}
-            disabled={running}
-            className="w-full bg-amber-500 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
-          >
-            🔁 Regen ตัวอย่างหมวด "{regenCat}"
-          </button>
-        ) : (
-          <button onClick={stopAll} className="w-full bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium">
-            ⏹ หยุด
-          </button>
-        )}
-      </div>
+      </Section>
+
+      {/* Examples stats */}
+      <Section
+        title="ตัวอย่างประโยค"
+        badge={exStats ? `${exStats.with_examples} / ${exStats.total_verified} คำ${exStats.with_short_examples > 0 ? ` • ⚠️ สั้น ${exStats.with_short_examples}` : ''}` : null}
+      >
+        <div className="pt-3">
+          {exStats ? (
+            <>
+              <div className="w-full bg-gray-100 rounded-full h-2 mb-3">
+                <div className="bg-green-500 h-2 rounded-full transition-all" style={{ width: `${pctEx}%` }} />
+              </div>
+              <div className="flex gap-2">
+                {!running ? (
+                  <button
+                    onClick={runBulkExamples}
+                    disabled={exStats.without_examples === 0}
+                    className="flex-1 bg-chinese-red text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
+                  >
+                    ✨ สร้างตัวอย่าง ({exStats.without_examples} คำที่เหลือ)
+                  </button>
+                ) : (
+                  <button onClick={stopAll} className="flex-1 bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium">
+                    ⏹ หยุด
+                  </button>
+                )}
+                <button onClick={loadStats} disabled={running} className="px-3 border border-gray-200 rounded-lg text-sm text-gray-500 disabled:opacity-40">🔄</button>
+              </div>
+              {exStats.with_short_examples > 0 && (
+                <button
+                  onClick={runRegenShort}
+                  disabled={running}
+                  className="w-full mt-2 bg-amber-500 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
+                >
+                  🔧 Regen ตัวอย่างสั้นเกิน ({exStats.with_short_examples} คำ, &lt;10 ตัวอักษร)
+                </button>
+              )}
+              <button
+                onClick={wipeAll}
+                disabled={running}
+                className="w-full mt-2 border border-red-200 text-red-500 rounded-lg py-2 text-sm disabled:opacity-40"
+              >
+                🗑️ ลบตัวอย่างทั้งหมด (reset)
+              </button>
+            </>
+          ) : <p className="text-xs text-gray-400 mt-2">กำลังโหลด...</p>}
+        </div>
+      </Section>
+
+      {/* Regen by category */}
+      <Section title="Regen ตัวอย่างตามหมวด (ลบ+gen ใหม่)">
+        <div className="pt-3">
+          <p className="text-xs text-gray-400 mb-3">ใช้ logic ใหม่ — คำแพทย์/กฎหมาย/สำนวนที่ไม่ได้ใช้พูดจะได้ formal_0+formal_1 แทน conv</p>
+          <div className="flex gap-2 mb-3">
+            <select
+              value={regenCat}
+              onChange={(e) => setRegenCat(e.target.value)}
+              disabled={running}
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+            >
+              {REGEN_CATEGORIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <select
+              value={regenLimit}
+              onChange={(e) => setRegenLimit(Number(e.target.value))}
+              disabled={running}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+            >
+              {[10, 20, 30, 50].map((n) => (
+                <option key={n} value={n}>{n} คำ/รอบ</option>
+              ))}
+            </select>
+          </div>
+          {!running ? (
+            <button
+              onClick={runRegenByCategory}
+              disabled={running}
+              className="w-full bg-amber-500 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
+            >
+              🔁 Regen ตัวอย่างหมวด "{regenCat}"
+            </button>
+          ) : (
+            <button onClick={stopAll} className="w-full bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium">
+              ⏹ หยุด
+            </button>
+          )}
+        </div>
+      </Section>
 
       {/* Log */}
       {log.length > 0 && (

@@ -8,3 +8,5 @@ from .user_note import UserNote
 from .activity_log import ActivityLog
 from .subscription import UserSubscription
 from .speaking import SpeakingRecord
+from .app_setting import AppSetting
+from .word_image_cache import WordImageCache

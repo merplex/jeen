@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Body
 from pydantic import BaseModel
 from typing import Optional
@@ -12,6 +13,7 @@ from ..models.missed_search import MissedSearch
 from ..models.activity_log import ActivityLog
 from ..models.word_report import WordReport
 from ..models.search_history import SearchHistory
+from ..models.app_setting import AppSetting
 from ..schemas.word import WordOut, WordPendingOut, ActivityLogOut
 from ..auth import require_admin
 from ..models.user import User
@@ -841,6 +843,31 @@ def fix_long_english(
         db.commit()
 
     return {"found": len(bad_words), "fixed": fixed, "failed": failed}
+
+
+@router.get("/settings")
+def get_settings(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    rows = db.query(AppSetting).all()
+    result = {}
+    for row in rows:
+        try:
+            result[row.key] = json.loads(row.value)
+        except Exception:
+            result[row.key] = row.value
+    return result
+
+
+@router.put("/settings")
+def update_settings(data: dict = Body(...), db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    for key, value in data.items():
+        serialized = json.dumps(value, ensure_ascii=False)
+        row = db.query(AppSetting).filter(AppSetting.key == key).first()
+        if row:
+            row.value = serialized
+        else:
+            db.add(AppSetting(key=key, value=serialized))
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/activity-log", response_model=list[ActivityLogOut])

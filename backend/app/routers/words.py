@@ -1,4 +1,4 @@
-import re
+import re, json
 from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, Body
 from pypinyin.contrib.tone_convert import tone3_to_tone
@@ -8,6 +8,8 @@ from ..models.word import Word
 from ..models.activity_log import ActivityLog
 from ..models.word_report import WordReport
 from ..models.subscription import UserSubscription
+from ..models.app_setting import AppSetting
+from ..models.word_image_cache import WordImageCache
 from ..schemas.word import WordOut, WordCreate, WordUpdate
 from ..auth import require_admin, require_user
 from ..models.user import User
@@ -229,3 +231,73 @@ def delete_word(
     db.delete(word)
     db.commit()
     return {"ok": True}
+
+
+@router.get("/public-settings")
+def get_public_settings(db: Session = Depends(get_db)):
+    """Settings ที่ผู้ใช้ทั่วไปเห็นได้ (เช่น image_categories)"""
+    public_keys = ["image_categories"]
+    result = {}
+    for key in public_keys:
+        row = db.query(AppSetting).filter(AppSetting.key == key).first()
+        if row:
+            try:
+                result[key] = json.loads(row.value)
+            except Exception:
+                result[key] = row.value
+        else:
+            result[key] = [] if key == "image_categories" else None
+    return result
+
+
+@router.get("/{word_id}/image")
+def get_word_image(word_id: int, db: Session = Depends(get_db)):
+    """ดึง URL รูปภาพสำหรับคำศัพท์ (ใช้ Gemini + Wikipedia)"""
+    # ตรวจ cache ก่อน
+    cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
+    if cache is not None:
+        return {"url": cache.image_url}
+
+    word = db.query(Word).filter(Word.id == word_id).first()
+    if not word:
+        raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์")
+
+    from ..services.translate_service import _model, _has_api_key, _get_text
+    if not _has_api_key():
+        return {"url": None}
+
+    prompt = (
+        f"คำจีน: {word.chinese} ({word.pinyin})\n"
+        f"ความหมายไทย: {word.thai_meaning}\n"
+        f"English: {word.english_meaning or ''}\n\n"
+        "ช่วยระบุชื่อบทความ Wikipedia ภาษาอังกฤษที่เหมาะสมสำหรับคำนี้ "
+        "ที่น่าจะมีรูปภาพสวยงามและชัดเจน\n"
+        "ตอบเฉพาะชื่อบทความ Wikipedia เพียงอย่างเดียว ไม่มีคำอธิบายเพิ่มเติม\n"
+        "เช่น: Panda, Bamboo shoot, Fried rice, Great Wall of China\n"
+        "ถ้าคำนี้เป็นนามธรรมหรือไม่มีรูปที่เหมาะสม ตอบว่า: NONE"
+    )
+
+    try:
+        r = _model.generate_content(prompt)
+        wiki_title = _get_text(r).strip().strip('"').strip("'")
+
+        if not wiki_title or wiki_title.upper() == "NONE":
+            db.add(WordImageCache(word_id=word_id, image_url=None))
+            db.commit()
+            return {"url": None}
+
+        import httpx
+        resp = httpx.get(
+            f"https://en.wikipedia.org/api/rest_v1/page/summary/{wiki_title}",
+            headers={"User-Agent": "CTScanDict/1.0 (educational app)"},
+            timeout=10,
+        )
+        image_url = None
+        if resp.status_code == 200:
+            image_url = resp.json().get("thumbnail", {}).get("source")
+
+        db.add(WordImageCache(word_id=word_id, image_url=image_url))
+        db.commit()
+        return {"url": image_url}
+    except Exception:
+        return {"url": None}
