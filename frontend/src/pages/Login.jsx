@@ -28,7 +28,7 @@ export default function Login() {
     if (!Capacitor.isNativePlatform()) return
     const listener = App.addListener('appUrlOpen', async ({ url }) => {
       if (!url.startsWith('com.jeen.dictionary://line-callback')) return
-      await Browser.close()
+      try { await Browser.close() } catch {}
       const token = new URL(url).searchParams.get('token')
       if (!token) { setError('LINE Login ไม่สำเร็จ'); return }
       try {
@@ -46,7 +46,7 @@ export default function Login() {
 
   const handleLineLogin = async () => {
     if (Capacitor.isNativePlatform()) {
-      await Browser.open({ url: LINE_LOGIN_URL_NATIVE })
+      window.open(LINE_LOGIN_URL_NATIVE, '_system')
     } else {
       window.location.href = LINE_LOGIN_URL_WEB
     }
