@@ -86,7 +86,9 @@ def get_subscription_status(
 ):
     """ดู subscription status ของ user ที่ login อยู่"""
     sub = _get_active_sub(db, current_user.id)
-    return _sub_to_dict(sub)
+    result = _sub_to_dict(sub)
+    result["tier"] = current_user.tier
+    return result
 
 
 class VerifyPurchaseRequest(BaseModel):
@@ -126,6 +128,9 @@ def verify_purchase(
         expires_at=result.get("expires_at"),
     )
     db.add(sub)
+    # one_time purchase = lifetime tier
+    if body.purchase_type == "one_time":
+        current_user.tier = "lifetime"
     db.commit()
     db.refresh(sub)
     return _sub_to_dict(sub)
@@ -424,3 +429,64 @@ def admin_cancel_subscription(
     sub.cancelled_at = datetime.now(timezone.utc)
     db.commit()
     return {"ok": True}
+
+
+# ─── Tier management ──────────────────────────────────────────────────────────
+
+VALID_TIERS = {"reduser", "learner", "lifetime", "superuser"}
+
+
+class SetTierRequest(BaseModel):
+    identifier: str   # email หรือ LINE user ID
+    tier: str         # "reduser" | "learner" | "lifetime" | "superuser"
+    note: Optional[str] = None
+
+
+@router.post("/admin/users/set-tier")
+def admin_set_user_tier(
+    body: SetTierRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Admin กำหนด tier ให้ user ค้นหาจาก email หรือ LINE ID"""
+    if body.tier not in VALID_TIERS:
+        raise HTTPException(status_code=400, detail=f"tier ต้องเป็น {VALID_TIERS}")
+
+    user = db.query(User).filter(User.identifier == body.identifier.strip()).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="ไม่พบ user")
+
+    user.tier = body.tier
+    db.commit()
+    return {
+        "ok": True,
+        "user_id": user.id,
+        "display_name": user.display_name,
+        "identifier": user.identifier,
+        "tier": user.tier,
+    }
+
+
+@router.get("/admin/users/tiered")
+def admin_list_tiered_users(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Admin ดูรายชื่อ user ที่มี tier ไม่ใช่ reduser (manually managed)"""
+    users = (
+        db.query(User)
+        .filter(User.tier != "reduser")
+        .order_by(User.id.desc())
+        .all()
+    )
+    return [
+        {
+            "id": u.id,
+            "identifier": u.identifier,
+            "id_type": u.id_type,
+            "display_name": u.display_name,
+            "tier": u.tier,
+            "is_admin": u.is_admin,
+        }
+        for u in users
+    ]

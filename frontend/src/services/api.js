@@ -137,4 +137,8 @@ export const adminListSubscriptions = () => api.get('/admin/subscription/list')
 export const adminGrantSubscription = (data) => api.post('/admin/subscription/grant', data)
 export const adminCancelSubscription = (id) => api.patch(`/admin/subscription/${id}/cancel`)
 
+// Tier management
+export const adminSetUserTier = (data) => api.post('/admin/users/set-tier', data)
+export const adminListTieredUsers = () => api.get('/admin/users/tiered')
+
 export default api

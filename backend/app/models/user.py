@@ -14,6 +14,7 @@ class User(Base):
     id_type = Column(String(20))
     display_name = Column(String(100))
     is_admin = Column(Boolean, default=False)
+    tier = Column(String(20), default="reduser", nullable=False, server_default="reduser")
     report_flagged = Column(Boolean, default=False)
     password_hash = Column(String(200), nullable=True)
     created_at = Column(DateTime, default=_utcnow)
