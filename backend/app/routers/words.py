@@ -83,6 +83,23 @@ def _normalize_pinyin_key(s: str) -> str:
 router = APIRouter(prefix="/words", tags=["words"])
 
 
+@router.get("/public-settings")
+def get_public_settings(db: Session = Depends(get_db)):
+    """Settings ที่ผู้ใช้ทั่วไปเห็นได้ (เช่น image_categories)"""
+    public_keys = ["image_categories"]
+    result = {}
+    for key in public_keys:
+        row = db.query(AppSetting).filter(AppSetting.key == key).first()
+        if row:
+            try:
+                result[key] = json.loads(row.value)
+            except Exception:
+                result[key] = row.value
+        else:
+            result[key] = [] if key == "image_categories" else None
+    return result
+
+
 @router.get("/random")
 def get_random_words(
     limit: int = 30,
@@ -231,23 +248,6 @@ def delete_word(
     db.delete(word)
     db.commit()
     return {"ok": True}
-
-
-@router.get("/public-settings")
-def get_public_settings(db: Session = Depends(get_db)):
-    """Settings ที่ผู้ใช้ทั่วไปเห็นได้ (เช่น image_categories)"""
-    public_keys = ["image_categories"]
-    result = {}
-    for key in public_keys:
-        row = db.query(AppSetting).filter(AppSetting.key == key).first()
-        if row:
-            try:
-                result[key] = json.loads(row.value)
-            except Exception:
-                result[key] = row.value
-        else:
-            result[key] = [] if key == "image_categories" else None
-    return result
 
 
 @router.get("/{word_id}/image")
