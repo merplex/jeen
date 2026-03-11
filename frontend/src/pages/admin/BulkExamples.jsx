@@ -259,14 +259,14 @@ export default function BulkExamples() {
                 {imageCategories.includes(cat) && (
                   <button
                     onClick={async () => {
-                      if (!window.confirm(`ลบ cache รูปประกอบหมวด "${cat}" ทั้งหมด?`)) return
+                      if (!window.confirm(`ลบ cache รูปประกอบหมวด "${cat}" ทั้งหมด?\n\nครั้งถัดไปที่เปิดคำในหมวดนี้จะดึงรูปใหม่อัตโนมัติ`)) return
                       const r = await adminDeleteImageCache(cat)
-                      addLog(`🗑️ ลบ cache รูปหมวด "${cat}" แล้ว ${r.data.deleted} รายการ`)
+                      addLog(`ลบ cache รูปหมวด "${cat}" แล้ว ${r.data.deleted} รายการ`)
                     }}
-                    className="text-[10px] bg-chinese-red/80 text-white px-1.5 py-1.5 rounded-r-full border border-chinese-red border-l-0"
+                    className="text-xs bg-chinese-red/80 text-white px-2 py-1.5 rounded-r-full border border-chinese-red border-l-0 font-medium"
                     title={`ลบ cache รูปหมวด ${cat}`}
                   >
-                    🗑️
+                    ×
                   </button>
                 )}
               </div>
