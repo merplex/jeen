@@ -169,15 +169,20 @@ export default function WordDetail() {
 
   const highlightInText = (text, keyword, className = '') => {
     if (!text || !keyword) return <span className={className}>{text}</span>
-    const idx = text.indexOf(keyword)
-    if (idx === -1) return <span className={className}>{text}</span>
-    return (
-      <span className={className}>
-        {text.slice(0, idx)}
-        <span className="font-bold text-chinese-red">{text.slice(idx, idx + keyword.length)}</span>
-        {text.slice(idx + keyword.length)}
-      </span>
-    )
+    const parts = keyword.split(/[\n;]/).map(k => k.trim()).filter(Boolean)
+    for (const kw of parts) {
+      const idx = text.indexOf(kw)
+      if (idx !== -1) {
+        return (
+          <span className={className}>
+            {text.slice(0, idx)}
+            <span className="font-bold text-chinese-red">{text.slice(idx, idx + kw.length)}</span>
+            {text.slice(idx + kw.length)}
+          </span>
+        )
+      }
+    }
+    return <span className={className}>{text}</span>
   }
 
   if (!word) return (
@@ -379,7 +384,7 @@ export default function WordDetail() {
                               {ex.pinyin && <div className="text-sm text-gray-500">{ex.pinyin}</div>}
                               {ex.thai && (
                                 <div className="text-sm text-gray-700">
-                                  {highlightInText(ex.thai, word.thai_meaning.split('\n')[0].trim())}
+                                  {highlightInText(ex.thai, meaning)}
                                 </div>
                               )}
                             </div>
