@@ -46,11 +46,7 @@ export default function Login() {
 
   const handleLineLogin = async () => {
     if (Capacitor.isNativePlatform()) {
-      if (Capacitor.getPlatform() === 'ios') {
-        await Browser.open({ url: LINE_LOGIN_URL_NATIVE })
-      } else {
-        window.open(LINE_LOGIN_URL_NATIVE, '_system')
-      }
+      window.open(LINE_LOGIN_URL_NATIVE, '_system')
     } else {
       window.location.href = LINE_LOGIN_URL_WEB
     }
