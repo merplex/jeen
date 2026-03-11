@@ -7,7 +7,8 @@ import useAuthStore from '../stores/authStore'
 import { emailLogin, getMe } from '../services/api'
 
 const base = import.meta.env.VITE_API_URL || '/api'
-const LINE_LOGIN_URL = `${base}/auth/line?native=1`
+const LINE_LOGIN_URL_NATIVE = `${base}/auth/line?native=1`
+const LINE_LOGIN_URL_WEB = `${base}/auth/line`
 
 export default function Login() {
   const navigate = useNavigate()
@@ -30,20 +31,24 @@ export default function Login() {
       await Browser.close()
       const token = new URL(url).searchParams.get('token')
       if (!token) { setError('LINE Login ไม่สำเร็จ'); return }
-      localStorage.setItem('token', token)
-      useAuthStore.setState({ token })
-      const meRes = await getMe()
-      useAuthStore.setState({ user: meRes.data })
-      navigate('/', { replace: true })
+      try {
+        localStorage.setItem('token', token)
+        const meRes = await getMe()
+        useAuthStore.setState({ token, user: meRes.data })
+        navigate('/', { replace: true })
+      } catch {
+        localStorage.removeItem('token')
+        setError('LINE Login ไม่สำเร็จ กรุณาลองใหม่')
+      }
     })
     return () => { listener.then(l => l.remove()) }
   }, [])
 
   const handleLineLogin = async () => {
     if (Capacitor.isNativePlatform()) {
-      await Browser.open({ url: LINE_LOGIN_URL })
+      await Browser.open({ url: LINE_LOGIN_URL_NATIVE })
     } else {
-      window.location.href = LINE_LOGIN_URL
+      window.location.href = LINE_LOGIN_URL_WEB
     }
   }
 
