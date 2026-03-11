@@ -2,7 +2,7 @@ import httpx
 import random
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
@@ -104,7 +104,14 @@ def line_callback(code: str = None, state: str = None, error: str = None, db: Se
 
     jwt_token = create_token(user.id)
     if state == "jeen_login_native":
-        return RedirectResponse(f"com.jeen.dictionary://line-callback?token={jwt_token}")
+        deep_link = f"com.jeen.dictionary://line-callback?token={jwt_token}"
+        html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>กำลังกลับสู่แอป...</title></head>
+<body>
+<p style="font-family:sans-serif;text-align:center;margin-top:40px">กำลังกลับสู่แอป C-T Scan...</p>
+<script>window.location.href = "{deep_link}";</script>
+</body></html>"""
+        return HTMLResponse(html)
     return RedirectResponse(f"{frontend}/line-callback?token={jwt_token}")
 
 
