@@ -10,3 +10,4 @@ from .subscription import UserSubscription
 from .speaking import SpeakingRecord
 from .app_setting import AppSetting
 from .word_image_cache import WordImageCache
+from .user_favorite import UserFavorite

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, getPublicSettings, getWordImage } from '../services/api'
+import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, getPublicSettings, getWordImage, getFavoriteStatus, toggleFavorite } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import SelectionPopup from '../components/SelectionPopup'
@@ -37,6 +37,7 @@ export default function WordDetail() {
   const isPremium = user?.is_admin || subscription?.active === true
   const [imageCategories, setImageCategories] = useState([])
   const [wordImageUrl, setWordImageUrl] = useState(undefined) // undefined=ยังไม่โหลด, null=ไม่มีรูป
+  const [favorited, setFavorited] = useState(false)
 
   // redirect ถ้าไม่มี token
   useEffect(() => {
@@ -72,6 +73,12 @@ export default function WordDetail() {
       })
     }
   }, [id, user])
+
+  // โหลด favorite status
+  useEffect(() => {
+    if (!user || !word) return
+    getFavoriteStatus(word.id).then((r) => setFavorited(r.data.favorited)).catch(() => {})
+  }, [user, word?.id])
 
   // โหลดรูปภาพเมื่อ word โหลดแล้ว และ category อยู่ใน imageCategories
   useEffect(() => {
@@ -235,6 +242,18 @@ export default function WordDetail() {
                 className="text-yellow-300 text-xl leading-none"
               >
                 ⚠️
+              </button>
+            )}
+            {user && (
+              <button
+                onClick={async () => {
+                  const r = await toggleFavorite(word.id)
+                  setFavorited(r.data.favorited)
+                }}
+                title={favorited ? 'ลบจากคำโปรด' : 'เพิ่มในคำโปรด'}
+                className="text-2xl leading-none"
+              >
+                {favorited ? '⭐' : '☆'}
               </button>
             )}
             <button onClick={() => speak(word.chinese)} className="text-white text-2xl" title="ออกเสียง">

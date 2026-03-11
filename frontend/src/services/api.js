@@ -123,6 +123,14 @@ export const adminUpdateSettings = (data) => api.put('/admin/settings', data)
 export const getPublicSettings = () => api.get('/words/public-settings')
 export const getWordImage = (wordId) => api.get(`/words/${wordId}/image`)
 
+// Favorites
+export const getFavorites = () => api.get('/words/favorites')
+export const toggleFavorite = (wordId) => api.post(`/words/${wordId}/favorite`)
+export const getFavoriteStatus = (wordId) => api.get(`/words/${wordId}/favorite-status`)
+
+// Admin image cache
+export const adminDeleteImageCache = (category) => api.delete('/admin/image-cache', { params: { category } })
+
 // Word reports
 export const reportWord = (wordId, message) => api.post(`/words/${wordId}/report`, { message })
 export const adminGetWordReports = () => api.get('/admin/word-reports')

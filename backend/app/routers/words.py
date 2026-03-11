@@ -13,6 +13,7 @@ from ..models.word_image_cache import WordImageCache
 from ..schemas.word import WordOut, WordCreate, WordUpdate
 from ..auth import require_admin, require_user
 from ..models.user import User
+from ..models.user_favorite import UserFavorite
 from ..services.import_service import _gen_pinyin, _gen_pinyin_plain
 
 
@@ -81,6 +82,55 @@ def _normalize_pinyin_key(s: str) -> str:
     return ''.join(out)
 
 router = APIRouter(prefix="/words", tags=["words"])
+
+
+@router.get("/favorites")
+def get_favorites(db: Session = Depends(get_db), user: User = Depends(require_user)):
+    """ดึงรายการคำโปรด เรียงจากล่าสุด"""
+    rows = (
+        db.query(UserFavorite, Word)
+        .join(Word, Word.id == UserFavorite.word_id)
+        .filter(UserFavorite.user_id == user.id)
+        .order_by(UserFavorite.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "favorite_id": fav.id,
+            "word_id": word.id,
+            "chinese": word.chinese,
+            "pinyin": word.pinyin,
+            "thai_meaning": word.thai_meaning,
+            "category": word.category,
+            "favorited_at": fav.created_at,
+        }
+        for fav, word in rows
+    ]
+
+
+@router.post("/{word_id}/favorite")
+def toggle_favorite(word_id: int, db: Session = Depends(get_db), user: User = Depends(require_user)):
+    """toggle star — เพิ่ม/ลบจากคำโปรด"""
+    existing = db.query(UserFavorite).filter(
+        UserFavorite.user_id == user.id,
+        UserFavorite.word_id == word_id,
+    ).first()
+    if existing:
+        db.delete(existing)
+        db.commit()
+        return {"favorited": False}
+    db.add(UserFavorite(user_id=user.id, word_id=word_id))
+    db.commit()
+    return {"favorited": True}
+
+
+@router.get("/{word_id}/favorite-status")
+def favorite_status(word_id: int, db: Session = Depends(get_db), user: User = Depends(require_user)):
+    exists = db.query(UserFavorite).filter(
+        UserFavorite.user_id == user.id,
+        UserFavorite.word_id == word_id,
+    ).first()
+    return {"favorited": exists is not None}
 
 
 @router.get("/public-settings")

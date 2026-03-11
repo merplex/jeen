@@ -14,6 +14,7 @@ from ..models.activity_log import ActivityLog
 from ..models.word_report import WordReport
 from ..models.search_history import SearchHistory
 from ..models.app_setting import AppSetting
+from ..models.word_image_cache import WordImageCache
 from ..schemas.word import WordOut, WordPendingOut, ActivityLogOut
 from ..auth import require_admin
 from ..models.user import User
@@ -868,6 +869,16 @@ def update_settings(data: dict = Body(...), db: Session = Depends(get_db), _: Us
             db.add(AppSetting(key=key, value=serialized))
     db.commit()
     return {"ok": True}
+
+
+@router.delete("/image-cache")
+def delete_image_cache(category: str, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    """ลบ cache รูปภาพของคำในหมวดที่ระบุ"""
+    word_ids = db.query(Word.id).filter(Word.category == category).all()
+    word_ids = [w[0] for w in word_ids]
+    deleted = db.query(WordImageCache).filter(WordImageCache.word_id.in_(word_ids)).delete(synchronize_session=False)
+    db.commit()
+    return {"deleted": deleted, "category": category}
 
 
 @router.get("/activity-log", response_model=list[ActivityLogOut])

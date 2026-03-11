@@ -4,7 +4,7 @@ import {
   adminEnglishStats, adminBulkGenerateEnglish, adminFixLongEnglish,
   adminRegenExamplesByCategory, adminBulkRegenShortExamples,
   adminSingleEnglishStats, adminBulkRegenSingleEnglish,
-  adminGetSettings, adminUpdateSettings,
+  adminGetSettings, adminUpdateSettings, adminDeleteImageCache,
 } from '../../services/api'
 import { CATEGORIES } from '../../utils/categories'
 
@@ -245,17 +245,31 @@ export default function BulkExamples() {
           </p>
           <div className="flex flex-wrap gap-2 mb-4">
             {CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => toggleImageCategory(cat)}
-                className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
-                  imageCategories.includes(cat)
-                    ? 'bg-chinese-red text-white border-chinese-red'
-                    : 'border-gray-200 text-gray-500'
-                }`}
-              >
-                {cat}
-              </button>
+              <div key={cat} className="flex items-center">
+                <button
+                  onClick={() => toggleImageCategory(cat)}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
+                    imageCategories.includes(cat)
+                      ? 'bg-chinese-red text-white border-chinese-red rounded-r-none border-r-0'
+                      : 'border-gray-200 text-gray-500'
+                  }`}
+                >
+                  {cat}
+                </button>
+                {imageCategories.includes(cat) && (
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm(`ลบ cache รูปประกอบหมวด "${cat}" ทั้งหมด?`)) return
+                      const r = await adminDeleteImageCache(cat)
+                      addLog(`🗑️ ลบ cache รูปหมวด "${cat}" แล้ว ${r.data.deleted} รายการ`)
+                    }}
+                    className="text-[10px] bg-chinese-red/80 text-white px-1.5 py-1.5 rounded-r-full border border-chinese-red border-l-0"
+                    title={`ลบ cache รูปหมวด ${cat}`}
+                  >
+                    🗑️
+                  </button>
+                )}
+              </div>
             ))}
           </div>
           <button
