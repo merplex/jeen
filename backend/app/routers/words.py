@@ -520,8 +520,22 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
         db.add(WordImageCache(word_id=word_id, image_url=image_url))
         db.commit()
         return {"url": image_url}
-    except Exception:
-        return {"url": None}
+    except Exception as e:
+        return {"url": None, "error": str(e)}
+
+
+@router.get("/{word_id}/image/debug")
+def debug_word_image(word_id: int, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    """Debug: ดู food_info และ pool URLs โดยไม่แก้ cache"""
+    word = db.query(Word).filter(Word.id == word_id).first()
+    if not word:
+        raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์")
+    from ..services.translate_service import _model, _has_api_key, _get_text
+    if not _has_api_key():
+        return {"error": "no api key"}
+    food_info = _gemini_food_info(word, _model, _get_text)
+    pool = _build_image_pool(food_info, _model, _get_text, word, limit=5)
+    return {"word": word.chinese, "food_info": food_info, "pool_count": len(pool), "pool": pool}
 
 
 @router.post("/{word_id}/image/refresh")
