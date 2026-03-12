@@ -429,14 +429,18 @@ def _gemini_food_info(word, _model, _get_text) -> dict:
         f"English: {word.english_meaning or ''}\n\n"
         "วิเคราะห์คำนี้แล้วตอบในรูปแบบ JSON บรรทัดเดียว ไม่มี markdown:\n"
         '{"is_food":true/false,"origin":"chinese/thai/japanese/korean/french/italian/german/spanish/american/western/other/null",'
-        '"native_query":"search term ภาษาของประเทศนั้น เช่น 红烧肉 อาหาร ラーメン",'
+        '"native_query":"คำค้นหาภาษาของประเทศนั้น ที่คนประเทศนั้นพิมพ์ใน Pixabay เพื่อหารูปอาหารทั้งจาน",'
         '"en_query":"search term ภาษาอังกฤษ เช่น red braised pork belly dish",'
         '"wiki_article":"ชื่อบทความ Wikipedia ภาษาอังกฤษ หรือ null"}\n\n'
-        "กฎ:\n"
-        "- is_food=true เฉพาะอาหาร/เมนู/เครื่องดื่ม\n"
-        "- origin=null ถ้าไม่ใช่อาหาร\n"
-        "- native_query ใช้อักษรของประเทศนั้น: จีนใช้จีน ไทยใช้ไทย ญี่ปุ่นใช้ญี่ปุ่น\n"
-        "- ถ้าไม่ใช่อาหาร native_query และ en_query ให้เป็น search term ที่เหมาะสมหรือ null"
+        "กฎสำคัญสำหรับ native_query:\n"
+        "- อาหารจีน: ใช้ตัวอักษรจีนล้วนๆ เหมือนค้นบน pixabay.com/zh\n"
+        "  เช่น 红烧肉 → '红烧肉美食', 宫保鸡丁 → '宫保鸡丁', 火锅 → '火锅美食'\n"
+        "- อาหารไทย: ใช้ภาษาไทยล้วนๆ เช่น ผัดกะเพรา → 'ผัดกะเพราหมู', ต้มยำกุ้ง → 'ต้มยำกุ้ง'\n"
+        "- อาหารญี่ปุ่น: ใช้ภาษาญี่ปุ่น เช่น ラーメン, 寿司, 天ぷら\n"
+        "- อาหารเกาหลี: ใช้ภาษาเกาหลี เช่น 비빔밥, 김치찌개\n"
+        "- อาหารฝรั่งอื่นๆ: ใช้ภาษาอังกฤษ\n"
+        "- ไม่ใช่อาหาร: native_query คือชื่อสิ่งนั้นในภาษาที่เหมาะสม\n"
+        "- is_food=true เฉพาะอาหาร/เมนู/เครื่องดื่ม, origin=null ถ้าไม่ใช่อาหาร"
     )
     import json as _json
     r = _model.generate_content(prompt)
