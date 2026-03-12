@@ -620,11 +620,15 @@ export default function WordDetail() {
           className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
           onClick={() => setImagePopupOpen(false)}
         >
-          <div className="w-4/5 relative" onClick={(e) => e.stopPropagation()}>
+          {/* ขนาด 80% ของด้านที่สั้นกว่า (portrait → 80vw, landscape → 80vh) */}
+          <div
+            className="relative w-[80vw] h-[80vw] max-w-[80vh] max-h-[80vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
             <img
               src={wordImageUrl}
               alt={word.chinese}
-              className="w-full rounded-xl object-contain max-h-[80vh]"
+              className="w-full h-full rounded-xl object-contain"
             />
             <button
               onClick={handleRefreshImage}
