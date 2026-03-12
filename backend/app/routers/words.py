@@ -555,25 +555,26 @@ def _build_image_pool(word, _model, _get_text, limit: int = 15) -> tuple[list[st
         food_type = (info.get("food_type") or "dish").lower()
         fetch_fn = _fetch_spoonacular_ingredient_images if food_type == "ingredient" else _fetch_spoonacular_dish_images
 
-        # Spoonacular ค้นได้เฉพาะภาษาอังกฤษ — รวบรวม queries ที่ไม่มี CJK ไม่ซ้ำกัน
-        seen: set[str] = set()
-        en_queries: list[str] = []
-        for q in [info.get("en_query") or "", word.english_meaning or "", word.thai_meaning or ""]:
-            q = q.strip()
-            if q and not _has_cjk(q) and q not in seen:
-                seen.add(q)
-                en_queries.append(q)
+        # 1) Wikipedia ก่อน (ฟรี ไม่จำกัด มีรูปอาหารจีนสวย)
+        try:
+            pool = _wiki_fallback(word, info.get("wiki_article") or "", _model, _get_text)
+        except Exception:
+            pass
 
-        for q in en_queries:
-            if pool:
-                break
-            pool = fetch_fn(q, limit=limit)
-
+        # 2) ถ้า Wikipedia ไม่มีรูป → ลอง Spoonacular (English only, ไม่ส่ง CJK)
         if not pool:
-            try:
-                pool = _wiki_fallback(word, info.get("wiki_article") or "", _model, _get_text)
-            except Exception:
-                pass
+            seen: set[str] = set()
+            en_queries: list[str] = []
+            for q in [info.get("en_query") or "", word.english_meaning or "", word.thai_meaning or ""]:
+                q = q.strip()
+                if q and not _has_cjk(q) and q not in seen:
+                    seen.add(q)
+                    en_queries.append(q)
+            for q in en_queries:
+                if pool:
+                    break
+                pool = fetch_fn(q, limit=limit)
+
         return pool, info
 
     elif cat == "สถานที่":
