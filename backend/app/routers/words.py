@@ -601,12 +601,9 @@ def _download_image(url: str) -> bytes | None:
 
 @router.get("/{word_id}/image")
 def get_word_image(word_id: int, db: Session = Depends(get_db)):
-    """ดึง URL รูปภาพ — download เก็บ DB ทุก source, ลบอัตโนมัติถ้าไม่ถูกเข้าถึง 30 วัน"""
-    from datetime import datetime as _dt
+    """ดึง URL รูปภาพ — download เก็บ DB ทุก source"""
     cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
     if cache is not None:
-        cache.last_accessed_at = _dt.utcnow()
-        db.commit()
         if cache.image_data:
             return {"url": f"/words/{word_id}/image/blob"}
         return {"url": cache.image_url}
@@ -623,14 +620,6 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
         pool, _ = _build_image_pool(word, _model, _get_text, limit=5)
         raw_url = pool[0] if pool else None
         source = _detect_source(raw_url) if raw_url else None
-
-        image_data = _download_image(raw_url) if raw_url else None
-        if image_data:
-            db.add(WordImageCache(word_id=word_id, image_data=image_data, image_source=source))
-            db.commit()
-            return {"url": f"/words/{word_id}/image/blob"}
-
-        # download ไม่ได้ — เก็บแค่ URL เป็น fallback
         db.add(WordImageCache(word_id=word_id, image_url=raw_url, image_source=source))
         db.commit()
         return {"url": raw_url}
@@ -685,14 +674,7 @@ def refresh_word_image(word_id: int, db: Session = Depends(get_db), _: User = De
         _random.shuffle(candidates)
         raw_url = candidates[0]
         source = _detect_source(raw_url)
-
-        image_data = _download_image(raw_url)
         db.query(WordImageCache).filter(WordImageCache.word_id == word_id).delete()
-        if image_data:
-            db.add(WordImageCache(word_id=word_id, image_data=image_data, image_source=source))
-            db.commit()
-            return {"url": f"/words/{word_id}/image/blob"}
-
         db.add(WordImageCache(word_id=word_id, image_url=raw_url, image_source=source))
         db.commit()
         return {"url": raw_url}
