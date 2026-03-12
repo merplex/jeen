@@ -349,25 +349,28 @@ def _fetch_wiki_thumbnail(title: str) -> str | None:
     return None
 
 
-def _fetch_pixabay_images(query: str, limit: int = 15, lang: str = "en") -> list[str]:
+def _fetch_pixabay_images(query: str, limit: int = 15, lang: str = "en",
+                          category: str = "", editors_choice: bool = False) -> list[str]:
     """ดึงรูปจาก Pixabay API (รองรับ lang: en, zh, th, ja, ko, de, fr, es ฯลฯ)"""
     import httpx, os
     key = os.environ.get("PIXABAY_API_KEY", "")
     if not key:
         return []
+    params: dict = {
+        "key": key,
+        "q": query,
+        "image_type": "photo",
+        "per_page": min(max(limit, 3), 200),
+        "safesearch": "true",
+        "order": "popular",
+        "lang": lang,
+    }
+    if category:
+        params["category"] = category
+    if editors_choice:
+        params["editors_choice"] = "true"
     try:
-        resp = httpx.get(
-            "https://pixabay.com/api/",
-            params={
-                "key": key,
-                "q": query,
-                "image_type": "photo",
-                "per_page": limit,
-                "safesearch": "true",
-                "lang": lang,
-            },
-            timeout=10,
-        )
+        resp = httpx.get("https://pixabay.com/api/", params=params, timeout=10)
         if resp.status_code == 200:
             return [h["largeImageURL"] for h in resp.json().get("hits", []) if h.get("largeImageURL")]
     except Exception:
@@ -458,13 +461,20 @@ def _build_image_pool(food_info: dict, _model, _get_text, word, limit: int = 15)
     wiki_art = food_info.get("wiki_article") or ""
 
     lang_code, suffix = _FOOD_ORIGIN_LANG.get(origin, ("en", ""))
+    is_food = food_info.get("is_food", False)
+    pix_cat = "food" if is_food else ""
 
-    # Pixabay: native language query ก่อน
+    # Pixabay: native language query ก่อน (editors_choice เพื่อคุณภาพ)
     if native_q:
-        pool += _fetch_pixabay_images(native_q, limit=limit, lang=lang_code)
+        pool += _fetch_pixabay_images(native_q, limit=limit, lang=lang_code,
+                                      category=pix_cat, editors_choice=True)
+        # ถ้าได้น้อยเกินไป ลองไม่ editors_choice เพื่อเพิ่มจำนวน
+        if len(pool) < 3:
+            pool += _fetch_pixabay_images(native_q, limit=limit, lang=lang_code, category=pix_cat)
     # Pixabay: English query เสริม
     if en_q and len(pool) < limit:
-        pool += _fetch_pixabay_images(en_q, limit=limit - len(pool), lang="en")
+        pool += _fetch_pixabay_images(en_q, limit=limit - len(pool), lang="en",
+                                      category=pix_cat, editors_choice=True)
     # Unsplash fallback
     if len(pool) < 5 and en_q:
         pool += _fetch_unsplash_images(en_q, limit=limit)
