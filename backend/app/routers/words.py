@@ -349,21 +349,27 @@ def _fetch_wiki_thumbnail(title: str) -> str | None:
     return None
 
 
-def _fetch_pexels_images(query: str, limit: int = 15) -> list[str]:
-    """ดึงรูปจาก Pexels API"""
+def _fetch_pixabay_images(query: str, limit: int = 15, lang: str = "en") -> list[str]:
+    """ดึงรูปจาก Pixabay API (รองรับ lang: en, zh, th, ja, ko, de, fr, es ฯลฯ)"""
     import httpx, os
-    key = os.environ.get("PEXELS_API_KEY", "")
+    key = os.environ.get("PIXABAY_API_KEY", "")
     if not key:
         return []
     try:
         resp = httpx.get(
-            "https://api.pexels.com/v1/search",
-            params={"query": query, "per_page": limit, "orientation": "square"},
-            headers={"Authorization": key},
+            "https://pixabay.com/api/",
+            params={
+                "key": key,
+                "q": query,
+                "image_type": "photo",
+                "per_page": limit,
+                "safesearch": "true",
+                "lang": lang,
+            },
             timeout=10,
         )
         if resp.status_code == 200:
-            return [p["src"]["large"] for p in resp.json().get("photos", []) if p.get("src")]
+            return [h["largeImageURL"] for h in resp.json().get("hits", []) if h.get("largeImageURL")]
     except Exception:
         pass
     return []
@@ -389,26 +395,98 @@ def _fetch_unsplash_images(query: str, limit: int = 15) -> list[str]:
     return []
 
 
-def _gemini_image_query(word, _model, _get_text) -> str | None:
-    """ถาม Gemini ให้แนะนำ query สำหรับค้นหารูปอาหาร/สิ่งของ"""
+# mapping food origin → (pixabay lang code, native query suffix)
+_FOOD_ORIGIN_LANG = {
+    "chinese":   ("zh", "美食"),
+    "thai":      ("th", "อาหาร"),
+    "japanese":  ("ja", "料理"),
+    "korean":    ("ko", "요리"),
+    "french":    ("fr", "cuisine"),
+    "italian":   ("it", "cucina"),
+    "german":    ("de", "Gericht"),
+    "spanish":   ("es", "comida"),
+    "american":  ("en", "food dish"),
+    "western":   ("en", "food dish"),
+    "other":     ("en", "food dish"),
+}
+
+
+def _gemini_food_info(word, _model, _get_text) -> dict:
+    """
+    คืน dict:
+      is_food: bool
+      origin: str | None  — 'chinese'/'thai'/'japanese'/'korean'/'french'/'italian'/'german'/'spanish'/'american'/'western'/'other'
+      native_query: str   — search term ภาษาของประเทศนั้น
+      en_query: str       — search term ภาษาอังกฤษ
+      wiki_article: str   — ชื่อบทความ Wikipedia ภาษาอังกฤษ
+    """
     prompt = (
         f"คำจีน: {word.chinese} ({word.pinyin})\n"
         f"ความหมายไทย: {word.thai_meaning}\n"
         f"English: {word.english_meaning or ''}\n\n"
-        "ระบุ search query ภาษาอังกฤษที่เหมาะสมสำหรับค้นหารูปภาพสวยๆ ของคำนี้\n"
-        "ถ้าเป็นอาหาร: ใช้ชื่ออาหารภาษาอังกฤษ เช่น 'red braised pork belly', 'kung pao chicken', 'peking duck'\n"
-        "ถ้าเป็นสัตว์/สถานที่/สิ่งของ: ใช้ชื่อภาษาอังกฤษ\n"
-        "ถ้าเป็นนามธรรม/กริยา/คุณศัพท์ที่ไม่มีรูปชัดเจน: ตอบว่า NONE\n"
-        "ตอบเฉพาะ query เพียงอย่างเดียว ไม่มีคำอธิบาย"
+        "วิเคราะห์คำนี้แล้วตอบในรูปแบบ JSON บรรทัดเดียว ไม่มี markdown:\n"
+        '{"is_food":true/false,"origin":"chinese/thai/japanese/korean/french/italian/german/spanish/american/western/other/null",'
+        '"native_query":"search term ภาษาของประเทศนั้น เช่น 红烧肉 อาหาร ラーメン",'
+        '"en_query":"search term ภาษาอังกฤษ เช่น red braised pork belly dish",'
+        '"wiki_article":"ชื่อบทความ Wikipedia ภาษาอังกฤษ หรือ null"}\n\n'
+        "กฎ:\n"
+        "- is_food=true เฉพาะอาหาร/เมนู/เครื่องดื่ม\n"
+        "- origin=null ถ้าไม่ใช่อาหาร\n"
+        "- native_query ใช้อักษรของประเทศนั้น: จีนใช้จีน ไทยใช้ไทย ญี่ปุ่นใช้ญี่ปุ่น\n"
+        "- ถ้าไม่ใช่อาหาร native_query และ en_query ให้เป็น search term ที่เหมาะสมหรือ null"
     )
+    import json as _json
     r = _model.generate_content(prompt)
-    q = _get_text(r).strip().strip('"').strip("'")
-    return None if (not q or q.upper() == "NONE") else q
+    raw = _get_text(r).strip()
+    # strip markdown code block if present
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    try:
+        return _json.loads(raw.strip())
+    except Exception:
+        return {"is_food": False, "origin": None, "native_query": None, "en_query": None, "wiki_article": None}
+
+
+def _build_image_pool(food_info: dict, _model, _get_text, word, limit: int = 15) -> list[str]:
+    """รวม pool รูปจากทุกแหล่งตาม food_info"""
+    pool: list[str] = []
+    origin = (food_info.get("origin") or "other").lower()
+    native_q = food_info.get("native_query") or ""
+    en_q = food_info.get("en_query") or ""
+    wiki_art = food_info.get("wiki_article") or ""
+
+    lang_code, suffix = _FOOD_ORIGIN_LANG.get(origin, ("en", ""))
+
+    # Pixabay: native language query ก่อน
+    if native_q:
+        pool += _fetch_pixabay_images(native_q, limit=limit, lang=lang_code)
+    # Pixabay: English query เสริม
+    if en_q and len(pool) < limit:
+        pool += _fetch_pixabay_images(en_q, limit=limit - len(pool), lang="en")
+    # Unsplash fallback
+    if len(pool) < 5 and en_q:
+        pool += _fetch_unsplash_images(en_q, limit=limit)
+    # Wikipedia fallback สุดท้าย
+    if len(pool) < 3:
+        if wiki_art:
+            url = _fetch_wiki_thumbnail(wiki_art)
+            if url:
+                pool.append(url)
+        else:
+            titles = _gemini_wiki_articles(word, _model, _get_text, count=3)
+            for t in titles:
+                url = _fetch_wiki_thumbnail(t)
+                if url:
+                    pool.append(url)
+
+    return pool
 
 
 @router.get("/{word_id}/image")
 def get_word_image(word_id: int, db: Session = Depends(get_db)):
-    """ดึง URL รูปภาพ: Pexels → Unsplash → Wikipedia (fallback)"""
+    """ดึง URL รูปภาพ: Pixabay (native lang) → Unsplash → Wikipedia"""
     cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
     if cache is not None:
         return {"url": cache.image_url}
@@ -422,26 +500,9 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
         return {"url": None}
 
     try:
-        image_url = None
-
-        query = _gemini_image_query(word, _model, _get_text)
-        if query:
-            # ลอง Pexels ก่อน
-            pexels = _fetch_pexels_images(query, limit=5)
-            if pexels:
-                image_url = pexels[0]
-            else:
-                # ลอง Unsplash
-                unsplash = _fetch_unsplash_images(query, limit=5)
-                if unsplash:
-                    image_url = unsplash[0]
-
-        # fallback: Wikipedia
-        if not image_url:
-            titles = _gemini_wiki_articles(word, _model, _get_text, count=1)
-            if titles:
-                image_url = _fetch_wiki_thumbnail(titles[0])
-
+        food_info = _gemini_food_info(word, _model, _get_text)
+        pool = _build_image_pool(food_info, _model, _get_text, word, limit=5)
+        image_url = pool[0] if pool else None
         db.add(WordImageCache(word_id=word_id, image_url=image_url))
         db.commit()
         return {"url": image_url}
@@ -451,7 +512,7 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{word_id}/image/refresh")
 def refresh_word_image(word_id: int, db: Session = Depends(get_db), _: User = Depends(require_user)):
-    """สุ่มรูปใหม่ — pool จาก Pexels + Unsplash + Wikipedia รวมกัน"""
+    """สุ่มรูปใหม่ — pool จาก Pixabay (native) + Unsplash + Wikipedia"""
     import random as _random
 
     word = db.query(Word).filter(Word.id == word_id).first()
@@ -466,20 +527,8 @@ def refresh_word_image(word_id: int, db: Session = Depends(get_db), _: User = De
         cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
         current_url = cache.image_url if cache else None
 
-        query = _gemini_image_query(word, _model, _get_text)
-        pool: list[str] = []
-
-        if query:
-            pool += _fetch_pexels_images(query, limit=15)
-            pool += _fetch_unsplash_images(query, limit=15)
-
-        # เสริม Wikipedia ถ้า pool ยังน้อย
-        if len(pool) < 5:
-            titles = _gemini_wiki_articles(word, _model, _get_text, count=5)
-            for title in titles:
-                url = _fetch_wiki_thumbnail(title)
-                if url:
-                    pool.append(url)
+        food_info = _gemini_food_info(word, _model, _get_text)
+        pool = _build_image_pool(food_info, _model, _get_text, word, limit=20)
 
         if not pool:
             return {"url": None}
