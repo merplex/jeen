@@ -1,16 +1,27 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getHistory, deleteHistory, getFavorites, toggleFavorite } from '../services/api'
+import { getHistory, deleteHistory, getFavorites, toggleFavorite, addFlashcard } from '../services/api'
 import useAuthStore from '../stores/authStore'
+import useSubscriptionStore from '../stores/subscriptionStore'
 import { thaiDateTime } from '../utils/time'
 import TonedChinese from '../components/TonedChinese'
+
+const DECK_COLORS = {
+  1: 'border-chinese-red text-chinese-red',
+  2: 'border-blue-500 text-blue-500',
+  3: 'border-green-500 text-green-500',
+}
 
 export default function History() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
+  const { subscription } = useSubscriptionStore()
+  const isPremium = user?.is_admin || subscription?.active === true
   const [tab, setTab] = useState('history') // 'history' | 'favorites'
   const [history, setHistory] = useState([])
   const [favorites, setFavorites] = useState([])
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [addingDeck, setAddingDeck] = useState(null)
 
   useEffect(() => {
     if (!user) return
@@ -26,6 +37,28 @@ export default function History() {
   const unfavorite = async (wordId) => {
     await toggleFavorite(wordId)
     setFavorites((f) => f.filter((r) => r.word_id !== wordId))
+    setSelectedIds((s) => { const n = new Set(s); n.delete(wordId); return n })
+  }
+
+  const toggleSelect = (wordId) => {
+    setSelectedIds((s) => {
+      const n = new Set(s)
+      if (n.has(wordId)) n.delete(wordId)
+      else n.add(wordId)
+      return n
+    })
+  }
+
+  const addToFlashcard = async (deck) => {
+    if (selectedIds.size === 0) return
+    setAddingDeck(deck)
+    try {
+      await Promise.all([...selectedIds].map((wid) => addFlashcard(wid, deck)))
+      setSelectedIds(new Set())
+    } catch (e) {
+      alert(e.response?.data?.detail || 'เพิ่มไม่สำเร็จ')
+    }
+    setAddingDeck(null)
   }
 
   if (!user) return (
@@ -76,6 +109,26 @@ export default function History() {
             ⭐ คำโปรด
           </button>
         </div>
+        {/* +Flashcard buttons (favorites tab only) */}
+        {tab === 'favorites' && favorites.length > 0 && (
+          <div className="flex gap-2 mt-3">
+            {[1, 2, 3].map((deck) => {
+              const locked = deck > 1 && !isPremium
+              return (
+                <button
+                  key={deck}
+                  disabled={selectedIds.size === 0 || locked || addingDeck !== null}
+                  onClick={() => addToFlashcard(deck)}
+                  className={`flex-1 py-1.5 text-xs font-medium rounded border transition-all
+                    ${DECK_COLORS[deck]} bg-transparent
+                    disabled:opacity-40 active:scale-95`}
+                >
+                  {addingDeck === deck ? '...' : locked ? '🔒 ' : '+'}Flash card {deck}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       <div className="px-4 py-4">
@@ -115,30 +168,39 @@ export default function History() {
             <div className="text-center text-gray-400 py-16">ยังไม่มีคำโปรด<br /><span className="text-sm">กด ☆ ในหน้าคำศัพท์เพื่อเพิ่ม</span></div>
           ) : (
             <div className="space-y-2">
-              {favorites.map((f) => (
-                <div
-                  key={f.favorite_id}
-                  className="bg-white rounded-xl flex items-center gap-3 px-4 py-3 shadow-sm"
-                >
-                  <button
-                    className="flex-1 text-left"
-                    onClick={() => navigate(`/word/${f.word_id}`)}
+              {favorites.map((f) => {
+                const checked = selectedIds.has(f.word_id)
+                return (
+                  <div
+                    key={f.favorite_id}
+                    className={`bg-white rounded-xl flex items-center gap-3 px-3 py-3 shadow-sm transition-colors ${checked ? 'ring-2 ring-chinese-red' : ''}`}
                   >
-                    <TonedChinese chinese={f.chinese} pinyin={f.pinyin} className="font-medium text-gray-800 font-chinese" />
-                    <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">
-                      {f.thai_meaning.split('\n')[0]}
-                    </div>
-                    <div className="text-xs text-gray-400">{thaiDateTime(f.favorited_at)}</div>
-                  </button>
-                  <button
-                    onClick={() => unfavorite(f.word_id)}
-                    className="text-yellow-400 text-xl"
-                    title="ลบออกจากคำโปรด"
-                  >
-                    ⭐
-                  </button>
-                </div>
-              ))}
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleSelect(f.word_id)}
+                      className="w-4 h-4 accent-chinese-red flex-shrink-0 cursor-pointer"
+                    />
+                    <button
+                      className="flex-1 text-left min-w-0"
+                      onClick={() => navigate(`/word/${f.word_id}`)}
+                    >
+                      <TonedChinese chinese={f.chinese} pinyin={f.pinyin} className="font-medium text-gray-800 font-chinese" />
+                      <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">
+                        {f.thai_meaning.split('\n')[0]}
+                      </div>
+                      <div className="text-xs text-gray-400">{thaiDateTime(f.favorited_at)}</div>
+                    </button>
+                    <button
+                      onClick={() => unfavorite(f.word_id)}
+                      className="text-yellow-400 text-xl flex-shrink-0"
+                      title="ลบออกจากคำโปรด"
+                    >
+                      ⭐
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           )
         )}

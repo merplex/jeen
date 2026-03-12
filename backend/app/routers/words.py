@@ -351,3 +351,11 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
         return {"url": image_url}
     except Exception:
         return {"url": None}
+
+
+@router.post("/{word_id}/image/refresh")
+def refresh_word_image(word_id: int, db: Session = Depends(get_db), _: User = Depends(require_user)):
+    """สุ่มรูปใหม่ — ลบ cache เดิมแล้วดึงใหม่"""
+    db.query(WordImageCache).filter(WordImageCache.word_id == word_id).delete()
+    db.commit()
+    return get_word_image(word_id, db)

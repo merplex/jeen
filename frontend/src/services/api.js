@@ -122,6 +122,7 @@ export const adminUpdateSettings = (data) => api.put('/admin/settings', data)
 // Public settings (no auth)
 export const getPublicSettings = () => api.get('/words/public-settings')
 export const getWordImage = (wordId) => api.get(`/words/${wordId}/image`)
+export const refreshWordImage = (wordId) => api.post(`/words/${wordId}/image/refresh`)
 
 // Favorites
 export const getFavorites = () => api.get('/words/favorites')

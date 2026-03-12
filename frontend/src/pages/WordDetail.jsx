@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, getPublicSettings, getWordImage, getFavoriteStatus, toggleFavorite } from '../services/api'
+import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, getPublicSettings, getWordImage, refreshWordImage, getFavoriteStatus, toggleFavorite } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import SelectionPopup from '../components/SelectionPopup'
@@ -38,6 +38,8 @@ export default function WordDetail() {
   const [imageCategories, setImageCategories] = useState([])
   const [wordImageUrl, setWordImageUrl] = useState(undefined) // undefined=ยังไม่โหลด, null=ไม่มีรูป
   const [favorited, setFavorited] = useState(false)
+  const [imagePopupOpen, setImagePopupOpen] = useState(false)
+  const [imageRefreshing, setImageRefreshing] = useState(false)
 
   // redirect ถ้าไม่มี token
   useEffect(() => {
@@ -183,6 +185,20 @@ export default function WordDetail() {
       alert(e.response?.data?.detail || 'หาคำอังกฤษไม่สำเร็จ')
     }
     setGenEngLoading(false)
+  }
+
+  const handleRefreshImage = async (e) => {
+    e.stopPropagation()
+    if (imageRefreshing) return
+    setImageRefreshing(true)
+    setWordImageUrl(undefined)
+    try {
+      const r = await refreshWordImage(word.id)
+      setWordImageUrl(r.data.url || null)
+    } catch {
+      setWordImageUrl(null)
+    }
+    setImageRefreshing(false)
   }
 
   const speak = (text) => {
@@ -357,12 +373,23 @@ export default function WordDetail() {
                   {wordImageUrl === undefined ? (
                     <div className="w-full aspect-square rounded-lg bg-gray-100 animate-pulse" />
                   ) : wordImageUrl ? (
-                    <img
-                      src={wordImageUrl}
-                      alt={word.chinese}
-                      className="w-full aspect-square object-cover rounded-lg"
-                      onError={() => setWordImageUrl(null)}
-                    />
+                    <div className="relative">
+                      <img
+                        src={wordImageUrl}
+                        alt={word.chinese}
+                        className="w-full aspect-square object-cover rounded-lg cursor-pointer"
+                        onClick={() => setImagePopupOpen(true)}
+                        onError={() => setWordImageUrl(null)}
+                      />
+                      <button
+                        onClick={handleRefreshImage}
+                        disabled={imageRefreshing}
+                        className="absolute bottom-1 right-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded-md leading-none disabled:opacity-50"
+                        title="สุ่มรูปใหม่"
+                      >
+                        {imageRefreshing ? '...' : '🔄'}
+                      </button>
+                    </div>
                   ) : null}
                 </div>
               </div>
@@ -586,6 +613,35 @@ export default function WordDetail() {
           </div>
         )}
       </div>
+
+      {/* Image Popup */}
+      {imagePopupOpen && wordImageUrl && (
+        <div
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setImagePopupOpen(false)}
+        >
+          <div className="w-4/5 relative" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={wordImageUrl}
+              alt={word.chinese}
+              className="w-full rounded-xl object-contain max-h-[80vh]"
+            />
+            <button
+              onClick={handleRefreshImage}
+              disabled={imageRefreshing}
+              className="absolute top-2 right-2 bg-black/60 text-white text-sm px-2 py-1 rounded-lg disabled:opacity-50"
+            >
+              {imageRefreshing ? '...' : '🔄 สุ่มรูปใหม่'}
+            </button>
+            <button
+              onClick={() => setImagePopupOpen(false)}
+              className="absolute top-2 left-2 bg-black/60 text-white text-sm px-2 py-1 rounded-lg"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Report Modal */}
       {showReportModal && (
