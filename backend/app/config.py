@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str = ""
     EMAIL_FROM: str = "onboarding@resend.dev"
 
+    # Image APIs
+    SPOONACULAR_API_KEY: str = ""
+    GOOGLE_PLACES_API_KEY: str = ""
+    SHOWAPI_API_KEY: str = ""
+    SHOWAPI_ENDPOINT: str = ""
+
     # Subscription / IAP
     GOOGLE_PLAY_PACKAGE: str = ""          # เช่น "com.yourapp.dict"
     GOOGLE_SERVICE_ACCOUNT_JSON: str = ""  # JSON string ของ service account
