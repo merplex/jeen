@@ -545,7 +545,12 @@ def _build_image_pool(word, _model, _get_text, limit: int = 15) -> tuple[list[st
     cat = (word.category or "").strip()
 
     if cat == "อาหาร":
-        info = _gemini_food_info(word, _model, _get_text)
+        # ถ้า Gemini ล้มเหลว ใช้ข้อมูลจาก word โดยตรง
+        try:
+            info = _gemini_food_info(word, _model, _get_text)
+        except Exception:
+            info = {"food_type": "dish", "zh_query": word.chinese or "", "en_query": word.english_meaning or "", "wiki_article": None}
+
         pool: list[str] = []
         food_type = (info.get("food_type") or "dish").lower()
         zh_q = info.get("zh_query") or word.chinese or ""
@@ -560,15 +565,26 @@ def _build_image_pool(word, _model, _get_text, limit: int = 15) -> tuple[list[st
                 pool = fetch_fn(q, limit=limit)
 
         if not pool:
-            pool = _wiki_fallback(word, info.get("wiki_article") or "", _model, _get_text)
+            try:
+                pool = _wiki_fallback(word, info.get("wiki_article") or "", _model, _get_text)
+            except Exception:
+                pass
         return pool, info
 
     elif cat == "สถานที่":
-        info = _gemini_place_info(word, _model, _get_text)
+        # ถ้า Gemini ล้มเหลว ใช้ english_meaning หรือ chinese โดยตรง
+        try:
+            info = _gemini_place_info(word, _model, _get_text)
+        except Exception:
+            info = {"en_query": word.english_meaning or word.chinese or "", "wiki_article": None}
+
         en_q = info.get("en_query") or ""
         pool = _fetch_google_places_images(en_q, limit=limit) if en_q else []
         if len(pool) < 3:
-            pool += _wiki_fallback(word, info.get("wiki_article") or "", _model, _get_text)
+            try:
+                pool += _wiki_fallback(word, info.get("wiki_article") or "", _model, _get_text)
+            except Exception:
+                pass
         return pool, info
 
     else:
