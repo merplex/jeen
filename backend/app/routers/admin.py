@@ -399,6 +399,40 @@ def gemini_quota(_: User = Depends(require_admin)):
     }
 
 
+@router.get("/image-storage")
+def image_storage(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    """ดูพื้นที่ที่รูปใช้ใน DB (เฉพาะ Google Places ที่ download เก็บ)"""
+    from sqlalchemy import func
+    from ..models.word_image_cache import WordImageCache
+
+    LIMIT_MB = 600
+
+    row = db.execute(
+        __import__("sqlalchemy").text(
+            "SELECT COUNT(*) as cnt, COALESCE(SUM(octet_length(image_data)), 0) as total_bytes "
+            "FROM word_image_cache WHERE image_data IS NOT NULL"
+        )
+    ).fetchone()
+
+    total_bytes = int(row.total_bytes)
+    count = int(row.cnt)
+    used_mb = round(total_bytes / 1024 / 1024, 2)
+
+    by_source = db.execute(
+        __import__("sqlalchemy").text(
+            "SELECT image_source, COUNT(*) as cnt FROM word_image_cache GROUP BY image_source"
+        )
+    ).fetchall()
+
+    return {
+        "image_count": count,
+        "used_mb": used_mb,
+        "limit_mb": LIMIT_MB,
+        "used_percent": round(used_mb / LIMIT_MB * 100, 1),
+        "by_source": {r.image_source: r.cnt for r in by_source},
+    }
+
+
 @router.get("/examples-stats")
 def examples_stats(
     min_length: int = 10,

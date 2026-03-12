@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { adminMissed, adminDeleteMissed, adminClearSingleMissed, adminGetWordReports, adminDeleteWordReport } from '../../services/api'
+import { adminMissed, adminDeleteMissed, adminClearSingleMissed, adminGetWordReports, adminDeleteWordReport, adminGeminiQuota, adminImageStorage } from '../../services/api'
 import { thaiDateTime } from '../../utils/time'
 
 function detectLang(text) {
@@ -13,13 +13,24 @@ export default function MissedSearches() {
   const navigate = useNavigate()
   const [items, setItems] = useState([])
   const [reports, setReports] = useState([])
+  const [sysStatus, setSysStatus] = useState(null)
   const [clearingSingles, setClearingSingles] = useState(false)
-  const [tab, setTab] = useState('missed') // 'missed' | 'reports'
+  const [tab, setTab] = useState('missed') // 'missed' | 'reports' | 'system'
 
   useEffect(() => {
     adminMissed().then((r) => setItems(r.data))
     adminGetWordReports().then((r) => setReports(r.data))
   }, [])
+
+  const loadSystem = () => {
+    Promise.all([adminGeminiQuota(), adminImageStorage()]).then(([q, s]) => {
+      setSysStatus({ quota: q.data, storage: s.data })
+    })
+  }
+
+  useEffect(() => {
+    if (tab === 'system') loadSystem()
+  }, [tab])
 
   const handleDelete = async (id) => {
     await adminDeleteMissed(id)
@@ -64,7 +75,7 @@ export default function MissedSearches() {
   return (
     <div className="px-4 py-4">
       {/* Tabs */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-2 mb-4 flex-wrap">
         <button
           onClick={() => setTab('missed')}
           className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
@@ -80,6 +91,14 @@ export default function MissedSearches() {
           }`}
         >
           ⚠️ รายงาน ({reports.length})
+        </button>
+        <button
+          onClick={() => setTab('system')}
+          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            tab === 'system' ? 'bg-blue-500 text-white' : 'bg-white text-gray-600 border border-gray-200'
+          }`}
+        >
+          ระบบ
         </button>
       </div>
 
@@ -166,6 +185,74 @@ export default function MissedSearches() {
           ))}
           {reports.length === 0 && (
             <div className="text-center text-gray-400 py-12">ยังไม่มีรายงานคำศัพท์</div>
+          )}
+        </div>
+      )}
+
+      {tab === 'system' && (
+        <div className="space-y-4">
+          {!sysStatus ? (
+            <div className="text-center text-gray-400 py-12">กำลังโหลด...</div>
+          ) : (
+            <>
+              {/* Gemini Quota */}
+              <div className="bg-white rounded-2xl p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-medium text-gray-700">Gemini API (วันนี้)</h3>
+                  <button onClick={loadSystem} className="text-xs text-blue-400 border border-blue-200 rounded-lg px-2 py-1">รีเฟรช</button>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    { label: 'รายวัน', used: sysStatus.quota.daily_used, limit: sysStatus.quota.daily_limit },
+                    { label: 'รายชั่วโมง', used: sysStatus.quota.hourly_used, limit: sysStatus.quota.hourly_limit },
+                  ].map(({ label, used, limit }) => {
+                    const pct = Math.min((used / limit) * 100, 100)
+                    const color = pct > 80 ? 'bg-red-400' : pct > 50 ? 'bg-yellow-400' : 'bg-green-400'
+                    return (
+                      <div key={label}>
+                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                          <span>{label}</span>
+                          <span>{used} / {limit}</span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                {sysStatus.quota.example_queue_pending > 0 && (
+                  <p className="text-xs text-gray-400 mt-2">คิว gen ตัวอย่าง: {sysStatus.quota.example_queue_pending} คำรอ</p>
+                )}
+              </div>
+
+              {/* Image Storage */}
+              <div className="bg-white rounded-2xl p-4 shadow-sm">
+                <h3 className="font-medium text-gray-700 mb-3">พื้นที่รูปภาพใน DB</h3>
+                {(() => {
+                  const { used_mb, limit_mb, used_percent, image_count, by_source } = sysStatus.storage
+                  const color = used_percent > 80 ? 'bg-red-400' : used_percent > 50 ? 'bg-yellow-400' : 'bg-blue-400'
+                  return (
+                    <>
+                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                        <span>{image_count} รูป</span>
+                        <span>{used_mb} MB / {limit_mb} MB ({used_percent}%)</span>
+                      </div>
+                      <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-3">
+                        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${used_percent}%` }} />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(by_source || {}).map(([src, cnt]) => (
+                          <span key={src} className="text-xs bg-gray-100 text-gray-600 rounded-full px-2 py-0.5">
+                            {src || 'unknown'}: {cnt}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  )
+                })()}
+              </div>
+            </>
           )}
         </div>
       )}

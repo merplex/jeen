@@ -158,4 +158,8 @@ export const adminCancelSubscription = (id) => api.patch(`/admin/subscription/${
 export const adminSetUserTier = (data) => api.post('/admin/users/set-tier', data)
 export const adminListTieredUsers = () => api.get('/admin/users/tiered')
 
+// System status
+export const adminGeminiQuota = () => api.get('/admin/gemini-quota')
+export const adminImageStorage = () => api.get('/admin/image-storage')
+
 export default api

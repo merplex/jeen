@@ -1,6 +1,7 @@
 import re, json
 from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi.responses import Response
 from pypinyin.contrib.tone_convert import tone3_to_tone
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -576,11 +577,38 @@ def _build_image_pool(word, _model, _get_text, limit: int = 15) -> tuple[list[st
         return pool, {}
 
 
+def _detect_source(url: str) -> str:
+    if "googleapis.com/maps" in url:
+        return "google_places"
+    if "spoonacular" in url:
+        return "spoonacular"
+    if "wikimedia" in url or "wikipedia" in url:
+        return "wikipedia"
+    return "unknown"
+
+
+def _download_image(url: str) -> bytes | None:
+    """Download รูปจาก URL คืน bytes หรือ None ถ้าล้มเหลว"""
+    import httpx
+    try:
+        r = httpx.get(url, timeout=15, follow_redirects=True)
+        if r.status_code == 200 and r.headers.get("content-type", "").startswith("image"):
+            return r.content
+    except Exception:
+        pass
+    return None
+
+
 @router.get("/{word_id}/image")
 def get_word_image(word_id: int, db: Session = Depends(get_db)):
-    """ดึง URL รูปภาพตาม category: อาหาร→ShowAPI+Spoonacular, สถานที่→GooglePlaces, อื่นๆ→Wikipedia"""
+    """ดึง URL รูปภาพ — download เก็บ DB ทุก source, ลบอัตโนมัติถ้าไม่ถูกเข้าถึง 30 วัน"""
+    from datetime import datetime as _dt
     cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
     if cache is not None:
+        cache.last_accessed_at = _dt.utcnow()
+        db.commit()
+        if cache.image_data:
+            return {"url": f"/api/words/{word_id}/image/blob"}
         return {"url": cache.image_url}
 
     word = db.query(Word).filter(Word.id == word_id).first()
@@ -593,12 +621,30 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
 
     try:
         pool, _ = _build_image_pool(word, _model, _get_text, limit=5)
-        image_url = pool[0] if pool else None
-        db.add(WordImageCache(word_id=word_id, image_url=image_url))
+        raw_url = pool[0] if pool else None
+        source = _detect_source(raw_url) if raw_url else None
+
+        image_data = _download_image(raw_url) if raw_url else None
+        if image_data:
+            db.add(WordImageCache(word_id=word_id, image_data=image_data, image_source=source))
+            db.commit()
+            return {"url": f"/api/words/{word_id}/image/blob"}
+
+        # download ไม่ได้ — เก็บแค่ URL เป็น fallback
+        db.add(WordImageCache(word_id=word_id, image_url=raw_url, image_source=source))
         db.commit()
-        return {"url": image_url}
+        return {"url": raw_url}
     except Exception as e:
         return {"url": None, "error": str(e)}
+
+
+@router.get("/{word_id}/image/blob")
+def get_image_blob(word_id: int, db: Session = Depends(get_db)):
+    """เสิร์ฟรูปที่ download เก็บใน DB"""
+    cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
+    if not cache or not cache.image_data:
+        raise HTTPException(status_code=404, detail="ไม่มีรูปใน DB")
+    return Response(content=cache.image_data, media_type="image/jpeg")
 
 
 @router.get("/{word_id}/image/debug")

@@ -1,5 +1,6 @@
 import logging
 import time
+from datetime import datetime, timedelta
 from sqlalchemy import or_, select
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -7,6 +8,7 @@ from .database import SessionLocal
 from .models.word import Word
 from .models.example import Example
 from .models.activity_log import ActivityLog
+from .models.word_image_cache import WordImageCache
 from .services.translate_service import batch_generate_english, generate_examples_for_word
 
 logger = logging.getLogger(__name__)
@@ -96,10 +98,32 @@ def _job_gen_examples():
         db.close()
 
 
+def _job_purge_old_image_cache():
+    """ลบ image cache ที่ไม่ถูกเข้าถึงเกิน 30 วัน"""
+    db = SessionLocal()
+    try:
+        cutoff = datetime.utcnow() - timedelta(days=30)
+        deleted = (
+            db.query(WordImageCache)
+            .filter(
+                WordImageCache.last_accessed_at < cutoff
+            )
+            .delete(synchronize_session=False)
+        )
+        if deleted > 0:
+            db.commit()
+            logger.info(f"[scheduler:image_purge] ลบ {deleted} cache เก่า")
+    except Exception as e:
+        logger.error(f"[scheduler:image_purge] error: {e}")
+    finally:
+        db.close()
+
+
 def start_scheduler() -> BackgroundScheduler:
     scheduler = BackgroundScheduler(timezone="Asia/Bangkok")
     scheduler.add_job(_job_gen_english, "interval", minutes=5, id="gen_english", max_instances=1)
     scheduler.add_job(_job_gen_examples, "interval", minutes=15, id="gen_examples", max_instances=1)
+    scheduler.add_job(_job_purge_old_image_cache, "cron", hour=3, minute=0, id="image_purge", max_instances=1)
     scheduler.start()
-    logger.info("[scheduler] started — english every 5m, examples every 15m")
+    logger.info("[scheduler] started — english every 5m, examples every 15m, image purge daily 3am")
     return scheduler
