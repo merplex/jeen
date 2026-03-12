@@ -608,7 +608,7 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
         cache.last_accessed_at = _dt.utcnow()
         db.commit()
         if cache.image_data:
-            return {"url": f"/api/words/{word_id}/image/blob"}
+            return {"url": f"/words/{word_id}/image/blob"}
         return {"url": cache.image_url}
 
     word = db.query(Word).filter(Word.id == word_id).first()
@@ -628,7 +628,7 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
         if image_data:
             db.add(WordImageCache(word_id=word_id, image_data=image_data, image_source=source))
             db.commit()
-            return {"url": f"/api/words/{word_id}/image/blob"}
+            return {"url": f"/words/{word_id}/image/blob"}
 
         # download ไม่ได้ — เก็บแค่ URL เป็น fallback
         db.add(WordImageCache(word_id=word_id, image_url=raw_url, image_source=source))
@@ -683,11 +683,18 @@ def refresh_word_image(word_id: int, db: Session = Depends(get_db), _: User = De
 
         candidates = [u for u in pool if u != current_url] or pool
         _random.shuffle(candidates)
-        image_url = candidates[0]
+        raw_url = candidates[0]
+        source = _detect_source(raw_url)
 
+        image_data = _download_image(raw_url)
         db.query(WordImageCache).filter(WordImageCache.word_id == word_id).delete()
-        db.add(WordImageCache(word_id=word_id, image_url=image_url))
+        if image_data:
+            db.add(WordImageCache(word_id=word_id, image_data=image_data, image_source=source))
+            db.commit()
+            return {"url": f"/words/{word_id}/image/blob"}
+
+        db.add(WordImageCache(word_id=word_id, image_url=raw_url, image_source=source))
         db.commit()
-        return {"url": image_url}
+        return {"url": raw_url}
     except Exception:
         return {"url": None}

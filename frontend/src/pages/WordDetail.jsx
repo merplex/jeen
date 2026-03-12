@@ -91,8 +91,8 @@ export default function WordDetail() {
       .then((r) => {
         let url = r.data.url || null
         // blob path (/api/words/.../image/blob) ต้องเติม API base URL
-        if (url && url.startsWith('/api/')) {
-          const base = import.meta.env.VITE_API_URL || ''
+        if (url && url.startsWith('/')) {
+          const base = import.meta.env.VITE_API_URL || '/api'
           url = base + url
         }
         setWordImageUrl(url)
