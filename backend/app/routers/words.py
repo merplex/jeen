@@ -349,103 +349,99 @@ def _fetch_wiki_thumbnail(title: str) -> str | None:
     return None
 
 
-def _fetch_pixabay_images(query: str, limit: int = 15, lang: str = "en",
-                          category: str = "", editors_choice: bool = False) -> list[str]:
-    """ดึงรูปจาก Pixabay API (รองรับ lang: en, zh, th, ja, ko, de, fr, es ฯลฯ)"""
+def _fetch_showapi_food_images(query: str, limit: int = 10) -> list[str]:
+    """ดึงรูปจาก ShowAPI — ค้นด้วยคำจีน เหมาะกับอาหารจีน/เอเชีย
+    Endpoint: route.showapi.com/xxx-x (กำหนดใน SHOWAPI_ENDPOINT)
+    Response: {"showapi_res_body": {"contentlist": [{"pic": "url", ...}]}}
+    """
     import httpx, os
-    key = os.environ.get("PIXABAY_API_KEY", "")
-    if not key:
+    key = os.environ.get("SHOWAPI_API_KEY", "")
+    endpoint = os.environ.get("SHOWAPI_ENDPOINT", "")
+    if not key or not endpoint:
         return []
-    params: dict = {
-        "key": key,
-        "q": query,
-        "image_type": "photo",
-        "per_page": min(max(limit, 3), 200),
-        "safesearch": "true",
-        "order": "popular",
-        "lang": lang,
-    }
-    if category:
-        params["category"] = category
-    if editors_choice:
-        params["editors_choice"] = "true"
     try:
-        resp = httpx.get("https://pixabay.com/api/", params=params, timeout=10)
+        resp = httpx.get(
+            endpoint,
+            headers={"Authorization": f"APPCODE {key}"},
+            params={"name": query, "page": 1, "maxResult": limit},
+            timeout=10,
+        )
         if resp.status_code == 200:
-            return [h["largeImageURL"] for h in resp.json().get("hits", []) if h.get("largeImageURL")]
+            body = resp.json().get("showapi_res_body", {})
+            items = body.get("contentlist", [])
+            return [item["pic"] for item in items if item.get("pic")]
     except Exception:
         pass
     return []
 
 
-def _fetch_unsplash_images(query: str, limit: int = 15) -> list[str]:
-    """ดึงรูปจาก Unsplash API"""
+def _fetch_spoonacular_dish_images(query: str, limit: int = 10) -> list[str]:
+    """ดึงรูปจาก Spoonacular สำหรับเมนูอาหาร — รูปจะเห็นทั้งจาน"""
     import httpx, os
-    key = os.environ.get("UNSPLASH_ACCESS_KEY", "")
+    key = os.environ.get("SPOONACULAR_API_KEY", "")
     if not key:
         return []
     try:
         resp = httpx.get(
-            "https://api.unsplash.com/search/photos",
-            params={"query": query, "per_page": limit},
-            headers={"Authorization": f"Client-ID {key}"},
+            "https://api.spoonacular.com/recipes/complexSearch",
+            params={"query": query, "number": limit, "apiKey": key},
             timeout=10,
         )
         if resp.status_code == 200:
-            return [r["urls"]["regular"] for r in resp.json().get("results", []) if r.get("urls")]
+            return [r["image"] for r in resp.json().get("results", []) if r.get("image")]
     except Exception:
         pass
     return []
 
 
-# mapping food origin → (pixabay lang code, native query suffix)
-_FOOD_ORIGIN_LANG = {
-    "chinese":   ("zh", "美食"),
-    "thai":      ("th", "อาหาร"),
-    "japanese":  ("ja", "料理"),
-    "korean":    ("ko", "요리"),
-    "french":    ("fr", "cuisine"),
-    "italian":   ("it", "cucina"),
-    "german":    ("de", "Gericht"),
-    "spanish":   ("es", "comida"),
-    "american":  ("en", "food dish"),
-    "western":   ("en", "food dish"),
-    "other":     ("en", "food dish"),
-}
+def _fetch_spoonacular_ingredient_images(query: str, limit: int = 10) -> list[str]:
+    """ดึงรูปจาก Spoonacular สำหรับวัตถุดิบ (ผัก ผลไม้ ฯลฯ)"""
+    import httpx, os
+    key = os.environ.get("SPOONACULAR_API_KEY", "")
+    if not key:
+        return []
+    try:
+        resp = httpx.get(
+            "https://api.spoonacular.com/food/ingredients/search",
+            params={"query": query, "number": limit, "apiKey": key},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            return [
+                f"https://spoonacular.com/cdn/ingredients_500x500/{r['image']}"
+                for r in resp.json().get("results", []) if r.get("image")
+            ]
+    except Exception:
+        pass
+    return []
 
 
 def _gemini_food_info(word, _model, _get_text) -> dict:
     """
     คืน dict:
-      is_food: bool
-      origin: str | None  — 'chinese'/'thai'/'japanese'/'korean'/'french'/'italian'/'german'/'spanish'/'american'/'western'/'other'
-      native_query: str   — search term ภาษาของประเทศนั้น
-      en_query: str       — search term ภาษาอังกฤษ
-      wiki_article: str   — ชื่อบทความ Wikipedia ภาษาอังกฤษ
+      food_type: 'dish' | 'ingredient'  — dish=เมนูอาหาร, ingredient=วัตถุดิบ/ผัก/ผลไม้
+      zh_query: str   — search term ภาษาจีน (สำหรับ ShowAPI)
+      en_query: str   — search term ภาษาอังกฤษ (สำหรับ Spoonacular)
+      wiki_article: str — ชื่อบทความ Wikipedia ภาษาอังกฤษ
     """
     prompt = (
         f"คำจีน: {word.chinese} ({word.pinyin})\n"
         f"ความหมายไทย: {word.thai_meaning}\n"
         f"English: {word.english_meaning or ''}\n\n"
         "วิเคราะห์คำนี้แล้วตอบในรูปแบบ JSON บรรทัดเดียว ไม่มี markdown:\n"
-        '{"is_food":true/false,"origin":"chinese/thai/japanese/korean/french/italian/german/spanish/american/western/other/null",'
-        '"native_query":"คำค้นหาภาษาของประเทศนั้น ที่คนประเทศนั้นพิมพ์ใน Pixabay เพื่อหารูปอาหารทั้งจาน",'
-        '"en_query":"search term ภาษาอังกฤษ เช่น red braised pork belly dish",'
+        '{"food_type":"dish หรือ ingredient",'
+        '"zh_query":"คำค้นหาภาษาจีนสำหรับค้นรูปอาหาร เช่น 红烧肉美食, 苹果",'
+        '"en_query":"search term ภาษาอังกฤษ เช่น kung pao chicken dish, apple fruit",'
         '"wiki_article":"ชื่อบทความ Wikipedia ภาษาอังกฤษ หรือ null"}\n\n'
-        "กฎสำคัญสำหรับ native_query:\n"
-        "- อาหารจีน: ใช้ตัวอักษรจีนล้วนๆ เหมือนค้นบน pixabay.com/zh\n"
-        "  เช่น 红烧肉 → '红烧肉美食', 宫保鸡丁 → '宫保鸡丁', 火锅 → '火锅美食'\n"
-        "- อาหารไทย: ใช้ภาษาไทยล้วนๆ เช่น ผัดกะเพรา → 'ผัดกะเพราหมู', ต้มยำกุ้ง → 'ต้มยำกุ้ง'\n"
-        "- อาหารญี่ปุ่น: ใช้ภาษาญี่ปุ่น เช่น ラーメン, 寿司, 天ぷら\n"
-        "- อาหารเกาหลี: ใช้ภาษาเกาหลี เช่น 비빔밥, 김치찌개\n"
-        "- อาหารฝรั่งอื่นๆ: ใช้ภาษาอังกฤษ\n"
-        "- ไม่ใช่อาหาร: native_query คือชื่อสิ่งนั้นในภาษาที่เหมาะสม\n"
-        "- is_food=true เฉพาะอาหาร/เมนู/เครื่องดื่ม, origin=null ถ้าไม่ใช่อาหาร"
+        "กฎสำคัญ:\n"
+        "- food_type=dish: เมนูอาหารสำเร็จรูป/เครื่องดื่ม → รูปควรเห็นทั้งจาน\n"
+        "- food_type=ingredient: วัตถุดิบ/ผัก/ผลไม้/เนื้อดิบ → รูปแสดงวัตถุดิบนั้น\n"
+        "- zh_query: ใช้ตัวอักษรจีนล้วนๆ เช่น 红烧肉 → '红烧肉美食', 苹果 → '苹果'\n"
+        "- en_query: เหมาะสำหรับ Spoonacular เช่น 'kung pao chicken', 'apple'"
     )
     import json as _json
     r = _model.generate_content(prompt)
     raw = _get_text(r).strip()
-    # strip markdown code block if present
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
@@ -453,54 +449,132 @@ def _gemini_food_info(word, _model, _get_text) -> dict:
     try:
         return _json.loads(raw.strip())
     except Exception:
-        return {"is_food": False, "origin": None, "native_query": None, "en_query": None, "wiki_article": None}
+        return {"food_type": "dish", "zh_query": word.chinese, "en_query": word.english_meaning or "", "wiki_article": None}
 
 
-def _build_image_pool(food_info: dict, _model, _get_text, word, limit: int = 15) -> list[str]:
-    """รวม pool รูปจากทุกแหล่งตาม food_info"""
+def _gemini_place_info(word, _model, _get_text) -> dict:
+    """
+    คืน dict สำหรับหมวดสถานที่:
+      en_query: str   — ชื่อสถานที่ภาษาอังกฤษ (สำหรับ Google Places)
+      wiki_article: str — ชื่อบทความ Wikipedia ภาษาอังกฤษ
+    """
+    prompt = (
+        f"คำจีน: {word.chinese} ({word.pinyin})\n"
+        f"ความหมายไทย: {word.thai_meaning}\n"
+        f"English: {word.english_meaning or ''}\n\n"
+        "ตอบในรูปแบบ JSON บรรทัดเดียว ไม่มี markdown:\n"
+        '{"en_query":"ชื่อสถานที่ภาษาอังกฤษสำหรับค้น Google Places เช่น Great Wall of China, West Lake Hangzhou",'
+        '"wiki_article":"ชื่อบทความ Wikipedia ภาษาอังกฤษ หรือ null"}\n\n'
+        "กฎ: en_query ต้องเป็นชื่อเฉพาะของสถานที่ที่ค้นหาได้จริงบน Google Maps"
+    )
+    import json as _json
+    r = _model.generate_content(prompt)
+    raw = _get_text(r).strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    try:
+        return _json.loads(raw.strip())
+    except Exception:
+        return {"en_query": word.english_meaning or word.chinese, "wiki_article": None}
+
+
+def _fetch_google_places_images(query: str, limit: int = 5) -> list[str]:
+    """ดึงรูปจาก Google Places API Text Search → Photo Reference"""
+    import httpx, os
+    key = os.environ.get("GOOGLE_PLACES_API_KEY", "")
+    if not key:
+        return []
+    urls: list[str] = []
+    try:
+        resp = httpx.get(
+            "https://maps.googleapis.com/maps/api/place/textsearch/json",
+            params={"query": query, "key": key},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return []
+        for place in resp.json().get("results", [])[:3]:
+            for photo in place.get("photos", [])[:2]:
+                ref = photo.get("photo_reference")
+                if ref:
+                    urls.append(
+                        f"https://maps.googleapis.com/maps/api/place/photo"
+                        f"?maxwidth=800&photoreference={ref}&key={key}"
+                    )
+                    if len(urls) >= limit:
+                        return urls
+    except Exception:
+        pass
+    return urls
+
+
+def _wiki_fallback(word, wiki_art: str, _model, _get_text) -> list[str]:
+    """Wikipedia fallback — ใช้ร่วมกันทุก category"""
     pool: list[str] = []
-    origin = (food_info.get("origin") or "other").lower()
-    native_q = food_info.get("native_query") or ""
-    en_q = food_info.get("en_query") or ""
-    wiki_art = food_info.get("wiki_article") or ""
-
-    lang_code, suffix = _FOOD_ORIGIN_LANG.get(origin, ("en", ""))
-    is_food = food_info.get("is_food", False)
-    pix_cat = "food" if is_food else ""
-
-    # Pixabay: native language query ก่อน (editors_choice เพื่อคุณภาพ)
-    if native_q:
-        pool += _fetch_pixabay_images(native_q, limit=limit, lang=lang_code,
-                                      category=pix_cat, editors_choice=True)
-        # ถ้าได้น้อยเกินไป ลองไม่ editors_choice เพื่อเพิ่มจำนวน
-        if len(pool) < 3:
-            pool += _fetch_pixabay_images(native_q, limit=limit, lang=lang_code, category=pix_cat)
-    # Pixabay: English query เสริม
-    if en_q and len(pool) < limit:
-        pool += _fetch_pixabay_images(en_q, limit=limit - len(pool), lang="en",
-                                      category=pix_cat, editors_choice=True)
-    # Unsplash fallback
-    if len(pool) < 5 and en_q:
-        pool += _fetch_unsplash_images(en_q, limit=limit)
-    # Wikipedia fallback สุดท้าย
-    if len(pool) < 3:
-        if wiki_art:
-            url = _fetch_wiki_thumbnail(wiki_art)
+    if wiki_art:
+        url = _fetch_wiki_thumbnail(wiki_art)
+        if url:
+            pool.append(url)
+    if not pool:
+        titles = _gemini_wiki_articles(word, _model, _get_text, count=3)
+        for t in titles:
+            url = _fetch_wiki_thumbnail(t)
             if url:
                 pool.append(url)
-        else:
-            titles = _gemini_wiki_articles(word, _model, _get_text, count=3)
-            for t in titles:
-                url = _fetch_wiki_thumbnail(t)
-                if url:
-                    pool.append(url)
-
     return pool
+
+
+def _build_image_pool(word, _model, _get_text, limit: int = 15) -> tuple[list[str], dict]:
+    """
+    Entry point หลัก — แยก path ตาม word.category:
+      'อาหาร'   → ShowAPI (zh) + Spoonacular + Wikipedia
+      'สถานที่'  → Google Places + Wikipedia
+      อื่นๆ     → Wikipedia เท่านั้น
+    คืน (pool, info) โดย info คือข้อมูลจาก Gemini (สำหรับ debug)
+    """
+    cat = (word.category or "").strip()
+
+    if cat == "อาหาร":
+        info = _gemini_food_info(word, _model, _get_text)
+        pool: list[str] = []
+        food_type = (info.get("food_type") or "dish").lower()
+        zh_q = info.get("zh_query") or ""
+        en_q = info.get("en_query") or ""
+
+        if food_type == "ingredient":
+            if en_q:
+                pool += _fetch_spoonacular_ingredient_images(en_q, limit=limit)
+            if len(pool) < 3 and zh_q:
+                pool += _fetch_showapi_food_images(zh_q, limit=limit)
+        else:
+            if zh_q:
+                pool += _fetch_showapi_food_images(zh_q, limit=limit)
+            if len(pool) < 5 and en_q:
+                pool += _fetch_spoonacular_dish_images(en_q, limit=limit)
+
+        if len(pool) < 3:
+            pool += _wiki_fallback(word, info.get("wiki_article") or "", _model, _get_text)
+        return pool, info
+
+    elif cat == "สถานที่":
+        info = _gemini_place_info(word, _model, _get_text)
+        en_q = info.get("en_query") or ""
+        pool = _fetch_google_places_images(en_q, limit=limit) if en_q else []
+        if len(pool) < 3:
+            pool += _wiki_fallback(word, info.get("wiki_article") or "", _model, _get_text)
+        return pool, info
+
+    else:
+        # category อื่น: Wikipedia อย่างเดียว
+        pool = _wiki_fallback(word, "", _model, _get_text)
+        return pool, {}
 
 
 @router.get("/{word_id}/image")
 def get_word_image(word_id: int, db: Session = Depends(get_db)):
-    """ดึง URL รูปภาพ: Pixabay (native lang) → Unsplash → Wikipedia"""
+    """ดึง URL รูปภาพตาม category: อาหาร→ShowAPI+Spoonacular, สถานที่→GooglePlaces, อื่นๆ→Wikipedia"""
     cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
     if cache is not None:
         return {"url": cache.image_url}
@@ -514,8 +588,7 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
         return {"url": None}
 
     try:
-        food_info = _gemini_food_info(word, _model, _get_text)
-        pool = _build_image_pool(food_info, _model, _get_text, word, limit=5)
+        pool, _ = _build_image_pool(word, _model, _get_text, limit=5)
         image_url = pool[0] if pool else None
         db.add(WordImageCache(word_id=word_id, image_url=image_url))
         db.commit()
@@ -526,21 +599,20 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{word_id}/image/debug")
 def debug_word_image(word_id: int, db: Session = Depends(get_db), _: User = Depends(require_admin)):
-    """Debug: ดู food_info และ pool URLs โดยไม่แก้ cache"""
+    """Debug: ดู info จาก Gemini และ pool URLs โดยไม่แก้ cache"""
     word = db.query(Word).filter(Word.id == word_id).first()
     if not word:
         raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์")
     from ..services.translate_service import _model, _has_api_key, _get_text
     if not _has_api_key():
         return {"error": "no api key"}
-    food_info = _gemini_food_info(word, _model, _get_text)
-    pool = _build_image_pool(food_info, _model, _get_text, word, limit=5)
-    return {"word": word.chinese, "food_info": food_info, "pool_count": len(pool), "pool": pool}
+    pool, info = _build_image_pool(word, _model, _get_text, limit=5)
+    return {"word": word.chinese, "category": word.category, "info": info, "pool_count": len(pool), "pool": pool}
 
 
 @router.post("/{word_id}/image/refresh")
 def refresh_word_image(word_id: int, db: Session = Depends(get_db), _: User = Depends(require_user)):
-    """สุ่มรูปใหม่ — pool จาก Pixabay (native) + Unsplash + Wikipedia"""
+    """สุ่มรูปใหม่จาก pool ตาม category"""
     import random as _random
 
     word = db.query(Word).filter(Word.id == word_id).first()
@@ -555,9 +627,7 @@ def refresh_word_image(word_id: int, db: Session = Depends(get_db), _: User = De
         cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
         current_url = cache.image_url if cache else None
 
-        food_info = _gemini_food_info(word, _model, _get_text)
-        pool = _build_image_pool(food_info, _model, _get_text, word, limit=20)
-
+        pool, _ = _build_image_pool(word, _model, _get_text, limit=20)
         if not pool:
             return {"url": None}
 
