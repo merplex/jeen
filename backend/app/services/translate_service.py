@@ -1,9 +1,64 @@
 import json
+import threading
+from datetime import datetime
 import google.generativeai as genai
 from ..config import settings
 
 genai.configure(api_key=settings.GEMINI_API_KEY)
-_model = genai.GenerativeModel("gemini-2.0-flash")
+
+# ---- Gemini rate limiter: 900 calls/day, 40 calls/hour ----
+class _GeminiRateLimiter:
+    DAILY_LIMIT = 900
+    HOURLY_LIMIT = 40
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._daily = 0
+        self._hourly = 0
+        self._day = datetime.now().date()
+        self._hour = datetime.now().hour
+
+    def _reset_if_needed(self):
+        now = datetime.now()
+        if now.date() != self._day:
+            self._daily = 0
+            self._day = now.date()
+        if now.hour != self._hour:
+            self._hourly = 0
+            self._hour = now.hour
+
+    def acquire(self):
+        with self._lock:
+            self._reset_if_needed()
+            if self._daily >= self.DAILY_LIMIT:
+                raise RuntimeError(f"Gemini daily limit reached ({self.DAILY_LIMIT}/day) — ลองใหม่พรุ่งนี้")
+            if self._hourly >= self.HOURLY_LIMIT:
+                raise RuntimeError(f"Gemini hourly limit reached ({self.HOURLY_LIMIT}/hour) — ลองใหม่ชั่วโมงหน้า")
+            self._daily += 1
+            self._hourly += 1
+
+    def status(self):
+        with self._lock:
+            self._reset_if_needed()
+            return {
+                "daily_used": self._daily,
+                "daily_limit": self.DAILY_LIMIT,
+                "hourly_used": self._hourly,
+                "hourly_limit": self.HOURLY_LIMIT,
+            }
+
+_rate_limiter = _GeminiRateLimiter()
+
+class _RateLimitedModel:
+    """ครอบ GenerativeModel เพื่อ rate limit ทุก call อัตโนมัติ"""
+    def __init__(self, model):
+        self._model = model
+
+    def generate_content(self, *args, **kwargs):
+        _rate_limiter.acquire()
+        return self._model.generate_content(*args, **kwargs)
+
+_model = _RateLimitedModel(genai.GenerativeModel("gemini-2.0-flash"))
 
 
 def _has_api_key() -> bool:

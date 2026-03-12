@@ -388,6 +388,13 @@ def test_gemini(_: User = Depends(require_admin)):
         return {"ok": False, "error": str(e)}
 
 
+@router.get("/gemini-quota")
+def gemini_quota(_: User = Depends(require_admin)):
+    """ดู Gemini API usage ปัจจุบัน"""
+    from ..services.translate_service import _rate_limiter
+    return _rate_limiter.status()
+
+
 @router.get("/examples-stats")
 def examples_stats(
     min_length: int = 10,
