@@ -120,10 +120,10 @@ export default function History() {
                   disabled={selectedIds.size === 0 || locked || addingDeck !== null}
                   onClick={() => addToFlashcard(deck)}
                   className={`flex-1 py-1.5 text-xs font-medium rounded border transition-all
-                    ${DECK_COLORS[deck]} bg-transparent
+                    ${DECK_COLORS[deck]} bg-white
                     disabled:opacity-40 active:scale-95`}
                 >
-                  {addingDeck === deck ? '...' : locked ? '🔒 ' : '+'}Flash card {deck}
+                  {addingDeck === deck ? '...' : locked ? '🔒 ' : <><span className="font-black">+</span></>}Flash card {deck}
                 </button>
               )
             })}
