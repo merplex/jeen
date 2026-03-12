@@ -1,12 +1,15 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
+import { deleteAccount } from '../services/api'
 
 export default function Profile() {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
   const { subscription, fetch: fetchSub } = useSubscriptionStore()
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (user) fetchSub()
@@ -15,6 +18,18 @@ export default function Profile() {
   if (!user) { navigate('/login'); return null }
 
   const handleLogout = () => { logout(); navigate('/') }
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true)
+    try {
+      await deleteAccount()
+      logout()
+      navigate('/')
+    } catch {
+      alert('ลบบัญชีไม่สำเร็จ กรุณาลองใหม่')
+    }
+    setDeleting(false)
+  }
 
   const subBadge = () => {
     if (!subscription) return null
@@ -95,7 +110,42 @@ export default function Profile() {
         >
           ออกจากระบบ
         </button>
+
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          className="w-full text-gray-400 text-sm py-2"
+        >
+          ลบบัญชี
+        </button>
       </div>
+
+      {/* Delete confirm modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4">
+            <h3 className="font-bold text-gray-800">ลบบัญชี</h3>
+            <p className="text-sm text-gray-600">
+              ข้อมูลทั้งหมดของคุณจะถูกลบถาวร ได้แก่ ประวัติการค้นหา, flashcard, โน้ต และข้อมูลบัญชี
+            </p>
+            <p className="text-sm font-medium text-red-600">การดำเนินการนี้ไม่สามารถยกเลิกได้</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm text-gray-600"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className="flex-1 bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
+              >
+                {deleting ? 'กำลังลบ...' : 'ยืนยันลบบัญชี'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

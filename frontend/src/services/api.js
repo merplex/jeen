@@ -42,6 +42,7 @@ export const requestEmailOtp = (email) => api.post('/auth/email/request-otp', { 
 export const verifyEmailOtp = (email, otp) => api.post('/auth/email/verify-otp', { email, otp })
 export const emailSetPassword = (email, password, verify_token) => api.post('/auth/email/set-password', { email, password, verify_token })
 export const emailLogin = (email, password) => api.post('/auth/email/login', { email, password })
+export const deleteAccount = () => api.delete('/auth/account')
 export const getMe = () => api.get('/users/me')
 export const getHistory = () => api.get('/users/me/history')
 export const deleteHistory = (id) => api.delete(`/users/me/history/${id}`)

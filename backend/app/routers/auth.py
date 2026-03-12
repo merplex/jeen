@@ -8,7 +8,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.user import User
-from ..auth import create_token, create_verify_token, decode_verify_token
+from ..auth import create_token, create_verify_token, decode_verify_token, require_user
 from ..config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -227,6 +227,16 @@ def email_login(body: EmailLoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="อีเมลหรือรหัสผ่านไม่ถูกต้อง")
     jwt_token = create_token(user.id)
     return {"token": jwt_token, "user": {"id": user.id, "display_name": user.display_name, "is_admin": user.is_admin}}
+
+
+@router.delete("/account")
+def delete_account(db: Session = Depends(get_db), current_user: User = Depends(require_user)):
+    """ลบบัญชีและข้อมูลทั้งหมดของ user"""
+    if current_user.is_admin:
+        raise HTTPException(status_code=403, detail="ไม่สามารถลบบัญชี admin ได้")
+    db.delete(current_user)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/set-admin")
