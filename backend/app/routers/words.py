@@ -549,20 +549,25 @@ def _build_image_pool(word, _model, _get_text, limit: int = 15) -> tuple[list[st
         try:
             info = _gemini_food_info(word, _model, _get_text)
         except Exception:
-            info = {"food_type": "dish", "zh_query": word.chinese or "", "en_query": word.english_meaning or "", "wiki_article": None}
+            info = {"food_type": "dish", "zh_query": "", "en_query": word.english_meaning or "", "wiki_article": None}
 
         pool: list[str] = []
         food_type = (info.get("food_type") or "dish").lower()
-        zh_q = info.get("zh_query") or word.chinese or ""
-        en_q = info.get("en_query") or word.english_meaning or ""
-        th_q = word.thai_meaning or ""
-
         fetch_fn = _fetch_spoonacular_ingredient_images if food_type == "ingredient" else _fetch_spoonacular_dish_images
 
-        # ลองทีละภาษา: จีน → อังกฤษ → ไทย
-        for q in [zh_q, en_q, th_q]:
-            if q and not pool:
-                pool = fetch_fn(q, limit=limit)
+        # Spoonacular ค้นได้เฉพาะภาษาอังกฤษ — รวบรวม queries ที่ไม่มี CJK ไม่ซ้ำกัน
+        seen: set[str] = set()
+        en_queries: list[str] = []
+        for q in [info.get("en_query") or "", word.english_meaning or "", word.thai_meaning or ""]:
+            q = q.strip()
+            if q and not _has_cjk(q) and q not in seen:
+                seen.add(q)
+                en_queries.append(q)
+
+        for q in en_queries:
+            if pool:
+                break
+            pool = fetch_fn(q, limit=limit)
 
         if not pool:
             try:
@@ -591,6 +596,11 @@ def _build_image_pool(word, _model, _get_text, limit: int = 15) -> tuple[list[st
         # category อื่น: Wikipedia อย่างเดียว
         pool = _wiki_fallback(word, "", _model, _get_text)
         return pool, {}
+
+
+def _has_cjk(s: str) -> bool:
+    """ตรวจว่า string มีตัวอักษรจีน/ญี่ปุ่น/เกาหลีไหม"""
+    return any('\u4e00' <= c <= '\u9fff' or '\u3040' <= c <= '\u30ff' for c in s)
 
 
 def _detect_source(url: str) -> str:
@@ -692,16 +702,22 @@ def refresh_word_image(word_id: int, db: Session = Depends(get_db), _: User = De
         cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
         current_url = cache.image_url if cache else None
 
-        pool, _ = _build_image_pool(word, _model, _get_text, limit=20)
+        pool, _ = _build_image_pool(word, _model, _get_text, limit=10)
         if not pool:
             return {"url": None}
 
-        candidates = [u for u in pool if u != current_url] or pool
+        candidates = [u for u in pool if u != current_url]
+        if not candidates:
+            candidates = pool
         _random.shuffle(candidates)
         raw_url = candidates[0]
         source = _detect_source(raw_url)
-        db.query(WordImageCache).filter(WordImageCache.word_id == word_id).delete()
-        db.add(WordImageCache(word_id=word_id, image_url=raw_url, image_source=source))
+        if cache:
+            cache.image_url = raw_url
+            cache.image_data = None
+            cache.image_source = source
+        else:
+            db.add(WordImageCache(word_id=word_id, image_url=raw_url, image_source=source))
         db.commit()
         return {"url": raw_url}
     except Exception:
