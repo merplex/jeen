@@ -376,7 +376,7 @@ def _fetch_showapi_food_images(query: str, limit: int = 10) -> list[str]:
 
 
 def _fetch_spoonacular_dish_images(query: str, limit: int = 10) -> list[str]:
-    """ดึงรูปจาก Spoonacular สำหรับเมนูอาหาร — รูปจะเห็นทั้งจาน"""
+    """ดึงรูปจาก Spoonacular สำหรับเมนูอาหาร — รูปจะเห็นทั้งจาน (636x393)"""
     import httpx, os
     key = os.environ.get("SPOONACULAR_API_KEY", "")
     if not key:
@@ -388,7 +388,14 @@ def _fetch_spoonacular_dish_images(query: str, limit: int = 10) -> list[str]:
             timeout=10,
         )
         if resp.status_code == 200:
-            return [r["image"] for r in resp.json().get("results", []) if r.get("image")]
+            urls = []
+            for r in resp.json().get("results", []):
+                img = r.get("image", "")
+                if img:
+                    # เปลี่ยน thumbnail เล็ก → รูปใหญ่เต็มจาน
+                    img = img.replace("312x231", "636x393")
+                    urls.append(img)
+            return urls
     except Exception:
         pass
     return []
@@ -436,8 +443,8 @@ def _gemini_food_info(word, _model, _get_text) -> dict:
         "กฎสำคัญ:\n"
         "- food_type=dish: เมนูอาหารสำเร็จรูป/เครื่องดื่ม → รูปควรเห็นทั้งจาน\n"
         "- food_type=ingredient: วัตถุดิบ/ผัก/ผลไม้/เนื้อดิบ → รูปแสดงวัตถุดิบนั้น\n"
-        "- zh_query: ใช้ตัวอักษรจีนล้วนๆ เช่น 红烧肉 → '红烧肉美食', 苹果 → '苹果'\n"
-        "- en_query: เหมาะสำหรับ Spoonacular เช่น 'kung pao chicken', 'apple'"
+        "- zh_query: ชื่อจีนสำหรับค้นรูป เช่น '红烧肉', '苹果'\n"
+        "- en_query: ชื่ออังกฤษสำหรับ Spoonacular เช่น 'red braised pork', 'apple'"
     )
     import json as _json
     r = _model.generate_content(prompt)
@@ -540,22 +547,19 @@ def _build_image_pool(word, _model, _get_text, limit: int = 15) -> tuple[list[st
         info = _gemini_food_info(word, _model, _get_text)
         pool: list[str] = []
         food_type = (info.get("food_type") or "dish").lower()
-        zh_q = info.get("zh_query") or ""
-        en_q = info.get("en_query") or ""
+        zh_q = info.get("zh_query") or word.chinese or ""
+        en_q = info.get("en_query") or word.english_meaning or ""
+        th_q = word.thai_meaning or ""
 
-        if food_type == "ingredient":
-            if en_q:
-                pool += _fetch_spoonacular_ingredient_images(en_q, limit=limit)
-            if len(pool) < 3 and zh_q:
-                pool += _fetch_showapi_food_images(zh_q, limit=limit)
-        else:
-            if zh_q:
-                pool += _fetch_showapi_food_images(zh_q, limit=limit)
-            if len(pool) < 5 and en_q:
-                pool += _fetch_spoonacular_dish_images(en_q, limit=limit)
+        fetch_fn = _fetch_spoonacular_ingredient_images if food_type == "ingredient" else _fetch_spoonacular_dish_images
 
-        if len(pool) < 3:
-            pool += _wiki_fallback(word, info.get("wiki_article") or "", _model, _get_text)
+        # ลองทีละภาษา: จีน → อังกฤษ → ไทย
+        for q in [zh_q, en_q, th_q]:
+            if q and not pool:
+                pool = fetch_fn(q, limit=limit)
+
+        if not pool:
+            pool = _wiki_fallback(word, info.get("wiki_article") or "", _model, _get_text)
         return pool, info
 
     elif cat == "สถานที่":
