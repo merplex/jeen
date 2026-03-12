@@ -390,9 +390,13 @@ def test_gemini(_: User = Depends(require_admin)):
 
 @router.get("/gemini-quota")
 def gemini_quota(_: User = Depends(require_admin)):
-    """ดู Gemini API usage ปัจจุบัน"""
+    """ดู Gemini API usage + example queue status"""
     from ..services.translate_service import _rate_limiter
-    return _rate_limiter.status()
+    from ..services.example_queue import example_queue
+    return {
+        **_rate_limiter.status(),
+        "example_queue_pending": example_queue.size(),
+    }
 
 
 @router.get("/examples-stats")

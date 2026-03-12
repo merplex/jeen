@@ -1,5 +1,8 @@
 import re
+import logging
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 from pathlib import Path
 from sqlalchemy.orm import Session
 from pypinyin import pinyin, lazy_pinyin, Style
@@ -249,4 +252,17 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
             skipped += g["row_count"]
 
     db.commit()
+
+    # Enqueue verified words ที่ไม่มี examples ให้ gen ใน background
+    if verified > 0:
+        from ..services.example_queue import example_queue
+        from ..models.example import Example
+        new_words = db.query(Word).filter(
+            Word.status == "verified",
+            ~Word.id.in_(db.query(Example.word_id).distinct())
+        ).order_by(Word.id.desc()).limit(verified).all()
+        if new_words:
+            example_queue.enqueue_many([w.id for w in new_words])
+            logger.info(f"[import] enqueued {len(new_words)} words for example generation")
+
     return {"success": True, "verified": verified, "updated": updated, "pending": pending, "skipped": skipped, "updated_words": updated_words}
