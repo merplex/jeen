@@ -26,6 +26,7 @@ import Subscriptions from './pages/admin/Subscriptions'
 import OcrLive from './pages/OcrLive'
 import DownloadApp from './pages/DownloadApp'
 import PrivacyPolicy from './pages/PrivacyPolicy'
+import DeleteAccount from './pages/DeleteAccount'
 
 function AdminGuard({ children }) {
   const user = useAuthStore((s) => s.user)
@@ -83,6 +84,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/delete-account" element={<DeleteAccount />} />
         <Route path="/line-callback" element={<LineCallback />} />
         <Route path="/profile" element={<Profile />} />
         <Route

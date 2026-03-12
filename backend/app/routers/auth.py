@@ -231,10 +231,32 @@ def email_login(body: EmailLoginRequest, db: Session = Depends(get_db)):
 
 @router.delete("/account")
 def delete_account(db: Session = Depends(get_db), current_user: User = Depends(require_user)):
-    """ลบบัญชีและข้อมูลทั้งหมดของ user"""
+    """ลบบัญชีและข้อมูลทั้งหมด (ใช้จากในแอป — ต้องมี auth token)"""
     if current_user.is_admin:
         raise HTTPException(status_code=403, detail="ไม่สามารถลบบัญชี admin ได้")
     db.delete(current_user)
+    db.commit()
+    return {"ok": True}
+
+
+class DeleteByEmailRequest(BaseModel):
+    email: EmailStr
+    verify_token: str
+
+
+@router.post("/account/delete-by-email")
+def delete_account_by_email(body: DeleteByEmailRequest, db: Session = Depends(get_db)):
+    """ลบบัญชีด้วย email + verify_token (ใช้จากหน้าเว็บ /delete-account)"""
+    from pydantic import BaseModel as _BM
+    verified_email = decode_verify_token(body.verify_token)
+    if not verified_email or verified_email != body.email.lower():
+        raise HTTPException(status_code=400, detail="กรุณายืนยัน OTP ก่อน หรือ token หมดอายุแล้ว")
+    user = db.query(User).filter(User.identifier == verified_email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="ไม่พบบัญชีนี้ในระบบ")
+    if user.is_admin:
+        raise HTTPException(status_code=403, detail="ไม่สามารถลบบัญชี admin ได้")
+    db.delete(user)
     db.commit()
     return {"ok": True}
 
