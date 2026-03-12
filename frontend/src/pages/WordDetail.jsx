@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, getPublicSettings, getWordImage, refreshWordImage, getFavoriteStatus, toggleFavorite } from '../services/api'
+import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, getPublicSettings, getWordImage, refreshWordImage, uploadWordImage, getFavoriteStatus, toggleFavorite } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import SelectionPopup from '../components/SelectionPopup'
@@ -40,6 +40,7 @@ export default function WordDetail() {
   const [favorited, setFavorited] = useState(false)
   const [imagePopupOpen, setImagePopupOpen] = useState(false)
   const [imageRefreshing, setImageRefreshing] = useState(false)
+  const [imageUploading, setImageUploading] = useState(false)
 
   // redirect ถ้าไม่มี token
   useEffect(() => {
@@ -82,15 +83,16 @@ export default function WordDetail() {
     getFavoriteStatus(word.id).then((r) => setFavorited(r.data.favorited)).catch(() => {})
   }, [user, word?.id])
 
-  // โหลดรูปภาพเมื่อ word โหลดแล้ว และ category อยู่ใน imageCategories
+  // โหลดรูปภาพเมื่อ word โหลดแล้ว
+  // admin: โหลดทุก category, user ทั่วไป: เฉพาะ category ที่ตั้งไว้
   useEffect(() => {
-    if (!word || imageCategories.length === 0) return
-    if (!word.category || !imageCategories.includes(word.category)) return
+    if (!word) return
+    const isAdmin = user?.is_admin
+    if (!isAdmin && (imageCategories.length === 0 || !word.category || !imageCategories.includes(word.category))) return
     setWordImageUrl(undefined)
     getWordImage(word.id)
       .then((r) => {
         let url = r.data.url || null
-        // blob path (/api/words/.../image/blob) ต้องเติม API base URL
         if (url && url.startsWith('/')) {
           const base = import.meta.env.VITE_API_URL || '/api'
           url = base + url
@@ -98,7 +100,7 @@ export default function WordDetail() {
         setWordImageUrl(url)
       })
       .catch(() => setWordImageUrl(null))
-  }, [word?.id, imageCategories])
+  }, [word?.id, imageCategories, user?.is_admin])
 
   const toggleDeck = async (deck) => {
     if (!user) return navigate('/login')
@@ -212,6 +214,27 @@ export default function WordDetail() {
       setWordImageUrl(null)
     }
     setImageRefreshing(false)
+  }
+
+  const handleUploadImage = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImageUploading(true)
+    setWordImageUrl(undefined)
+    try {
+      const r = await uploadWordImage(word.id, file)
+      let url = r.data.url || null
+      if (url && url.startsWith('/')) {
+        const base = import.meta.env.VITE_API_URL || '/api'
+        url = base + url
+      }
+      setWordImageUrl(url)
+    } catch {
+      setWordImageUrl(null)
+      alert('อัปโหลดรูปไม่สำเร็จ')
+    }
+    setImageUploading(false)
+    e.target.value = ''
   }
 
   const speak = (text) => {
@@ -346,9 +369,10 @@ export default function WordDetail() {
               <span className="text-[10px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full font-medium">✓ แก้แล้ว</span>
             )}
           </div>
-          {/* layout: ถ้ามีรูป → 2/3 text + 1/3 image, ถ้าไม่มี → full width */}
+          {/* layout: ถ้ามีรูป (หรือ admin) → 2/3 text + 1/3 image, ถ้าไม่มี → full width */}
           {(() => {
-            const showImage = word.category && imageCategories.includes(word.category)
+            const isAdmin = user?.is_admin
+            const showImageSection = isAdmin || (word.category && imageCategories.includes(word.category))
             const textContent = (
               <>
                 <div className="mb-3">
@@ -378,12 +402,12 @@ export default function WordDetail() {
                 )}
               </>
             )
-            if (!showImage) return textContent
+            if (!showImageSection) return textContent
             return (
               <div className="flex gap-3 items-start">
                 <div className="flex-1 min-w-0">{textContent}</div>
                 <div className="w-1/3 flex-shrink-0">
-                  {wordImageUrl === undefined ? (
+                  {wordImageUrl === undefined || imageUploading ? (
                     <div className="w-full aspect-square rounded-lg bg-gray-100 animate-pulse" />
                   ) : wordImageUrl ? (
                     <div className="relative">
@@ -394,15 +418,19 @@ export default function WordDetail() {
                         onClick={() => setImagePopupOpen(true)}
                         onError={() => setWordImageUrl(null)}
                       />
-                      <button
-                        onClick={handleRefreshImage}
-                        disabled={imageRefreshing}
-                        className="absolute bottom-1 right-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded-md leading-none disabled:opacity-50"
-                        title="สุ่มรูปใหม่"
-                      >
-                        {imageRefreshing ? '...' : '🔄'}
-                      </button>
+                      {isAdmin && (
+                        <label className="absolute bottom-1 right-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded-md leading-none cursor-pointer" title="เปลี่ยนรูป">
+                          📷
+                          <input type="file" accept="image/*" className="hidden" onChange={handleUploadImage} />
+                        </label>
+                      )}
                     </div>
+                  ) : isAdmin ? (
+                    <label className="w-full aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-chinese-red transition-colors">
+                      <span className="text-2xl">📷</span>
+                      <span className="text-xs text-gray-400 mt-1">เพิ่มรูป</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={handleUploadImage} />
+                    </label>
                   ) : null}
                 </div>
               </div>
@@ -643,13 +671,12 @@ export default function WordDetail() {
               alt={word.chinese}
               className="w-full h-full rounded-xl object-contain"
             />
-            <button
-              onClick={handleRefreshImage}
-              disabled={imageRefreshing}
-              className="absolute top-2 right-2 bg-black/60 text-white text-sm px-2 py-1 rounded-lg disabled:opacity-50"
-            >
-              {imageRefreshing ? '...' : '🔄 สุ่มรูปใหม่'}
-            </button>
+            {user?.is_admin && (
+              <label className="absolute top-2 right-2 bg-black/60 text-white text-sm px-2 py-1 rounded-lg cursor-pointer">
+                📷 เปลี่ยนรูป
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => { setImagePopupOpen(false); handleUploadImage(e) }} />
+              </label>
+            )}
             <button
               onClick={() => setImagePopupOpen(false)}
               className="absolute top-2 left-2 bg-black/60 text-white text-sm px-2 py-1 rounded-lg"

@@ -1,6 +1,6 @@
 import re, json
 from datetime import date, datetime
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, UploadFile, File
 from fastapi.responses import Response
 from pypinyin.contrib.tone_convert import tone3_to_tone
 from sqlalchemy.orm import Session
@@ -675,6 +675,57 @@ def get_image_blob(word_id: int, db: Session = Depends(get_db)):
     if not cache or not cache.image_data:
         raise HTTPException(status_code=404, detail="ไม่มีรูปใน DB")
     return Response(content=cache.image_data, media_type="image/jpeg")
+
+
+@router.post("/{word_id}/image/upload")
+def upload_word_image(
+    word_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Admin อัปโหลดรูปเอง — center crop → square → JPEG ≤300KB"""
+    import io
+    from PIL import Image
+
+    MAX_BYTES = 300 * 1024  # 300KB
+
+    raw = file.file.read()
+    try:
+        img = Image.open(io.BytesIO(raw)).convert("RGB")
+    except Exception:
+        raise HTTPException(status_code=400, detail="ไฟล์รูปไม่ถูกต้อง")
+
+    # center crop → square
+    w, h = img.size
+    side = min(w, h)
+    left = (w - side) // 2
+    top = (h - side) // 2
+    img = img.crop((left, top, left + side, top + side))
+
+    # resize ถ้าใหญ่เกิน 800px
+    if side > 800:
+        img = img.resize((800, 800), Image.LANCZOS)
+
+    # compress จนได้ ≤300KB
+    quality = 85
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=quality, optimize=True)
+    while buf.tell() > MAX_BYTES and quality > 30:
+        quality -= 10
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality, optimize=True)
+    image_bytes = buf.getvalue()
+
+    cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
+    if cache:
+        cache.image_data = image_bytes
+        cache.image_url = None
+        cache.image_source = "admin_upload"
+    else:
+        db.add(WordImageCache(word_id=word_id, image_data=image_bytes, image_url=None, image_source="admin_upload"))
+    db.commit()
+    return {"url": f"/words/{word_id}/image/blob"}
 
 
 @router.get("/{word_id}/image/debug")

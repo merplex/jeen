@@ -123,6 +123,11 @@ export const adminUpdateSettings = (data) => api.put('/admin/settings', data)
 export const getPublicSettings = () => api.get('/words/public-settings')
 export const getWordImage = (wordId) => api.get(`/words/${wordId}/image`)
 export const refreshWordImage = (wordId) => api.post(`/words/${wordId}/image/refresh`)
+export const uploadWordImage = (wordId, file) => {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post(`/words/${wordId}/image/upload`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+}
 
 // Favorites
 export const getFavorites = () => api.get('/words/favorites')
