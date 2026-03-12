@@ -300,69 +300,58 @@ def delete_word(
     return {"ok": True}
 
 
-def _gemini_image_search_term(word, _model, _get_text) -> str | None:
-    """ถาม Gemini ให้แนะนำ search term สำหรับค้นหารูปใน Wikimedia Commons"""
+def _gemini_wiki_articles(word, _model, _get_text, count: int = 1) -> list[str]:
+    """ถาม Gemini ให้แนะนำชื่อบทความ Wikipedia ภาษาอังกฤษ"""
+    count_th = "1 ชื่อ" if count == 1 else f"{count} ชื่อที่แตกต่างกัน"
+    sep = "" if count == 1 else f"ตอบเป็นชื่อบทความ {count} ชื่อ คั่นด้วย | เท่านั้น ไม่มีคำอธิบาย\n"
     prompt = (
         f"คำจีน: {word.chinese} ({word.pinyin})\n"
         f"ความหมายไทย: {word.thai_meaning}\n"
         f"English: {word.english_meaning or ''}\n\n"
-        "ช่วยระบุ search term ภาษาอังกฤษที่ดีที่สุดสำหรับค้นหารูปภาพของคำนี้ใน Wikimedia Commons\n"
-        "ตอบเฉพาะ search term เพียงอย่างเดียว ไม่มีคำอธิบายเพิ่มเติม\n"
-        "ถ้าเป็นอาหารหรือเมนูอาหาร ให้ใช้ชื่ออาหารภาษาอังกฤษ + 'Chinese food' เช่น:\n"
-        "  红烧肉 → 'Red braised pork belly Chinese food'\n"
-        "  宫保鸡丁 → 'Kung Pao chicken dish'\n"
-        "  炒饭 → 'Chinese fried rice dish'\n"
-        "ถ้าเป็นสัตว์ ใช้ชื่อสัตว์ภาษาอังกฤษ เช่น 'Giant panda'\n"
-        "ถ้าเป็นสถานที่ ใช้ชื่อสถานที่ภาษาอังกฤษ\n"
-        "ถ้าคำนี้เป็นนามธรรมหรือคำกริยา/คำคุณศัพท์ที่ไม่มีรูปชัดเจน ตอบว่า: NONE"
+        f"ระบุชื่อบทความ Wikipedia ภาษาอังกฤษ {count_th} ที่มีรูปภาพสวยงามชัดเจนสำหรับคำนี้\n"
+        f"{sep}"
+        "กฎสำคัญ:\n"
+        "- ถ้าเป็นอาหาร/เมนูอาหาร: ให้ระบุชื่อบทความอาหารนั้นโดยตรง เช่น\n"
+        "    红烧肉 → Red-braised pork\n"
+        "    宫保鸡丁 → Kung Pao chicken\n"
+        "    北京烤鸭 → Peking duck\n"
+        "    饺子 → Jiaozi\n"
+        "    火锅 → Hot pot\n"
+        "    炒饭 → Fried rice\n"
+        "    汤圆 → Tangyuan\n"
+        "- ถ้าเป็นสัตว์: ชื่อสัตว์ภาษาอังกฤษ เช่น Giant panda, Siberian tiger\n"
+        "- ถ้าเป็นสถานที่: ชื่อสถานที่ เช่น Great Wall of China, West Lake\n"
+        "- ถ้าคำนี้เป็นนามธรรม/กริยา/คุณศัพท์ที่ไม่มีรูปชัดเจน: ตอบว่า NONE\n"
+        "ตอบเฉพาะชื่อบทความเท่านั้น ห้ามมีคำอธิบาย"
     )
     r = _model.generate_content(prompt)
-    term = _get_text(r).strip().strip('"').strip("'")
-    return None if (not term or term.upper() == "NONE") else term
+    raw = _get_text(r).strip()
+    if not raw or raw.upper() == "NONE":
+        return []
+    titles = [t.strip().strip('"').strip("'") for t in raw.split('|') if t.strip()]
+    return [t for t in titles if t and t.upper() != "NONE"]
 
 
-def _search_commons_images(search_term: str, limit: int = 20) -> list[str]:
-    """ค้นหารูปจาก Wikimedia Commons — คืน list ของ URL รูปภาพ (กรอง SVG/GIF ออก)"""
+def _fetch_wiki_thumbnail(title: str) -> str | None:
+    """ดึง thumbnail รูปนำบทความจาก Wikipedia — รูปที่บรรณาธิการเลือกมาแล้วว่าดีที่สุด"""
     import httpx
-    _BAD_EXT = ('.svg', '.gif', '.pdf', '.tif', '.tiff', '.ogg', '.ogv', '.webm', '.mp4', '.wav', '.flac')
     try:
         resp = httpx.get(
-            "https://commons.wikimedia.org/w/api.php",
-            params={
-                "action": "query",
-                "generator": "search",
-                "gsrnamespace": "6",
-                "gsrsearch": search_term,
-                "gsrlimit": str(limit),
-                "prop": "imageinfo",
-                "iiprop": "url",
-                "iiurlwidth": "600",
-                "format": "json",
-            },
+            f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}",
             headers={"User-Agent": "CTScanDict/1.0 (educational app)"},
-            timeout=15,
+            timeout=10,
         )
-        if resp.status_code != 200:
-            return []
-        pages = resp.json().get("query", {}).get("pages", {})
-        urls = []
-        for page in pages.values():
-            title = page.get("title", "").lower()
-            if any(title.endswith(ext) for ext in _BAD_EXT):
-                continue
-            ii = page.get("imageinfo", [])
-            if ii:
-                url = ii[0].get("thumburl") or ii[0].get("url")
-                if url and not url.lower().endswith('.svg'):
-                    urls.append(url)
-        return urls
+        if resp.status_code == 200:
+            return resp.json().get("originalimage", {}).get("source") \
+                or resp.json().get("thumbnail", {}).get("source")
     except Exception:
-        return []
+        pass
+    return None
 
 
 @router.get("/{word_id}/image")
 def get_word_image(word_id: int, db: Session = Depends(get_db)):
-    """ดึง URL รูปภาพสำหรับคำศัพท์ (ใช้ Gemini + Wikimedia Commons)"""
+    """ดึง URL รูปภาพสำหรับคำศัพท์ (Gemini → Wikipedia thumbnail)"""
     cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
     if cache is not None:
         return {"url": cache.image_url}
@@ -376,12 +365,8 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
         return {"url": None}
 
     try:
-        term = _gemini_image_search_term(word, _model, _get_text)
-        image_url = None
-        if term:
-            urls = _search_commons_images(term, limit=20)
-            image_url = urls[0] if urls else None
-
+        titles = _gemini_wiki_articles(word, _model, _get_text, count=1)
+        image_url = _fetch_wiki_thumbnail(titles[0]) if titles else None
         db.add(WordImageCache(word_id=word_id, image_url=image_url))
         db.commit()
         return {"url": image_url}
@@ -391,7 +376,7 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{word_id}/image/refresh")
 def refresh_word_image(word_id: int, db: Session = Depends(get_db), _: User = Depends(require_user)):
-    """สุ่มรูปใหม่ — ค้นหาจาก Wikimedia Commons แล้วสุ่มจาก pool"""
+    """สุ่มรูปใหม่ — Gemini แนะนำ 5 บทความ Wikipedia สุ่มเลือก หลีกเลี่ยงรูปเดิม"""
     import random as _random
 
     word = db.query(Word).filter(Word.id == word_id).first()
@@ -403,23 +388,22 @@ def refresh_word_image(word_id: int, db: Session = Depends(get_db), _: User = De
         return {"url": None}
 
     try:
-        term = _gemini_image_search_term(word, _model, _get_text)
-        if not term:
-            return {"url": None}
-
-        urls = _search_commons_images(term, limit=20)
-        if not urls:
-            return {"url": None}
-
-        # หลีกเลี่ยงรูปเดิมที่ cache ไว้อยู่
         cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
         current_url = cache.image_url if cache else None
-        candidates = [u for u in urls if u != current_url] or urls
 
-        image_url = _random.choice(candidates)
-        db.query(WordImageCache).filter(WordImageCache.word_id == word_id).delete()
-        db.add(WordImageCache(word_id=word_id, image_url=image_url))
-        db.commit()
-        return {"url": image_url}
+        titles = _gemini_wiki_articles(word, _model, _get_text, count=5)
+        if not titles:
+            return {"url": None}
+
+        _random.shuffle(titles)
+        for title in titles:
+            url = _fetch_wiki_thumbnail(title)
+            if url and url != current_url:
+                db.query(WordImageCache).filter(WordImageCache.word_id == word_id).delete()
+                db.add(WordImageCache(word_id=word_id, image_url=url))
+                db.commit()
+                return {"url": url}
+
+        return {"url": None}
     except Exception:
         return {"url": None}
