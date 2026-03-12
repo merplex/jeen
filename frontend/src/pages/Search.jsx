@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords, scanOcr } from '../services/api'
+import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords, scanOcr, getFavorites } from '../services/api'
 import WordCard from '../components/WordCard'
 import TonedChinese from '../components/TonedChinese'
 import HandwritingModal from '../components/HandwritingModal'
@@ -30,6 +30,7 @@ export default function Search() {
   const [showOcrSheet, setShowOcrSheet] = useState(false)
   const [showHandwriting, setShowHandwriting] = useState(false)
   const [showOfflineAlert, setShowOfflineAlert] = useState(false)
+  const [favoriteIds, setFavoriteIds] = useState(new Set())
   const ocrInputRef = useRef(null)    // album (no capture)
   const ocrCameraRef = useRef(null)  // camera only
 
@@ -71,6 +72,12 @@ export default function Search() {
   useEffect(() => {
     if (!token || query) return
     refreshRandom(category)
+  }, [token])
+
+  // โหลด favorites เพื่อแสดง ⭐ และเรียงก่อน
+  useEffect(() => {
+    if (!token) return
+    getFavorites().then((r) => setFavoriteIds(new Set(r.data.map((f) => f.word_id)))).catch(() => {})
   }, [token])
 
   const scheduleMissedReport = useCallback((q) => {
@@ -196,8 +203,11 @@ export default function Search() {
   const filterByCategory = (words) =>
     category === 'ทั้งหมด' ? words : words.filter((w) => w.category === category)
 
-  const prefix = result ? filterByCategory(result.prefix_group) : []
-  const inner = result ? filterByCategory(result.inner_group) : []
+  const sortFav = (words) =>
+    favoriteIds.size === 0 ? words : [...words].sort((a, b) => (favoriteIds.has(b.id) ? 1 : 0) - (favoriteIds.has(a.id) ? 1 : 0))
+
+  const prefix = result ? sortFav(filterByCategory(result.prefix_group)) : []
+  const inner = result ? sortFav(filterByCategory(result.inner_group)) : []
 
   // รอ fetchMe หรือยังไม่มี token → แสดง loading / null
   if (token && fetchingMe) return (
@@ -473,7 +483,7 @@ export default function Search() {
                   @คำที่ค้นหาได้
                 </h2>
                 <div className="space-y-2">
-                  {prefix.map((w) => <WordCard key={w.id} word={w} />)}
+                  {prefix.map((w) => <WordCard key={w.id} word={w} starred={favoriteIds.has(w.id)} />)}
                 </div>
               </div>
             )}
@@ -487,7 +497,7 @@ export default function Search() {
                       คำที่ขึ้นต้นด้วย "{result.query}"
                     </h2>
                     <div className="space-y-2">
-                      {prefix.map((w) => <WordCard key={w.id} word={w} />)}
+                      {prefix.map((w) => <WordCard key={w.id} word={w} starred={favoriteIds.has(w.id)} />)}
                     </div>
                   </div>
                 )}
@@ -497,7 +507,7 @@ export default function Search() {
                       คำที่มี "{result.query}" อยู่ข้างใน
                     </h2>
                     <div className="space-y-2">
-                      {inner.map((w) => <WordCard key={w.id} word={w} />)}
+                      {inner.map((w) => <WordCard key={w.id} word={w} starred={favoriteIds.has(w.id)} />)}
                     </div>
                   </div>
                 )}
@@ -514,7 +524,7 @@ export default function Search() {
                   <div className="mb-2">
                     <p className="text-xs text-chinese-gold mb-1.5">คำที่ขึ้นต้นด้วย "{group.char}"</p>
                     <div className="space-y-2">
-                      {filterByCategory(group.prefix_group).map((w) => <WordCard key={w.id} word={w} />)}
+                      {sortFav(filterByCategory(group.prefix_group)).map((w) => <WordCard key={w.id} word={w} starred={favoriteIds.has(w.id)} />)}
                     </div>
                   </div>
                 )}
@@ -522,7 +532,7 @@ export default function Search() {
                   <div>
                     <p className="text-xs text-gray-400 mb-1.5">คำที่มี "{group.char}" อยู่ข้างใน</p>
                     <div className="space-y-2">
-                      {filterByCategory(group.inner_group).map((w) => <WordCard key={w.id} word={w} />)}
+                      {sortFav(filterByCategory(group.inner_group)).map((w) => <WordCard key={w.id} word={w} starred={favoriteIds.has(w.id)} />)}
                     </div>
                   </div>
                 )}

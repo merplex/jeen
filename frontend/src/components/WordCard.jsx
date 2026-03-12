@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import TonedChinese from './TonedChinese'
 
-export default function WordCard({ word }) {
+export default function WordCard({ word, starred = false }) {
   const navigate = useNavigate()
   return (
     <button
@@ -9,11 +9,14 @@ export default function WordCard({ word }) {
       className="w-full text-left bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:border-chinese-red hover:shadow-md transition-all active:scale-95"
     >
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <TonedChinese chinese={word.chinese} pinyin={word.pinyin} className="font-chinese text-2xl" />
-          {word.has_multiple_readings && (
-            <div className="text-[10px] text-gray-400 leading-none -mt-0.5">(1)</div>
-          )}
+        <div className="flex items-start gap-1.5">
+          {starred && <span className="text-base leading-none mt-1 flex-shrink-0">⭐</span>}
+          <div>
+            <TonedChinese chinese={word.chinese} pinyin={word.pinyin} className="font-chinese text-2xl" />
+            {word.has_multiple_readings && (
+              <div className="text-[10px] text-gray-400 leading-none -mt-0.5">(1)</div>
+            )}
+          </div>
         </div>
         {word.category && (
           <span className="text-xs bg-chinese-gold/20 text-chinese-gold px-2 py-0.5 rounded-full whitespace-nowrap">
