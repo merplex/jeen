@@ -355,7 +355,59 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{word_id}/image/refresh")
 def refresh_word_image(word_id: int, db: Session = Depends(get_db), _: User = Depends(require_user)):
-    """สุ่มรูปใหม่ — ลบ cache เดิมแล้วดึงใหม่"""
-    db.query(WordImageCache).filter(WordImageCache.word_id == word_id).delete()
-    db.commit()
-    return get_word_image(word_id, db)
+    """สุ่มรูปใหม่ — ขอ Gemini แนะนำ 3 บทความ Wikipedia แล้วสุ่มเลือก"""
+    import random as _random
+
+    word = db.query(Word).filter(Word.id == word_id).first()
+    if not word:
+        raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์")
+
+    from ..services.translate_service import _model, _has_api_key, _get_text
+    if not _has_api_key():
+        return {"url": None}
+
+    prompt = (
+        f"คำจีน: {word.chinese} ({word.pinyin})\n"
+        f"ความหมายไทย: {word.thai_meaning}\n"
+        f"English: {word.english_meaning or ''}\n\n"
+        "ช่วยแนะนำชื่อบทความ Wikipedia ภาษาอังกฤษ 3 บทความที่แตกต่างกันสำหรับคำนี้ "
+        "ที่น่าจะมีรูปภาพสวยงามและชัดเจน\n"
+        "ตอบเป็นชื่อบทความ 3 ชื่อ คั่นด้วย comma เท่านั้น ไม่มีคำอธิบายเพิ่มเติม\n"
+        "เช่น: Panda, Giant panda, Red panda\n"
+        "ถ้าคำนี้เป็นนามธรรมหรือไม่มีรูปที่เหมาะสม ตอบว่า: NONE"
+    )
+
+    try:
+        r = _model.generate_content(prompt)
+        raw = _get_text(r).strip()
+
+        if not raw or raw.upper() == "NONE":
+            return {"url": None}
+
+        titles = [t.strip().strip('"').strip("'") for t in raw.split(',') if t.strip()]
+        if not titles:
+            return {"url": None}
+
+        _random.shuffle(titles)
+
+        import httpx
+        for title in titles:
+            try:
+                resp = httpx.get(
+                    f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}",
+                    headers={"User-Agent": "CTScanDict/1.0 (educational app)"},
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    image_url = resp.json().get("thumbnail", {}).get("source")
+                    if image_url:
+                        db.query(WordImageCache).filter(WordImageCache.word_id == word_id).delete()
+                        db.add(WordImageCache(word_id=word_id, image_url=image_url))
+                        db.commit()
+                        return {"url": image_url}
+            except Exception:
+                continue
+
+        return {"url": None}
+    except Exception:
+        return {"url": None}
