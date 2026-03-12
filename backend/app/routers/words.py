@@ -445,7 +445,10 @@ def _gemini_food_info(word, _model, _get_text) -> dict:
         "- food_type=dish: เมนูอาหารสำเร็จรูป/เครื่องดื่ม → รูปควรเห็นทั้งจาน\n"
         "- food_type=ingredient: วัตถุดิบ/ผัก/ผลไม้/เนื้อดิบ → รูปแสดงวัตถุดิบนั้น\n"
         "- zh_query: ชื่อจีนสำหรับค้นรูป เช่น '红烧肉', '苹果'\n"
-        "- en_query: ชื่ออังกฤษสำหรับ Spoonacular เช่น 'red braised pork', 'apple'"
+        "- en_query: ชื่ออังกฤษสำหรับ Spoonacular เช่น 'red braised pork', 'apple'\n"
+        "- wiki_article: ให้ใส่ชื่อบทความ Wikipedia ภาษาอังกฤษเสมอถ้าเป็นอาหาร/วัตถุดิบ\n"
+        "  เช่น 红烧肉→'Red braised pork', 饺子→'Jiaozi', 苹果→'Apple', 辣椒→'Chili pepper'\n"
+        "  ใส่ null เฉพาะคำที่ไม่ใช่อาหาร/วัตถุดิบจริงๆ เท่านั้น"
     )
     import json as _json
     r = _model.generate_content(prompt)
@@ -555,13 +558,14 @@ def _build_image_pool(word, _model, _get_text, limit: int = 15) -> tuple[list[st
         food_type = (info.get("food_type") or "dish").lower()
         fetch_fn = _fetch_spoonacular_ingredient_images if food_type == "ingredient" else _fetch_spoonacular_dish_images
 
-        # 1) Wikipedia ก่อน (ฟรี ไม่จำกัด มีรูปอาหารจีนสวย)
-        try:
-            pool = _wiki_fallback(word, info.get("wiki_article") or "", _model, _get_text)
-        except Exception:
-            pass
+        # 1) Wikipedia โดยตรงจาก wiki_article ที่ Gemini ให้มา (ไม่ call Gemini เพิ่ม)
+        wiki_art = (info.get("wiki_article") or "").strip()
+        if wiki_art:
+            url = _fetch_wiki_thumbnail(wiki_art)
+            if url:
+                pool = [url]
 
-        # 2) ถ้า Wikipedia ไม่มีรูป → ลอง Spoonacular (English only, ไม่ส่ง CJK)
+        # 2) ถ้าไม่มีรูป → Spoonacular (English only, ไม่ส่ง CJK)
         if not pool:
             seen: set[str] = set()
             en_queries: list[str] = []
