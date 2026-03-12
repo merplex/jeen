@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "serve": "^14.2.4",
     "@capacitor/android": "^8.2.0",
     "@capacitor/app": "^8.0.1",
     "@capacitor/browser": "^8.0.2",
