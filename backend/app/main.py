@@ -13,9 +13,24 @@ from .database import Base, engine
 from .routers import search, words, users, flashcard, admin, notes, auth, subscription, speaking, ocr, handwriting
 from .scheduler import start_scheduler
 
+def _migrate_columns():
+    """เพิ่ม column ใหม่ที่ create_all ไม่ได้เพิ่มให้อัตโนมัติ"""
+    from sqlalchemy import inspect, text
+    inspector = inspect(engine)
+    existing = {c["name"] for c in inspector.get_columns("word_image_cache")}
+    with engine.begin() as conn:
+        if "image_data" not in existing:
+            conn.execute(text("ALTER TABLE word_image_cache ADD COLUMN image_data bytea"))
+        if "image_source" not in existing:
+            conn.execute(text("ALTER TABLE word_image_cache ADD COLUMN image_source varchar(32)"))
+        if "last_accessed_at" not in existing:
+            conn.execute(text("ALTER TABLE word_image_cache ADD COLUMN last_accessed_at timestamp DEFAULT now()"))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    _migrate_columns()
     scheduler = start_scheduler()
     yield
     scheduler.shutdown(wait=False)

@@ -88,7 +88,15 @@ export default function WordDetail() {
     if (!word.category || !imageCategories.includes(word.category)) return
     setWordImageUrl(undefined)
     getWordImage(word.id)
-      .then((r) => setWordImageUrl(r.data.url || null))
+      .then((r) => {
+        let url = r.data.url || null
+        // blob path (/api/words/.../image/blob) ต้องเติม API base URL
+        if (url && url.startsWith('/api/')) {
+          const base = import.meta.env.VITE_API_URL || ''
+          url = base + url
+        }
+        setWordImageUrl(url)
+      })
       .catch(() => setWordImageUrl(null))
   }, [word?.id, imageCategories])
 
@@ -194,7 +202,12 @@ export default function WordDetail() {
     setWordImageUrl(undefined)
     try {
       const r = await refreshWordImage(word.id)
-      setWordImageUrl(r.data.url || null)
+      let url = r.data.url || null
+      if (url && url.startsWith('/api/')) {
+        const base = import.meta.env.VITE_API_URL || ''
+        url = base + url
+      }
+      setWordImageUrl(url)
     } catch {
       setWordImageUrl(null)
     }
