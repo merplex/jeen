@@ -4,7 +4,7 @@ import {
   adminEnglishStats, adminBulkGenerateEnglish, adminFixLongEnglish,
   adminRegenExamplesByCategory, adminBulkRegenShortExamples,
   adminSingleEnglishStats, adminBulkRegenSingleEnglish,
-  adminGetSettings, adminUpdateSettings, adminDeleteImageCache, adminDeleteAllImageCache,
+  adminGetSettings, adminUpdateSettings, adminDeleteImageCache, adminDeleteNullImageCache, adminDeleteAllImageCache,
 } from '../../services/api'
 import { CATEGORIES } from '../../utils/categories'
 
@@ -278,6 +278,16 @@ export default function BulkExamples() {
             className="w-full bg-chinese-red text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
           >
             {settingsSaving ? '⏳ กำลังบันทึก...' : '💾 บันทึกการตั้งค่า'}
+          </button>
+          <button
+            onClick={async () => {
+              if (!window.confirm('ลบ cache entries ที่ไม่มีรูป (null) เพื่อให้ระบบ retry หารูปใหม่?')) return
+              const r = await adminDeleteNullImageCache()
+              addLog(`🔄 ลบ null cache แล้ว ${r.data.deleted} รายการ — จะ retry ครั้งหน้าที่เปิดหน้าคำศัพท์`)
+            }}
+            className="w-full mt-2 border border-orange-200 text-orange-500 rounded-lg py-2 text-sm"
+          >
+            🔄 ลบ null cache (retry หารูป)
           </button>
           <button
             onClick={async () => {

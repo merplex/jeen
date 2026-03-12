@@ -394,7 +394,7 @@ def _fetch_spoonacular_dish_images(query: str, limit: int = 10) -> list[str]:
                 img = r.get("image", "")
                 if img:
                     # เปลี่ยน thumbnail เล็ก → รูปใหญ่เต็มจาน
-                    img = img.replace("312x231", "636x393")
+                    img = img.replace("312x231", "556x370")
                     urls.append(img)
             return urls
     except Exception:
@@ -602,11 +602,18 @@ def _download_image(url: str) -> bytes | None:
 @router.get("/{word_id}/image")
 def get_word_image(word_id: int, db: Session = Depends(get_db)):
     """ดึง URL รูปภาพ — download เก็บ DB ทุก source"""
+    import logging
+    logger = logging.getLogger(__name__)
+
     cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
     if cache is not None:
         if cache.image_data:
             return {"url": f"/words/{word_id}/image/blob"}
-        return {"url": cache.image_url}
+        if cache.image_url:
+            return {"url": cache.image_url}
+        # cache exists but url=null → ลบแล้ว retry
+        db.delete(cache)
+        db.commit()
 
     word = db.query(Word).filter(Word.id == word_id).first()
     if not word:
@@ -617,13 +624,16 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
         return {"url": None}
 
     try:
-        pool, _ = _build_image_pool(word, _model, _get_text, limit=5)
+        pool, info = _build_image_pool(word, _model, _get_text, limit=5)
         raw_url = pool[0] if pool else None
-        source = _detect_source(raw_url) if raw_url else None
-        db.add(WordImageCache(word_id=word_id, image_url=raw_url, image_source=source))
-        db.commit()
+        logger.info(f"[image] word={word_id} cat={word.category} pool={len(pool)} url={raw_url} info={info}")
+        if raw_url:
+            source = _detect_source(raw_url)
+            db.add(WordImageCache(word_id=word_id, image_url=raw_url, image_source=source))
+            db.commit()
         return {"url": raw_url}
     except Exception as e:
+        logger.error(f"[image] word={word_id} error={e}")
         return {"url": None, "error": str(e)}
 
 

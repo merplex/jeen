@@ -926,6 +926,18 @@ def delete_image_cache(category: str, db: Session = Depends(get_db), _: User = D
     return {"deleted": deleted, "category": category}
 
 
+@router.delete("/image-cache/null")
+def delete_null_image_cache(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    """ลบ cache entries ที่มี image_url=null (ทำให้ระบบ retry หารูปใหม่)"""
+    deleted = (
+        db.query(WordImageCache)
+        .filter(WordImageCache.image_url.is_(None), WordImageCache.image_data.is_(None))
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return {"deleted": deleted}
+
+
 @router.delete("/image-cache/all")
 def delete_all_image_cache(exclude_categories: str = "", db: Session = Depends(get_db), _: User = Depends(require_admin)):
     """ลบ cache รูปทั้งหมด ยกเว้น category ที่ระบุ (comma-separated)"""
