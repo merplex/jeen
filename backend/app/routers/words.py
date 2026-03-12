@@ -333,7 +333,7 @@ def _gemini_wiki_articles(word, _model, _get_text, count: int = 1) -> list[str]:
 
 
 def _fetch_wiki_thumbnail(title: str) -> str | None:
-    """ดึง thumbnail รูปนำบทความจาก Wikipedia — รูปที่บรรณาธิการเลือกมาแล้วว่าดีที่สุด"""
+    """ดึง thumbnail รูปนำบทความจาก Wikipedia"""
     import httpx
     try:
         resp = httpx.get(
@@ -342,16 +342,73 @@ def _fetch_wiki_thumbnail(title: str) -> str | None:
             timeout=10,
         )
         if resp.status_code == 200:
-            return resp.json().get("originalimage", {}).get("source") \
-                or resp.json().get("thumbnail", {}).get("source")
+            data = resp.json()
+            return data.get("originalimage", {}).get("source") or data.get("thumbnail", {}).get("source")
     except Exception:
         pass
     return None
 
 
+def _fetch_pexels_images(query: str, limit: int = 15) -> list[str]:
+    """ดึงรูปจาก Pexels API"""
+    import httpx, os
+    key = os.environ.get("PEXELS_API_KEY", "")
+    if not key:
+        return []
+    try:
+        resp = httpx.get(
+            "https://api.pexels.com/v1/search",
+            params={"query": query, "per_page": limit, "orientation": "square"},
+            headers={"Authorization": key},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            return [p["src"]["large"] for p in resp.json().get("photos", []) if p.get("src")]
+    except Exception:
+        pass
+    return []
+
+
+def _fetch_unsplash_images(query: str, limit: int = 15) -> list[str]:
+    """ดึงรูปจาก Unsplash API"""
+    import httpx, os
+    key = os.environ.get("UNSPLASH_ACCESS_KEY", "")
+    if not key:
+        return []
+    try:
+        resp = httpx.get(
+            "https://api.unsplash.com/search/photos",
+            params={"query": query, "per_page": limit},
+            headers={"Authorization": f"Client-ID {key}"},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            return [r["urls"]["regular"] for r in resp.json().get("results", []) if r.get("urls")]
+    except Exception:
+        pass
+    return []
+
+
+def _gemini_image_query(word, _model, _get_text) -> str | None:
+    """ถาม Gemini ให้แนะนำ query สำหรับค้นหารูปอาหาร/สิ่งของ"""
+    prompt = (
+        f"คำจีน: {word.chinese} ({word.pinyin})\n"
+        f"ความหมายไทย: {word.thai_meaning}\n"
+        f"English: {word.english_meaning or ''}\n\n"
+        "ระบุ search query ภาษาอังกฤษที่เหมาะสมสำหรับค้นหารูปภาพสวยๆ ของคำนี้\n"
+        "ถ้าเป็นอาหาร: ใช้ชื่ออาหารภาษาอังกฤษ เช่น 'red braised pork belly', 'kung pao chicken', 'peking duck'\n"
+        "ถ้าเป็นสัตว์/สถานที่/สิ่งของ: ใช้ชื่อภาษาอังกฤษ\n"
+        "ถ้าเป็นนามธรรม/กริยา/คุณศัพท์ที่ไม่มีรูปชัดเจน: ตอบว่า NONE\n"
+        "ตอบเฉพาะ query เพียงอย่างเดียว ไม่มีคำอธิบาย"
+    )
+    r = _model.generate_content(prompt)
+    q = _get_text(r).strip().strip('"').strip("'")
+    return None if (not q or q.upper() == "NONE") else q
+
+
 @router.get("/{word_id}/image")
 def get_word_image(word_id: int, db: Session = Depends(get_db)):
-    """ดึง URL รูปภาพสำหรับคำศัพท์ (Gemini → Wikipedia thumbnail)"""
+    """ดึง URL รูปภาพ: Pexels → Unsplash → Wikipedia (fallback)"""
     cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
     if cache is not None:
         return {"url": cache.image_url}
@@ -365,8 +422,26 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
         return {"url": None}
 
     try:
-        titles = _gemini_wiki_articles(word, _model, _get_text, count=1)
-        image_url = _fetch_wiki_thumbnail(titles[0]) if titles else None
+        image_url = None
+
+        query = _gemini_image_query(word, _model, _get_text)
+        if query:
+            # ลอง Pexels ก่อน
+            pexels = _fetch_pexels_images(query, limit=5)
+            if pexels:
+                image_url = pexels[0]
+            else:
+                # ลอง Unsplash
+                unsplash = _fetch_unsplash_images(query, limit=5)
+                if unsplash:
+                    image_url = unsplash[0]
+
+        # fallback: Wikipedia
+        if not image_url:
+            titles = _gemini_wiki_articles(word, _model, _get_text, count=1)
+            if titles:
+                image_url = _fetch_wiki_thumbnail(titles[0])
+
         db.add(WordImageCache(word_id=word_id, image_url=image_url))
         db.commit()
         return {"url": image_url}
@@ -376,7 +451,7 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{word_id}/image/refresh")
 def refresh_word_image(word_id: int, db: Session = Depends(get_db), _: User = Depends(require_user)):
-    """สุ่มรูปใหม่ — Gemini แนะนำ 5 บทความ Wikipedia สุ่มเลือก หลีกเลี่ยงรูปเดิม"""
+    """สุ่มรูปใหม่ — pool จาก Pexels + Unsplash + Wikipedia รวมกัน"""
     import random as _random
 
     word = db.query(Word).filter(Word.id == word_id).first()
@@ -391,19 +466,31 @@ def refresh_word_image(word_id: int, db: Session = Depends(get_db), _: User = De
         cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
         current_url = cache.image_url if cache else None
 
-        titles = _gemini_wiki_articles(word, _model, _get_text, count=5)
-        if not titles:
+        query = _gemini_image_query(word, _model, _get_text)
+        pool: list[str] = []
+
+        if query:
+            pool += _fetch_pexels_images(query, limit=15)
+            pool += _fetch_unsplash_images(query, limit=15)
+
+        # เสริม Wikipedia ถ้า pool ยังน้อย
+        if len(pool) < 5:
+            titles = _gemini_wiki_articles(word, _model, _get_text, count=5)
+            for title in titles:
+                url = _fetch_wiki_thumbnail(title)
+                if url:
+                    pool.append(url)
+
+        if not pool:
             return {"url": None}
 
-        _random.shuffle(titles)
-        for title in titles:
-            url = _fetch_wiki_thumbnail(title)
-            if url and url != current_url:
-                db.query(WordImageCache).filter(WordImageCache.word_id == word_id).delete()
-                db.add(WordImageCache(word_id=word_id, image_url=url))
-                db.commit()
-                return {"url": url}
+        candidates = [u for u in pool if u != current_url] or pool
+        _random.shuffle(candidates)
+        image_url = candidates[0]
 
-        return {"url": None}
+        db.query(WordImageCache).filter(WordImageCache.word_id == word_id).delete()
+        db.add(WordImageCache(word_id=word_id, image_url=image_url))
+        db.commit()
+        return {"url": image_url}
     except Exception:
         return {"url": None}
