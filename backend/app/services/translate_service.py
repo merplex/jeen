@@ -61,7 +61,7 @@ class _RateLimitedModel:
         _rate_limiter.acquire()
         return self._model.generate_content(*args, **kwargs)
 
-_model = _RateLimitedModel(genai.GenerativeModel("gemini-2.0-flash-lite"))
+_model = _RateLimitedModel(genai.GenerativeModel("gemini-1.5-flash"))
 
 
 def _has_api_key() -> bool:
