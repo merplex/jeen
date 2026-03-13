@@ -88,7 +88,7 @@ export default function Search() {
     } else {
       missedTimerRef.current = setTimeout(() => {
         reportMissedSearch(q).catch(() => {})
-      }, 10000)
+      }, 3000)
     }
   }, [])
 
@@ -176,7 +176,7 @@ export default function Search() {
     enterPressedRef.current = false
     if (!v) {
       clearTimeout(emptyTimerRef.current)
-      emptyTimerRef.current = setTimeout(() => refreshRandom(category), 10000)
+      emptyTimerRef.current = setTimeout(() => refreshRandom(category), 4000)
     } else {
       clearTimeout(emptyTimerRef.current)
     }
@@ -258,7 +258,7 @@ export default function Search() {
                   setResult(null)
                   sessionStorage.removeItem('search_result')
                   clearTimeout(emptyTimerRef.current)
-                  emptyTimerRef.current = setTimeout(() => refreshRandom(category), 10000)
+                  emptyTimerRef.current = setTimeout(() => refreshRandom(category), 4000)
                 }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl"
               >
