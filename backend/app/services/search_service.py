@@ -374,6 +374,10 @@ def _search_english(db: Session, query: str) -> SearchResult:
 
 
 def validate_and_record_missed(db: Session, query: str) -> bool:
+    # ถ้าเคย validate แล้ว (อยู่ใน DB) → update count ตรงๆ ไม่ต้อง call Gemini ซ้ำ
+    if db.query(MissedSearch).filter(MissedSearch.query == query).first():
+        _record_missed(db, query)
+        return True
     from ..services.translate_service import validate_word_exists
     lang = detect_language(query)
     if validate_word_exists(query, lang):
