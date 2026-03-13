@@ -412,35 +412,41 @@ def list_gemini_models(_: User = Depends(require_admin)):
 
 @router.get("/image-storage")
 def image_storage(db: Session = Depends(get_db), _: User = Depends(require_admin)):
-    """ดูพื้นที่ที่รูปใช้ใน DB (เฉพาะ Google Places ที่ download เก็บ)"""
-    from sqlalchemy import func
+    """ดูพื้นที่ที่รูปใช้ใน DB"""
     from ..models.word_image_cache import WordImageCache
 
     LIMIT_MB = 600
 
-    row = db.execute(
+    # นับทุก row (ทั้ง URL-only และ binary)
+    total_row = db.execute(
         __import__("sqlalchemy").text(
-            "SELECT COUNT(*) as cnt, COALESCE(SUM(octet_length(image_data)), 0) as total_bytes "
-            "FROM word_image_cache WHERE image_data IS NOT NULL"
+            "SELECT COUNT(*) as total, "
+            "COALESCE(SUM(octet_length(image_data)), 0) as binary_bytes "
+            "FROM word_image_cache"
         )
     ).fetchone()
 
-    total_bytes = int(row.total_bytes)
-    count = int(row.cnt)
-    used_mb = round(total_bytes / 1024 / 1024, 2)
+    binary_bytes = int(total_row.binary_bytes)
+    image_count = int(total_row.total)
+    used_mb = round(binary_bytes / 1024 / 1024, 2)
 
-    by_source = db.execute(
+    # breakdown by source (รวม URL-only ด้วย)
+    by_source_rows = db.execute(
         __import__("sqlalchemy").text(
-            "SELECT image_source, COUNT(*) as cnt FROM word_image_cache GROUP BY image_source"
+            "SELECT COALESCE(image_source, 'unknown') as src, COUNT(*) as cnt, "
+            "COALESCE(SUM(octet_length(image_data)), 0) as src_bytes "
+            "FROM word_image_cache GROUP BY image_source"
         )
     ).fetchall()
 
+    by_source = {r.src: {"count": r.cnt, "mb": round(r.src_bytes / 1024 / 1024, 2)} for r in by_source_rows}
+
     return {
-        "image_count": count,
+        "image_count": image_count,
         "used_mb": used_mb,
         "limit_mb": LIMIT_MB,
         "used_percent": round(used_mb / LIMIT_MB * 100, 1),
-        "by_source": {r.image_source: r.cnt for r in by_source},
+        "by_source": by_source,
     }
 
 

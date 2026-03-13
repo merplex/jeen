@@ -228,24 +228,38 @@ export default function MissedSearches() {
 
               {/* Image Storage */}
               <div className="bg-white rounded-2xl p-4 shadow-sm">
-                <h3 className="font-medium text-gray-700 mb-3">พื้นที่รูปภาพใน DB</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-medium text-gray-700">รูปภาพใน DB</h3>
+                  <button onClick={loadSystem} className="text-xs text-gray-400 border border-gray-200 rounded px-2 py-0.5">🔄 รีเฟรช</button>
+                </div>
                 {(() => {
                   const { used_mb, limit_mb, used_percent, image_count, by_source } = sysStatus.storage
                   const color = used_percent > 80 ? 'bg-red-400' : used_percent > 50 ? 'bg-yellow-400' : 'bg-blue-400'
+                  const SOURCE_LABEL = {
+                    google_places: 'Google Places',
+                    admin_upload: 'Admin',
+                    spoonacular: 'Spoonacular',
+                    wikipedia: 'Wikipedia',
+                    unknown: 'ไม่ทราบ',
+                  }
                   return (
                     <>
                       <div className="flex justify-between text-xs text-gray-500 mb-1">
-                        <span>{image_count} รูป</span>
-                        <span>{used_mb} MB / {limit_mb} MB ({used_percent}%)</span>
+                        <span>รวม {image_count} รูป</span>
+                        <span>{used_mb} MB (binary) / {limit_mb} MB</span>
                       </div>
                       <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-3">
-                        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${used_percent}%` }} />
+                        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${Math.min(used_percent, 100)}%` }} />
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {Object.entries(by_source || {}).map(([src, cnt]) => (
-                          <span key={src} className="text-xs bg-gray-100 text-gray-600 rounded-full px-2 py-0.5">
-                            {src || 'unknown'}: {cnt}
-                          </span>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {Object.entries(by_source || {}).map(([src, info]) => (
+                          <div key={src} className="flex justify-between items-center bg-gray-50 rounded-lg px-2.5 py-1.5">
+                            <span className="text-xs text-gray-600">{SOURCE_LABEL[src] || src}</span>
+                            <div className="text-right">
+                              <span className="text-xs font-medium text-gray-700">{info.count} รูป</span>
+                              {info.mb > 0 && <span className="text-xs text-gray-400 ml-1">({info.mb} MB)</span>}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     </>
