@@ -64,8 +64,9 @@ class ExampleGenerationQueue:
                     chinese=ex.get("chinese", ""),
                     pinyin=ex.get("pinyin", ""),
                     thai=ex.get("thai", ""),
+                    type=ex.get("type", ""),
                     meaning_line=ex.get("meaning_line", 0),
-                    order=idx,
+                    sort_order=idx,
                 ))
             db.commit()
             logger.info(f"[ExampleQueue] generated {len(examples)} examples for {word.chinese} (id={word_id})")
