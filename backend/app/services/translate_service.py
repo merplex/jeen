@@ -148,7 +148,9 @@ def _call_openai(prompt: str) -> str:
 
 
 def _call_ai(prompt: str) -> str:
-    """ลอง Gemini ก่อน — ถ้า quota หมด fallback ไป OpenAI อัตโนมัติ"""
+    """ลอง Gemini ก่อน — ถ้า quota หมด fallback ไป OpenAI อัตโนมัติ
+    ใช้สำหรับงานเบา (validate, search, translate) ที่ไม่ต้องการ quality สูง
+    สำหรับ generate_examples ให้ใช้ _call_gemini() แทน"""
     if not _is_gemini_blocked():
         try:
             response = _model.generate_content(prompt)
@@ -156,13 +158,24 @@ def _call_ai(prompt: str) -> str:
         except RuntimeError as e:
             err = str(e)
             if "limit reached" in err:
-                # hourly limit → block 1 ชม., daily limit → block จนเที่ยงคืน
-                hours = (24 - datetime.now().hour) if "daily" in err else 1.0
+                now = datetime.now()
+                if "daily" in err:
+                    hours = (24 - now.hour) + (1 - now.minute / 60)
+                else:
+                    # block จนต้นชั่วโมงหน้า เช่น 22:38 → block จนถึง 23:00
+                    hours = (60 - now.minute) / 60
                 _block_gemini_for(hours)
             else:
                 raise
     # Gemini blocked → ใช้ OpenAI
     return _call_openai(prompt)
+
+
+def _call_gemini(prompt: str) -> str:
+    """เรียก Gemini โดยตรง ไม่ fallback OpenAI — ให้ RuntimeError propagate
+    ใช้สำหรับงานที่ต้องการ quality สูง เช่น generate_examples"""
+    response = _model.generate_content(prompt)
+    return _get_text(response)
 
 
 def _has_api_key() -> bool:
@@ -469,7 +482,7 @@ def generate_examples_for_word(chinese: str, pinyin: str, thai: str, category: s
 
         for attempt in range(3):
             try:
-                raw = _clean_json(_strip_markdown(_call_ai(prompt)))
+                raw = _clean_json(_strip_markdown(_call_gemini(prompt)))
                 results = json.loads(raw)
                 # กรอง placeholder ที่ Gemini ไม่ได้แทนค่า
                 results = [r for r in results if isinstance(r, dict) and r.get("chinese", "") not in ("", "...")]
