@@ -249,7 +249,14 @@ export default function MissedSearches() {
               {/* Gemini Quota */}
               <div className="bg-white rounded-2xl p-4 shadow-sm">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-medium text-gray-700">Gemini API (วันนี้)</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium text-gray-700">Gemini API (วันนี้)</h3>
+                    {sysStatus.quota.gemini_blocked?.blocked && (
+                      <span className="text-xs bg-red-100 text-red-500 rounded-full px-2 py-0.5">
+                        หยุดถึง {sysStatus.quota.gemini_blocked.until}
+                      </span>
+                    )}
+                  </div>
                   <button onClick={loadSystem} className="text-xs text-blue-400 border border-blue-200 rounded-lg px-2 py-1">รีเฟรช</button>
                 </div>
                 <div className="space-y-2">
@@ -276,6 +283,35 @@ export default function MissedSearches() {
                   <p className="text-xs text-gray-400 mt-2">คิว gen ตัวอย่าง: {sysStatus.quota.example_queue_pending} คำรอ</p>
                 )}
               </div>
+
+              {/* OpenAI Fallback */}
+              {sysStatus.quota.openai && (
+                <div className="bg-white rounded-2xl p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium text-gray-700">OpenAI Fallback (วันนี้)</h3>
+                      <span className={`text-xs rounded-full px-2 py-0.5 ${sysStatus.quota.openai.available ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                        {sysStatus.quota.openai.available ? 'พร้อมใช้' : 'ไม่ได้ตั้งค่า'}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>รายวัน</span>
+                      <span>{sysStatus.quota.openai.daily_used} calls</span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${sysStatus.quota.openai.daily_used > 0 ? 'bg-blue-400' : 'bg-gray-200'}`}
+                        style={{ width: sysStatus.quota.openai.daily_used > 0 ? `${Math.min((sysStatus.quota.openai.daily_used / 100) * 100, 100)}%` : '0%' }}
+                      />
+                    </div>
+                    {sysStatus.quota.gemini_blocked?.blocked && (
+                      <p className="text-xs text-blue-400 mt-2">กำลังรับงานแทน Gemini อยู่</p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Image Storage */}
               <ImageStorageCard storage={sysStatus.storage} onRefresh={loadSystem} />

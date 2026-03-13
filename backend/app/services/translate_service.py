@@ -99,6 +99,42 @@ def _block_gemini_for(hours: float = 1.0):
         logger.warning(f"[AI] Gemini quota exceeded — switching to OpenAI until {until.strftime('%H:%M')}")
 
 
+_openai_daily_count = 0
+_openai_count_lock = threading.Lock()
+_openai_count_day = datetime.now().date()
+
+
+def _openai_counter_increment():
+    global _openai_daily_count, _openai_count_day
+    with _openai_count_lock:
+        today = datetime.now().date()
+        if today != _openai_count_day:
+            _openai_daily_count = 0
+            _openai_count_day = today
+        _openai_daily_count += 1
+
+
+def openai_status() -> dict:
+    global _openai_daily_count, _openai_count_day
+    with _openai_count_lock:
+        today = datetime.now().date()
+        if today != _openai_count_day:
+            _openai_daily_count = 0
+            _openai_count_day = today
+        return {
+            "daily_used": _openai_daily_count,
+            "available": _openai_client is not None,
+        }
+
+
+def gemini_blocked_status() -> dict:
+    """คืน {'blocked': bool, 'until': 'HH:MM' | None}"""
+    with _gemini_block_lock:
+        if _gemini_blocked_until is None or datetime.now() >= _gemini_blocked_until:
+            return {"blocked": False, "until": None}
+        return {"blocked": True, "until": _gemini_blocked_until.strftime("%H:%M")}
+
+
 def _call_openai(prompt: str) -> str:
     if _openai_client is None:
         raise RuntimeError("OpenAI client not available")
@@ -107,6 +143,7 @@ def _call_openai(prompt: str) -> str:
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7,
     )
+    _openai_counter_increment()
     return resp.choices[0].message.content.strip()
 
 
