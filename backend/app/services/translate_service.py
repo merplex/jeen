@@ -147,24 +147,39 @@ def _call_openai(prompt: str) -> str:
     return resp.choices[0].message.content.strip()
 
 
+def _is_quota_error(e: Exception) -> bool:
+    """ตรวจว่า exception เป็น quota/rate-limit error จาก Gemini API จริงๆ"""
+    msg = str(e).lower()
+    return any(x in msg for x in ["quota", "rate", "429", "resource_exhausted", "exhausted", "limit"])
+
+
+def _block_gemini_hourly():
+    now = datetime.now()
+    _block_gemini_for((60 - now.minute) / 60)
+
+
+def _block_gemini_daily():
+    now = datetime.now()
+    _block_gemini_for((24 - now.hour) + (1 - now.minute / 60))
+
+
 def _call_ai(prompt: str) -> str:
-    """ลอง Gemini ก่อน — ถ้า quota หมด fallback ไป OpenAI อัตโนมัติ
-    ใช้สำหรับงานเบา (validate, search, translate) ที่ไม่ต้องการ quality สูง
-    สำหรับ generate_examples ให้ใช้ _call_gemini() แทน"""
+    """ลอง Gemini ก่อน — ถ้า quota หมด (internal หรือ API จริง) fallback ไป OpenAI"""
     if not _is_gemini_blocked():
         try:
             response = _model.generate_content(prompt)
             return _get_text(response)
         except RuntimeError as e:
-            err = str(e)
-            if "limit reached" in err:
-                now = datetime.now()
-                if "daily" in err:
-                    hours = (24 - now.hour) + (1 - now.minute / 60)
+            if "limit reached" in str(e):
+                if "daily" in str(e):
+                    _block_gemini_daily()
                 else:
-                    # block จนต้นชั่วโมงหน้า เช่น 22:38 → block จนถึง 23:00
-                    hours = (60 - now.minute) / 60
-                _block_gemini_for(hours)
+                    _block_gemini_hourly()
+            else:
+                raise
+        except Exception as e:
+            if _is_quota_error(e):
+                _block_gemini_hourly()
             else:
                 raise
     # Gemini blocked → ใช้ OpenAI
@@ -172,10 +187,17 @@ def _call_ai(prompt: str) -> str:
 
 
 def _call_gemini(prompt: str) -> str:
-    """เรียก Gemini โดยตรง ไม่ fallback OpenAI — ให้ RuntimeError propagate
-    ใช้สำหรับงานที่ต้องการ quality สูง เช่น generate_examples"""
-    response = _model.generate_content(prompt)
-    return _get_text(response)
+    """เรียก Gemini โดยตรง ไม่ fallback OpenAI
+    แปลง Google API quota error → RuntimeError ให้ queue worker จับและ sleep"""
+    try:
+        response = _model.generate_content(prompt)
+        return _get_text(response)
+    except RuntimeError:
+        raise
+    except Exception as e:
+        if _is_quota_error(e):
+            raise RuntimeError(f"Gemini hourly limit reached (API quota): {e}") from e
+        raise
 
 
 def _has_api_key() -> bool:
