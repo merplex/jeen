@@ -10,10 +10,10 @@ logger = logging.getLogger(__name__)
 
 _client = genai.Client(api_key=settings.GEMINI_API_KEY, http_options={"api_version": "v1"})
 
-# ---- Gemini rate limiter: 900 calls/day, 40 calls/hour ----
+# ---- Gemini rate limiter: 990 calls/day, 45 calls/hour ----
 class _GeminiRateLimiter:
-    DAILY_LIMIT = 900
-    HOURLY_LIMIT = 40
+    DAILY_LIMIT = 990
+    HOURLY_LIMIT = 45
 
     def __init__(self):
         self._lock = threading.Lock()

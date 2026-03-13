@@ -1,6 +1,6 @@
 """
 Background queue สำหรับ gen examples — ทำงานใน thread แยก
-ใช้ rate limiter เดียวกับ Gemini (40/hour, 900/day)
+ใช้ rate limiter เดียวกับ Gemini (45/hour, 990/day)
 ถ้าชนลิมิต: sleep จนถึงต้นชั่วโมงหน้า แล้วทำต่อ
 """
 import queue
