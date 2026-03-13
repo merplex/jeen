@@ -669,8 +669,15 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
         logger.info(f"[image] word={word_id} cat={word.category} pool={len(pool)} url={raw_url} info={info}")
         if raw_url:
             source = _detect_source(raw_url)
-            db.add(WordImageCache(word_id=word_id, image_url=raw_url, image_source=source))
-            db.commit()
+            image_bytes = _download_image(raw_url)
+            if image_bytes:
+                db.add(WordImageCache(word_id=word_id, image_data=image_bytes, image_url=None, image_source=source))
+                db.commit()
+                return {"url": f"/words/{word_id}/image/blob"}
+            else:
+                # download ไม่ได้ เก็บแค่ URL ไว้ก่อน
+                db.add(WordImageCache(word_id=word_id, image_url=raw_url, image_source=source))
+                db.commit()
         return {"url": raw_url}
     except Exception as e:
         logger.error(f"[image] word={word_id} error={e}")
