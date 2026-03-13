@@ -8,7 +8,7 @@ from ..config import settings
 
 logger = logging.getLogger(__name__)
 
-_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+_client = genai.Client(api_key=settings.GEMINI_API_KEY, http_options={"api_version": "v1"})
 
 # ---- Gemini rate limiter: 900 calls/day, 40 calls/hour ----
 class _GeminiRateLimiter:
