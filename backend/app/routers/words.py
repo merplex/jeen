@@ -650,6 +650,15 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
     if not word:
         raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์")
 
+    # ตรวจว่า category ของคำนี้ถูก enable ใน image_categories setting ไหม
+    setting = db.query(AppSetting).filter(AppSetting.key == "image_categories").first()
+    try:
+        enabled_cats = json.loads(setting.value) if setting and setting.value else []
+    except Exception:
+        enabled_cats = []
+    if word.category not in enabled_cats:
+        return {"url": None}
+
     from ..services.translate_service import _model, _has_api_key, _get_text
     if not _has_api_key():
         return {"url": None}
@@ -756,6 +765,8 @@ def refresh_word_image(word_id: int, db: Session = Depends(get_db), _: User = De
 
     try:
         cache = db.query(WordImageCache).filter(WordImageCache.word_id == word_id).first()
+        if cache and cache.image_source == "admin_upload":
+            return {"url": f"/words/{word_id}/image/blob"}
         current_url = cache.image_url if cache else None
 
         pool, _ = _build_image_pool(word, _model, _get_text, limit=10)
