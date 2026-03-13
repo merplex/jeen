@@ -399,6 +399,17 @@ def gemini_quota(_: User = Depends(require_admin)):
     }
 
 
+@router.get("/gemini-models")
+def list_gemini_models(_: User = Depends(require_admin)):
+    """List models ที่ API key นี้รองรับ"""
+    from ..services.translate_service import _client
+    try:
+        models = [m.name for m in _client.models.list()]
+        return {"models": models}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @router.get("/image-storage")
 def image_storage(db: Session = Depends(get_db), _: User = Depends(require_admin)):
     """ดูพื้นที่ที่รูปใช้ใน DB (เฉพาะ Google Places ที่ download เก็บ)"""
