@@ -80,11 +80,11 @@ _gemini_block_lock = threading.Lock()
 
 
 def _is_gemini_blocked() -> bool:
+    global _gemini_blocked_until
     with _gemini_block_lock:
         if _gemini_blocked_until is None:
             return False
         if datetime.now() >= _gemini_blocked_until:
-            global _gemini_blocked_until
             _gemini_blocked_until = None
             logger.info("[AI] Gemini cooldown ended — switching back to Gemini")
             return False
@@ -92,8 +92,8 @@ def _is_gemini_blocked() -> bool:
 
 
 def _block_gemini_for(hours: float = 1.0):
+    global _gemini_blocked_until
     with _gemini_block_lock:
-        global _gemini_blocked_until
         until = datetime.now() + timedelta(hours=hours)
         _gemini_blocked_until = until
         logger.warning(f"[AI] Gemini quota exceeded — switching to OpenAI until {until.strftime('%H:%M')}")
