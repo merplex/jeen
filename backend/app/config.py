@@ -5,6 +5,7 @@ from typing import List
 class Settings(BaseSettings):
     DATABASE_URL: str
     GEMINI_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
     ADMIN_IDENTIFIERS: str = ""
     JWT_SECRET: str = "changeme"
     JWT_EXPIRE_HOURS: int = 720

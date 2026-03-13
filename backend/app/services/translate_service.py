@@ -1,7 +1,7 @@
 import json
 import logging
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from google import genai
 from google.genai import types as genai_types
 from ..config import settings
@@ -63,9 +63,76 @@ class _RateLimitedModel:
 
 _model = _RateLimitedModel()
 
+# ---- OpenAI fallback ----
+_openai_client = None
+if settings.OPENAI_API_KEY:
+    try:
+        from openai import OpenAI
+        _openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    except ImportError:
+        logger.warning("openai package not installed — OpenAI fallback unavailable")
+
+OPENAI_MODEL = "gpt-4o-mini"
+
+# Gemini cooldown: ถ้า quota หมด จะ block จนถึงเวลานี้
+_gemini_blocked_until: datetime | None = None
+_gemini_block_lock = threading.Lock()
+
+
+def _is_gemini_blocked() -> bool:
+    with _gemini_block_lock:
+        if _gemini_blocked_until is None:
+            return False
+        if datetime.now() >= _gemini_blocked_until:
+            global _gemini_blocked_until
+            _gemini_blocked_until = None
+            logger.info("[AI] Gemini cooldown ended — switching back to Gemini")
+            return False
+        return True
+
+
+def _block_gemini_for(hours: float = 1.0):
+    with _gemini_block_lock:
+        global _gemini_blocked_until
+        until = datetime.now() + timedelta(hours=hours)
+        _gemini_blocked_until = until
+        logger.warning(f"[AI] Gemini quota exceeded — switching to OpenAI until {until.strftime('%H:%M')}")
+
+
+def _call_openai(prompt: str) -> str:
+    if _openai_client is None:
+        raise RuntimeError("OpenAI client not available")
+    resp = _openai_client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7,
+    )
+    return resp.choices[0].message.content.strip()
+
+
+def _call_ai(prompt: str) -> str:
+    """ลอง Gemini ก่อน — ถ้า quota หมด fallback ไป OpenAI อัตโนมัติ"""
+    if not _is_gemini_blocked():
+        try:
+            response = _model.generate_content(prompt)
+            return _get_text(response)
+        except RuntimeError as e:
+            err = str(e)
+            if "limit reached" in err:
+                # hourly limit → block 1 ชม., daily limit → block จนเที่ยงคืน
+                hours = (24 - datetime.now().hour) if "daily" in err else 1.0
+                _block_gemini_for(hours)
+            else:
+                raise
+    # Gemini blocked → ใช้ OpenAI
+    return _call_openai(prompt)
+
 
 def _has_api_key() -> bool:
-    return bool(settings.GEMINI_API_KEY) and settings.GEMINI_API_KEY != "your_gemini_api_key_here"
+    return (
+        (bool(settings.GEMINI_API_KEY) and settings.GEMINI_API_KEY != "your_gemini_api_key_here")
+        or bool(settings.OPENAI_API_KEY)
+    )
 
 
 def _strip_markdown(text: str) -> str:
@@ -117,8 +184,7 @@ def generate_english_meaning(chinese: str, thai: str) -> dict:
             'Example: {"english":"holiday, vacation, break, school break","thai_addition":""}\n'
             'Return JSON only, no explanation: {"english":"...","thai_addition":""}'
         )
-        response = _model.generate_content(prompt)
-        data = json.loads(_strip_markdown(_get_text(response)))
+        data = json.loads(_strip_markdown(_call_ai(prompt)))
         return {
             "english": str(data.get("english", "")).strip(),
             "thai_addition": str(data.get("thai_addition", "")).strip(),
@@ -137,8 +203,7 @@ def search_by_english(english_query: str) -> list[dict]:
             '[{"chinese":"...","pinyin":"...","thai":"...","relevance":0.0}]\n'
             "Return valid JSON only, no explanation, no markdown."
         )
-        response = _model.generate_content(prompt)
-        return json.loads(_strip_markdown(_get_text(response)))
+        return json.loads(_strip_markdown(_call_ai(prompt)))
     except Exception:
         return []
 
@@ -171,8 +236,7 @@ def batch_generate_english(words: list[dict]) -> list[dict]:
             "Return a JSON array only, no explanation, no markdown:\n"
             '[{"id":<exact id from input>,"english":"word1, word2, word3","thai_addition":""},...]'
         )
-        response = _model.generate_content(prompt)
-        return json.loads(_strip_markdown(_get_text(response)))
+        return json.loads(_strip_markdown(_call_ai(prompt)))
     except Exception:
         return []
 
@@ -196,8 +260,7 @@ def batch_generate_metadata(words: list[dict]) -> list[dict]:
             "Return a JSON array only, no explanation, no markdown:\n"
             '[{"id":1,"english":"...","category":"..."},...]'
         )
-        response = _model.generate_content(prompt)
-        return json.loads(_strip_markdown(_get_text(response)))
+        return json.loads(_strip_markdown(_call_ai(prompt)))
     except Exception:
         return []
 
@@ -236,8 +299,7 @@ def generate_daily_words(count: int, existing_chinese: set, category: str = None
             "Return JSON array only, no explanation:\n"
             f'[{{"chinese":"你好",{cat_field}}},...]\n'
         )
-        response = _model.generate_content(prompt)
-        data = json.loads(_strip_markdown(_get_text(response)))
+        data = json.loads(_strip_markdown(_call_ai(prompt)))
         result = []
         for w in data:
             if isinstance(w, dict) and w.get("chinese"):
@@ -270,8 +332,7 @@ def validate_word_exists(word: str, lang: str) -> bool:
             )
         else:
             prompt = f'Is "{word}" a valid English word or common phrase? Answer only yes or no.'
-        response = _model.generate_content(prompt)
-        return _get_text(response).lower().startswith("yes")
+        return _call_ai(prompt).lower().startswith("yes")
     except Exception:
         return True  # fallback: assume valid
 
@@ -371,8 +432,7 @@ def generate_examples_for_word(chinese: str, pinyin: str, thai: str, category: s
 
         for attempt in range(3):
             try:
-                response = _model.generate_content(prompt)
-                raw = _clean_json(_strip_markdown(_get_text(response)))
+                raw = _clean_json(_strip_markdown(_call_ai(prompt)))
                 results = json.loads(raw)
                 # กรอง placeholder ที่ Gemini ไม่ได้แทนค่า
                 results = [r for r in results if isinstance(r, dict) and r.get("chinese", "") not in ("", "...")]
