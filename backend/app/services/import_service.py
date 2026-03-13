@@ -133,7 +133,7 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
 
     for _, row in df.iterrows():
         chinese = str(row.get("chinese", "")).strip()
-        if not chinese or not re.search(r'[\u4e00-\u9fff\u3400-\u4dbf\u20000-\u2a6df]', chinese):
+        if not chinese or not re.search(r'[\u4e00-\u9fff\u3400-\u4dbf\U00020000-\U0002A6DF]', chinese):
             continue
 
         raw_pinyin = str(row.get("pinyin", "")).strip()
