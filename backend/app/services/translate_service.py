@@ -2,12 +2,13 @@ import json
 import logging
 import threading
 from datetime import datetime
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 from ..config import settings
 
 logger = logging.getLogger(__name__)
 
-genai.configure(api_key=settings.GEMINI_API_KEY)
+_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 # ---- Gemini rate limiter: 900 calls/day, 40 calls/hour ----
 class _GeminiRateLimiter:
@@ -52,16 +53,15 @@ class _GeminiRateLimiter:
 
 _rate_limiter = _GeminiRateLimiter()
 
+MODEL_NAME = "gemini-1.5-flash"
+
 class _RateLimitedModel:
-    """ครอบ GenerativeModel เพื่อ rate limit ทุก call อัตโนมัติ"""
-    def __init__(self, model):
-        self._model = model
-
-    def generate_content(self, *args, **kwargs):
+    """ครอบ Gemini client เพื่อ rate limit ทุก call อัตโนมัติ"""
+    def generate_content(self, prompt: str):
         _rate_limiter.acquire()
-        return self._model.generate_content(*args, **kwargs)
+        return _client.models.generate_content(model=MODEL_NAME, contents=prompt)
 
-_model = _RateLimitedModel(genai.GenerativeModel("gemini-1.5-flash"))
+_model = _RateLimitedModel()
 
 
 def _has_api_key() -> bool:
