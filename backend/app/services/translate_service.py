@@ -489,9 +489,13 @@ def generate_examples_for_word(chinese: str, pinyin: str, thai: str, category: s
                 if results:
                     return results
                 logger.warning(f"[gen_examples] attempt {attempt+1}: Gemini returned empty/placeholder for {chinese!r}, raw={raw[:200]!r}")
+            except RuntimeError:
+                raise  # quota exceeded — ให้ queue worker จับและ sleep
             except Exception as e:
                 logger.warning(f"[gen_examples] attempt {attempt+1}: exception for {chinese!r}: {e}")
         return []
+    except RuntimeError:
+        raise  # quota exceeded — ให้ queue worker จับและ sleep
     except Exception as e:
         logger.error(f"[gen_examples] outer exception for {chinese!r}: {e}")
         return []
