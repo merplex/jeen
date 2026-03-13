@@ -3,6 +3,46 @@ import { useNavigate } from 'react-router-dom'
 import { adminMissed, adminDeleteMissed, adminClearSingleMissed, adminGetWordReports, adminDeleteWordReport, adminGeminiQuota, adminImageStorage } from '../../services/api'
 import { thaiDateTime } from '../../utils/time'
 
+const SOURCE_LABEL = {
+  google_places: 'Google Places',
+  admin_upload: 'Admin',
+  spoonacular: 'Spoonacular',
+  wikipedia: 'Wikipedia',
+  unknown: 'ไม่ทราบ',
+}
+
+function ImageStorageCard({ storage, onRefresh }) {
+  if (!storage) return null
+  const { used_mb, limit_mb, used_percent, image_count, by_source } = storage
+  const color = used_percent > 80 ? 'bg-red-400' : used_percent > 50 ? 'bg-yellow-400' : 'bg-blue-400'
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-medium text-gray-700">รูปภาพใน DB</h3>
+        <button onClick={onRefresh} className="text-xs text-gray-400 border border-gray-200 rounded px-2 py-0.5">🔄 รีเฟรช</button>
+      </div>
+      <div className="flex justify-between text-xs text-gray-500 mb-1">
+        <span>รวม {image_count} รูป</span>
+        <span>{used_mb} MB (binary) / {limit_mb} MB</span>
+      </div>
+      <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-3">
+        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${Math.min(used_percent, 100)}%` }} />
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        {Object.entries(by_source || {}).map(([src, info]) => (
+          <div key={src} className="flex justify-between items-center bg-gray-50 rounded-lg px-2.5 py-1.5">
+            <span className="text-xs text-gray-600">{SOURCE_LABEL[src] || src}</span>
+            <div className="text-right">
+              <span className="text-xs font-medium text-gray-700">{info.count} รูป</span>
+              {info.mb > 0 && <span className="text-xs text-gray-400 ml-1">({info.mb} MB)</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function detectLang(text) {
   if (/[\u4e00-\u9fff]/.test(text)) return 'chinese'
   if (/[\u0e00-\u0e7f]/.test(text)) return 'thai'
@@ -14,6 +54,7 @@ export default function MissedSearches() {
   const [items, setItems] = useState([])
   const [reports, setReports] = useState([])
   const [sysStatus, setSysStatus] = useState(null)
+  const [sysError, setSysError] = useState(null)
   const [clearingSingles, setClearingSingles] = useState(false)
   const [tab, setTab] = useState('missed') // 'missed' | 'reports' | 'system'
 
@@ -23,9 +64,14 @@ export default function MissedSearches() {
   }, [])
 
   const loadSystem = () => {
-    Promise.all([adminGeminiQuota(), adminImageStorage()]).then(([q, s]) => {
-      setSysStatus({ quota: q.data, storage: s.data })
-    })
+    setSysError(null)
+    Promise.all([adminGeminiQuota(), adminImageStorage()])
+      .then(([q, s]) => {
+        setSysStatus({ quota: q.data, storage: s.data })
+      })
+      .catch((err) => {
+        setSysError(err?.response?.data?.detail || err?.message || 'โหลดข้อมูลไม่ได้')
+      })
   }
 
   useEffect(() => {
@@ -191,7 +237,12 @@ export default function MissedSearches() {
 
       {tab === 'system' && (
         <div className="space-y-4">
-          {!sysStatus ? (
+          {sysError ? (
+            <div className="text-center py-12">
+              <p className="text-red-400 text-sm">{sysError}</p>
+              <button onClick={loadSystem} className="mt-3 text-xs text-blue-400 border border-blue-200 rounded-lg px-3 py-1.5">ลองใหม่</button>
+            </div>
+          ) : !sysStatus ? (
             <div className="text-center text-gray-400 py-12">กำลังโหลด...</div>
           ) : (
             <>
@@ -227,45 +278,7 @@ export default function MissedSearches() {
               </div>
 
               {/* Image Storage */}
-              <div className="bg-white rounded-2xl p-4 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-medium text-gray-700">รูปภาพใน DB</h3>
-                  <button onClick={loadSystem} className="text-xs text-gray-400 border border-gray-200 rounded px-2 py-0.5">🔄 รีเฟรช</button>
-                </div>
-                {(() => {
-                  const { used_mb, limit_mb, used_percent, image_count, by_source } = sysStatus.storage
-                  const color = used_percent > 80 ? 'bg-red-400' : used_percent > 50 ? 'bg-yellow-400' : 'bg-blue-400'
-                  const SOURCE_LABEL = {
-                    google_places: 'Google Places',
-                    admin_upload: 'Admin',
-                    spoonacular: 'Spoonacular',
-                    wikipedia: 'Wikipedia',
-                    unknown: 'ไม่ทราบ',
-                  }
-                  return (
-                    <>
-                      <div className="flex justify-between text-xs text-gray-500 mb-1">
-                        <span>รวม {image_count} รูป</span>
-                        <span>{used_mb} MB (binary) / {limit_mb} MB</span>
-                      </div>
-                      <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-3">
-                        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${Math.min(used_percent, 100)}%` }} />
-                      </div>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {Object.entries(by_source || {}).map(([src, info]) => (
-                          <div key={src} className="flex justify-between items-center bg-gray-50 rounded-lg px-2.5 py-1.5">
-                            <span className="text-xs text-gray-600">{SOURCE_LABEL[src] || src}</span>
-                            <div className="text-right">
-                              <span className="text-xs font-medium text-gray-700">{info.count} รูป</span>
-                              {info.mb > 0 && <span className="text-xs text-gray-400 ml-1">({info.mb} MB)</span>}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )
-                })()}
-              </div>
+              <ImageStorageCard storage={sysStatus.storage} onRefresh={loadSystem} />
             </>
           )}
         </div>
