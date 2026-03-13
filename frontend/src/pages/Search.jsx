@@ -515,6 +515,12 @@ export default function Search() {
             )}
 
             {/* Per-char fallback results */}
+            {result.search_mode === 'per_char' && (
+              <div className="text-center py-4">
+                <p className="text-gray-500 text-sm">ไม่พบคำว่า "<strong>{result.query}</strong>" ในพจนานุกรม</p>
+                <p className="text-xs text-gray-400 mt-1">บันทึกไว้ให้ Admin เพิ่มให้นะครับ</p>
+              </div>
+            )}
             {result.search_mode === 'per_char' && result.per_char_groups?.map((group) => (
               <div key={group.char}>
                 <h2 className="text-sm font-semibold text-gray-600 mb-2 mt-3">
