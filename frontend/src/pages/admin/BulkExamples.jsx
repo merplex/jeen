@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import {
-  adminExamplesStats, adminWipeAllExamples, adminBulkGenerateExamples,
+  adminExamplesStats, adminWipeAllExamples, adminBulkGenerateExamples, adminBulkQueueExamples,
   adminEnglishStats, adminBulkGenerateEnglish, adminFixLongEnglish,
   adminRegenExamplesByCategory, adminBulkRegenShortExamples,
   adminSingleEnglishStats, adminBulkRegenSingleEnglish,
@@ -35,6 +35,7 @@ export default function BulkExamples() {
   const [enStats, setEnStats] = useState(null)
   const [log, setLog] = useState([])
   const [running, setRunning] = useState(false)
+  const [queueStatus, setQueueStatus] = useState(null)
   const stopRef = useRef(false)
   const [regenCat, setRegenCat] = useState('แพทย์')
   const [regenLimit, setRegenLimit] = useState(20)
@@ -391,14 +392,35 @@ export default function BulkExamples() {
               <div className="w-full bg-gray-100 rounded-full h-2 mb-3">
                 <div className="bg-green-500 h-2 rounded-full transition-all" style={{ width: `${pctEx}%` }} />
               </div>
+              {/* Background queue — ปิดหน้าจอได้เลย */}
+              <button
+                onClick={async () => {
+                  try {
+                    const r = await adminBulkQueueExamples()
+                    const { queued, queue_size } = r.data
+                    setQueueStatus({ queued, queue_size })
+                    addLog(`📥 ส่งเข้า queue ${queued} คำ — ปิดหน้าจอได้เลย ระบบจะสร้างเองใน background`)
+                    loadStats()
+                  } catch (e) {
+                    addLog(`✗ ${e.response?.data?.detail || e.message}`)
+                  }
+                }}
+                disabled={exStats.without_examples === 0}
+                className="w-full bg-chinese-red text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40 mb-2"
+              >
+                📥 ส่งทั้งหมดเข้า Background Queue ({exStats.without_examples} คำ)
+              </button>
+              {queueStatus && (
+                <p className="text-xs text-gray-400 mb-2 text-center">Queue: {queueStatus.queue_size} คำรอประมวลผล</p>
+              )}
               <div className="flex gap-2">
                 {!running ? (
                   <button
                     onClick={runBulkExamples}
                     disabled={exStats.without_examples === 0}
-                    className="flex-1 bg-chinese-red text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
+                    className="flex-1 border border-gray-200 text-gray-500 rounded-lg py-2 text-sm disabled:opacity-40"
                   >
-                    ✨ สร้างตัวอย่าง ({exStats.without_examples} คำที่เหลือ)
+                    ✨ สร้างแบบ sync (ต้องเปิดหน้าจอไว้)
                   </button>
                 ) : (
                   <button onClick={stopAll} className="flex-1 bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium">

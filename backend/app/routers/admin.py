@@ -677,6 +677,26 @@ def bulk_generate_examples(
     return {"done": done, "errors": errors, "remaining": remaining, "last_error": last_error}
 
 
+@router.post("/bulk-queue-examples")
+def bulk_queue_examples(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """โยนคำที่ยังไม่มี examples ทั้งหมดเข้า background queue แล้ว return ทันที"""
+    from ..services.example_queue import example_queue
+
+    word_ids = [
+        row[0]
+        for row in db.query(Word.id)
+        .filter(Word.status == "verified")
+        .filter(Word.id.notin_(select(Example.word_id).distinct()))
+        .all()
+    ]
+
+    example_queue.enqueue_many(word_ids)
+    return {"queued": len(word_ids), "queue_size": example_queue.size()}
+
+
 @router.post("/bulk-regen-short-examples")
 def bulk_regen_short_examples(
     limit: int = 30,

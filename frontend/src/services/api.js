@@ -101,6 +101,8 @@ export const adminWipeAllExamples = () =>
   api.delete('/admin/wipe-all-examples')
 export const adminBulkGenerateExamples = (limit = 30) =>
   api.post('/admin/bulk-generate-examples', null, { params: { limit } })
+export const adminBulkQueueExamples = () =>
+  api.post('/admin/bulk-queue-examples')
 export const adminRegenExamplesByCategory = (category, limit = 20, offset = 0) =>
   api.post('/admin/regen-examples-by-category', null, { params: { category, limit, offset } })
 export const adminBulkRegenShortExamples = (limit = 30, min_length = 10) =>
