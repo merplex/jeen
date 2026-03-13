@@ -53,7 +53,7 @@ class _GeminiRateLimiter:
 
 _rate_limiter = _GeminiRateLimiter()
 
-MODEL_NAME = "gemini-2.0-flash-lite"
+MODEL_NAME = "gemini-2.0-flash-lite-001"
 
 class _RateLimitedModel:
     """ครอบ Gemini client เพื่อ rate limit ทุก call อัตโนมัติ"""
