@@ -1,8 +1,11 @@
 import json
+import logging
 import threading
 from datetime import datetime
 import google.generativeai as genai
 from ..config import settings
+
+logger = logging.getLogger(__name__)
 
 genai.configure(api_key=settings.GEMINI_API_KEY)
 
@@ -375,8 +378,10 @@ def generate_examples_for_word(chinese: str, pinyin: str, thai: str, category: s
                 results = [r for r in results if isinstance(r, dict) and r.get("chinese", "") not in ("", "...")]
                 if results:
                     return results
-            except Exception:
-                pass
+                logger.warning(f"[gen_examples] attempt {attempt+1}: Gemini returned empty/placeholder for {chinese!r}, raw={raw[:200]!r}")
+            except Exception as e:
+                logger.warning(f"[gen_examples] attempt {attempt+1}: exception for {chinese!r}: {e}")
         return []
-    except Exception:
+    except Exception as e:
+        logger.error(f"[gen_examples] outer exception for {chinese!r}: {e}")
         return []
