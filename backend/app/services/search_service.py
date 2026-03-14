@@ -381,8 +381,8 @@ def validate_and_record_missed(db: Session, query: str) -> bool:
     lang = detect_language(query)
     if lang != "chinese":
         return False  # validate เฉพาะจีน ภาษาอื่นไม่บันทึก
-    from ..services.translate_service import validate_word_exists
-    if validate_word_exists(query, lang):
+    from ..services.translate_service import validate_chinese_jieba
+    if validate_chinese_jieba(query):
         _record_missed(db, query)
         return True
     return False

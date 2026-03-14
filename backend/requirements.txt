@@ -20,3 +20,4 @@ apscheduler==3.10.4
 email-validator==2.2.0
 azure-cognitiveservices-speech==1.41.1
 Pillow==10.4.0
+jieba==0.42.1

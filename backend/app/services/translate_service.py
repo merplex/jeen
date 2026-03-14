@@ -409,6 +409,45 @@ def validate_word_exists(word: str, lang: str) -> bool:
         return True  # fallback: assume valid
 
 
+# ---- jieba Chinese validator ----
+_jieba_total = 0
+_jieba_not_found = 0
+_jieba_lock = threading.Lock()
+_jieba_ready = False
+
+def _init_jieba():
+    global _jieba_ready
+    try:
+        import jieba
+        jieba.initialize()
+        _jieba_ready = True
+        logger.info("[jieba] initialized")
+    except Exception as e:
+        logger.warning(f"[jieba] init failed: {e}")
+
+threading.Thread(target=_init_jieba, daemon=True).start()
+
+
+def validate_chinese_jieba(word: str) -> bool:
+    """ตรวจคำจีนด้วย jieba dictionary — คืน True ถ้ารู้จัก, False ถ้าไม่รู้จัก"""
+    global _jieba_total, _jieba_not_found
+    try:
+        import jieba
+        found = word in jieba.dt.FREQ
+        with _jieba_lock:
+            _jieba_total += 1
+            if not found:
+                _jieba_not_found += 1
+        return found
+    except Exception:
+        return True  # fallback: assume valid
+
+
+def jieba_stats() -> dict:
+    with _jieba_lock:
+        return {"total": _jieba_total, "not_found": _jieba_not_found}
+
+
 NON_CONVERSATIONAL_CATEGORIES = {"แพทย์", "กฎหมาย", "สำนวน", "วิศวกรรม", "เทคนิค"}
 
 

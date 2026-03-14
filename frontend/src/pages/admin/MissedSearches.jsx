@@ -313,6 +313,27 @@ export default function MissedSearches() {
                 </div>
               )}
 
+              {/* jieba validator */}
+              {sysStatus.quota.jieba && (
+                <div className="bg-white rounded-2xl p-4 shadow-sm">
+                  <h3 className="font-medium text-gray-700 mb-3">jieba (ตรวจคำจีน)</h3>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">ไม่พบในพจนานุกรม</span>
+                    <span className="font-medium text-orange-500">
+                      {sysStatus.quota.jieba.not_found} / {sysStatus.quota.jieba.total}
+                    </span>
+                  </div>
+                  {sysStatus.quota.jieba.total > 0 && (
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden mt-2">
+                      <div
+                        className="h-full bg-orange-400 rounded-full transition-all"
+                        style={{ width: `${Math.min((sysStatus.quota.jieba.not_found / sysStatus.quota.jieba.total) * 100, 100)}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Image Storage */}
               <ImageStorageCard storage={sysStatus.storage} onRefresh={loadSystem} />
             </>
