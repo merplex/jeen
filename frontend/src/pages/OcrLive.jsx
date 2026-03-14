@@ -101,10 +101,6 @@ export default function OcrLive() {
 
   useEffect(() => {
     if (!cameraReady) return
-    // initial scan after short delay
-    const t = setTimeout(() => doScanRef.current?.(), 800)
-    scanTimerRef.current = setInterval(() => doScanRef.current?.(), 4500)
-    return () => { clearTimeout(t); clearInterval(scanTimerRef.current) }
   }, [cameraReady])
 
   const speak = (text) => {
@@ -298,7 +294,7 @@ export default function OcrLive() {
               <div className="font-chinese text-5xl text-chinese-red/20 mb-3">字</div>
               <p className="text-sm">ส่องกล้องไปที่ข้อความภาษาจีน</p>
               <p className="text-xs mt-1 text-gray-300">
-                {isOnline ? 'จะสแกนอัตโนมัติทุก 4.5 วินาที' : 'ต้องการอินเทอร์เน็ตในการสแกน'}
+                {isOnline ? 'กดปุ่มด้านล่างเพื่อสแกน' : 'ต้องการอินเทอร์เน็ตในการสแกน'}
               </p>
             </div>
           )}
