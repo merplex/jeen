@@ -335,24 +335,20 @@ export default function MissedSearches() {
               )}
 
               {/* OCR Usage */}
-              {sysStatus.quota.ocr_usage && Object.keys(sysStatus.quota.ocr_usage).length > 0 && (
-                <div className="bg-white rounded-2xl p-4 shadow-sm">
-                  <h3 className="font-medium text-gray-700 mb-3">OCR (สแกนรูป)</h3>
-                  {['ocr_scan', 'ocr_scan_structured'].map(type => {
-                    const stat = sysStatus.quota.ocr_usage[type]
-                    if (!stat) return null
-                    const label = type === 'ocr_scan' ? 'สแกนรูป' : 'สแกนแบบแยกบรรทัด'
-                    return (
-                      <div key={type} className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-500">{label}</span>
-                        <span className="font-medium text-indigo-600">
-                          {stat.total} ครั้ง / {stat.unique_users} users
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+              <div className="bg-white rounded-2xl p-4 shadow-sm">
+                <h3 className="font-medium text-gray-700 mb-3">OCR (สแกนรูป)</h3>
+                {[['ocr_scan', 'สแกนรูป'], ['ocr_scan_structured', 'สแกนแบบแยกบรรทัด']].map(([type, label]) => {
+                  const stat = sysStatus.quota.ocr_usage?.[type]
+                  return (
+                    <div key={type} className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-500">{label}</span>
+                      <span className="font-medium text-indigo-600">
+                        {stat ? `${stat.total} ครั้ง / ${stat.unique_users} users` : '0 ครั้ง'}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
 
               {/* Image Storage */}
               <ImageStorageCard storage={sysStatus.storage} onRefresh={loadSystem} />
