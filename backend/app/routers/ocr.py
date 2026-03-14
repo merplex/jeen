@@ -1,6 +1,9 @@
 import base64
 import json
+import logging
 from fastapi import APIRouter, Depends, HTTPException
+
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -75,14 +78,17 @@ def _ocr_structured(image_bytes: bytes, mime_type: str) -> dict:
     try:
         resp = _model.generate_content([prompt, image_part])
         raw = _strip_markdown(_get_text(resp))
+        logger.info(f"[OCR structured] gemini raw: {raw[:300]}")
         data = json.loads(raw)
         lines = data.get("lines", [])
         valid = [
             {"text": l.get("text", ""), "translation": l.get("translation", "")}
             for l in lines if isinstance(l, dict) and l.get("text")
         ]
+        logger.info(f"[OCR structured] valid lines: {len(valid)}")
         return {"lines": valid}
-    except Exception:
+    except Exception as e:
+        logger.error(f"[OCR structured] error: {e}")
         return {"lines": []}
 
 
