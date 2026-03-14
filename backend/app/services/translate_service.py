@@ -242,6 +242,7 @@ def _get_text(response) -> str:
 def generate_english_meaning(chinese: str, thai: str) -> dict:
     """Returns {"english": "...", "thai_addition": "..."}
     thai_addition is non-empty only if Chinese has a meaning absent from Thai.
+    Uses OpenAI first (free tier); falls back to Gemini if OpenAI unavailable.
     """
     if not _has_api_key():
         return {"english": "", "thai_addition": ""}
@@ -256,7 +257,11 @@ def generate_english_meaning(chinese: str, thai: str) -> dict:
             'Example: {"english":"holiday, vacation, break, school break","thai_addition":""}\n'
             'Return JSON only, no explanation: {"english":"...","thai_addition":""}'
         )
-        data = json.loads(_strip_markdown(_call_ai(prompt)))
+        if _openai_client is not None:
+            raw = _call_openai(prompt)
+        else:
+            raw = _call_gemini(prompt)
+        data = json.loads(_strip_markdown(raw))
         return {
             "english": str(data.get("english", "")).strip(),
             "thai_addition": str(data.get("thai_addition", "")).strip(),
