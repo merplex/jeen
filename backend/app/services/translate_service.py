@@ -419,6 +419,64 @@ _jieba_total = 0
 _jieba_not_found = 0
 _jieba_lock = threading.Lock()
 _jieba_ready = False
+_jieba_dirty = False  # มีการเปลี่ยนแปลงที่ยังไม่ได้ flush ไป DB
+
+
+def _load_jieba_stats_from_db():
+    """โหลดสถิติ jieba จาก app_settings ตอน startup"""
+    global _jieba_total, _jieba_not_found
+    try:
+        from ..database import SessionLocal
+        from ..models.app_setting import AppSetting
+        db = SessionLocal()
+        try:
+            total_row = db.query(AppSetting).filter(AppSetting.key == "jieba_total").first()
+            not_found_row = db.query(AppSetting).filter(AppSetting.key == "jieba_not_found").first()
+            with _jieba_lock:
+                _jieba_total = int(total_row.value) if total_row else 0
+                _jieba_not_found = int(not_found_row.value) if not_found_row else 0
+            logger.info(f"[jieba] loaded stats from DB: total={_jieba_total} not_found={_jieba_not_found}")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"[jieba] failed to load stats from DB: {e}")
+
+
+def _flush_jieba_stats_to_db():
+    """flush สถิติ jieba ลง app_settings"""
+    global _jieba_dirty
+    try:
+        from ..database import SessionLocal
+        from ..models.app_setting import AppSetting
+        with _jieba_lock:
+            total = _jieba_total
+            not_found = _jieba_not_found
+            _jieba_dirty = False
+        db = SessionLocal()
+        try:
+            for key, val in [("jieba_total", total), ("jieba_not_found", not_found)]:
+                row = db.query(AppSetting).filter(AppSetting.key == key).first()
+                if row:
+                    row.value = str(val)
+                else:
+                    db.add(AppSetting(key=key, value=str(val)))
+            db.commit()
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"[jieba] failed to flush stats to DB: {e}")
+
+
+def _jieba_flush_loop():
+    """background thread flush ทุก 60 วิ"""
+    import time
+    while True:
+        time.sleep(60)
+        with _jieba_lock:
+            dirty = _jieba_dirty
+        if dirty:
+            _flush_jieba_stats_to_db()
+
 
 def _init_jieba():
     global _jieba_ready
@@ -427,15 +485,18 @@ def _init_jieba():
         jieba.initialize()
         _jieba_ready = True
         logger.info("[jieba] initialized")
+        _load_jieba_stats_from_db()
     except Exception as e:
         logger.warning(f"[jieba] init failed: {e}")
 
+
 threading.Thread(target=_init_jieba, daemon=True).start()
+threading.Thread(target=_jieba_flush_loop, daemon=True).start()
 
 
 def validate_chinese_jieba(word: str) -> bool:
     """ตรวจคำจีนด้วย jieba dictionary — คืน True ถ้ารู้จัก, False ถ้าไม่รู้จัก"""
-    global _jieba_total, _jieba_not_found
+    global _jieba_total, _jieba_not_found, _jieba_dirty
     try:
         import jieba
         found = word in jieba.dt.FREQ
@@ -443,6 +504,7 @@ def validate_chinese_jieba(word: str) -> bool:
             _jieba_total += 1
             if not found:
                 _jieba_not_found += 1
+            _jieba_dirty = True
         return found
     except Exception:
         return True  # fallback: assume valid

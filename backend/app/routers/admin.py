@@ -366,16 +366,31 @@ def test_gemini(_: User = Depends(require_admin)):
 
 
 @router.get("/gemini-quota")
-def gemini_quota(_: User = Depends(require_admin)):
-    """ดู Gemini API usage + OpenAI fallback stats + example queue status"""
+def gemini_quota(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    """ดู Gemini API usage + OpenAI fallback stats + example queue status + OCR usage"""
     from ..services.translate_service import _rate_limiter, openai_status, gemini_blocked_status, jieba_stats
     from ..services.example_queue import example_queue
+    from ..models.usage_event import UsageEvent
+    import sqlalchemy as sa
+
+    ocr_rows = db.execute(
+        sa.text(
+            "SELECT event_type, COUNT(*) as total, COUNT(DISTINCT user_id) as unique_users "
+            "FROM usage_events GROUP BY event_type"
+        )
+    ).fetchall()
+    ocr_stats = {
+        row.event_type: {"total": row.total, "unique_users": row.unique_users}
+        for row in ocr_rows
+    }
+
     return {
         **_rate_limiter.status(),
         "example_queue_pending": example_queue.size(),
         "gemini_blocked": gemini_blocked_status(),
         "openai": openai_status(),
         "jieba": jieba_stats(),
+        "ocr_usage": ocr_stats,
     }
 
 

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.word import Word
+from ..models.usage_event import UsageEvent
 from ..auth import require_user
 from ..models.user import User
 
@@ -85,24 +86,71 @@ def _ocr_structured(image_bytes: bytes, mime_type: str) -> dict:
         return {"lines": []}
 
 
+def _log_usage(db: Session, user_id: int | None, event_type: str):
+    try:
+        db.add(UsageEvent(user_id=user_id, event_type=event_type))
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+def _translate_with_db_context(text: str, words: list) -> str:
+    """Request 2: ส่ง text + คำแปลจาก DB ให้ Gemini แปลรวม โดยใช้ความหมาย/พินอินจาก DB"""
+    from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
+
+    if not _has_api_key() or not text:
+        return ""
+
+    if words:
+        vocab_lines = "\n".join(
+            f"- {w.chinese} = {w.thai_meaning}" + (f" (พินอิน: {w.pinyin})" if w.pinyin else "")
+            for w in words
+        )
+        prompt = (
+            f"แปลข้อความจีนต่อไปนี้เป็นภาษาไทย:\n{text}\n\n"
+            f"ใช้คำแปลเหล่านี้สำหรับคำที่ตรงกัน:\n{vocab_lines}\n\n"
+            "ตอบเป็นคำแปลภาษาไทยเท่านั้น ไม่ต้องอธิบายเพิ่ม"
+        )
+    else:
+        prompt = f"แปลข้อความจีนต่อไปนี้เป็นภาษาไทย:\n{text}\n\nตอบเป็นคำแปลภาษาไทยเท่านั้น"
+
+    try:
+        resp = _model.generate_content(prompt)
+        return _strip_markdown(_get_text(resp)).strip()
+    except Exception:
+        return ""
+
+
 @router.post("/scan-structured")
 def scan_image_structured(
     body: ScanRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(require_user),
+    current_user: User = Depends(require_user),
 ):
     try:
         image_bytes = base64.b64decode(body.image_base64)
     except Exception:
         raise HTTPException(status_code=400, detail="image_base64 ไม่ถูกต้อง")
 
+    _log_usage(db, current_user.id, "ocr_scan_structured")
+
+    # Request 1: OCR แกะตัวอักษร
     result = _ocr_structured(image_bytes, body.mime_type)
     lines = result.get("lines", [])
     combined_text = "".join(l["text"] for l in lines)
+
+    # Match DB
     words = _find_words_in_text(combined_text, db)
+
+    # Request 2: แปลรวมโดยใช้คำแปลจาก DB
+    if combined_text and words:
+        full_translation = _translate_with_db_context(combined_text, words)
+    else:
+        full_translation = " ".join(l.get("translation", "") for l in lines).strip()
 
     return {
         "lines": lines,
+        "translation": full_translation,
         "words": [
             {
                 "id": w.id,
@@ -119,21 +167,30 @@ def scan_image_structured(
 def scan_image(
     body: ScanRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(require_user),
+    current_user: User = Depends(require_user),
 ):
     try:
         image_bytes = base64.b64decode(body.image_base64)
     except Exception:
         raise HTTPException(status_code=400, detail="image_base64 ไม่ถูกต้อง")
 
+    _log_usage(db, current_user.id, "ocr_scan")
+
+    # Request 1: OCR แกะตัวอักษร + แปลเบื้องต้น
     result = _ocr_and_translate(image_bytes, body.mime_type)
     text = result.get("text", "")
-    translation = result.get("translation", "")
 
     if not text:
         return {"text": "", "translation": "", "words": []}
 
+    # Match DB
     words = _find_words_in_text(text, db)
+
+    # Request 2: แปลรวมโดยใช้คำแปลจาก DB (ถ้ามีคำใน DB)
+    if words:
+        translation = _translate_with_db_context(text, words)
+    else:
+        translation = result.get("translation", "")
 
     return {
         "text": text,
