@@ -132,12 +132,14 @@ def scan_image_structured(
     except Exception:
         raise HTTPException(status_code=400, detail="image_base64 ไม่ถูกต้อง")
 
-    _log_usage(db, current_user.id, "ocr_scan_structured")
-
     # Request 1: OCR แกะตัวอักษร
     result = _ocr_structured(image_bytes, body.mime_type)
     lines = result.get("lines", [])
     combined_text = "".join(l["text"] for l in lines)
+
+    # นับเฉพาะเมื่อเจอข้อความจริง
+    if combined_text:
+        _log_usage(db, current_user.id, "ocr_scan_structured")
 
     # Match DB
     words = _find_words_in_text(combined_text, db)
@@ -174,14 +176,15 @@ def scan_image(
     except Exception:
         raise HTTPException(status_code=400, detail="image_base64 ไม่ถูกต้อง")
 
-    _log_usage(db, current_user.id, "ocr_scan")
-
     # Request 1: OCR แกะตัวอักษร + แปลเบื้องต้น
     result = _ocr_and_translate(image_bytes, body.mime_type)
     text = result.get("text", "")
 
     if not text:
         return {"text": "", "translation": "", "words": []}
+
+    # นับเฉพาะเมื่อเจอข้อความจริง
+    _log_usage(db, current_user.id, "ocr_scan")
 
     # Match DB
     words = _find_words_in_text(text, db)
