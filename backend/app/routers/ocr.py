@@ -23,11 +23,12 @@ class ScanRequest(BaseModel):
 def _ocr_and_translate(image_bytes: bytes, mime_type: str) -> dict:
     """ส่งรูปให้ Gemini Vision อ่านข้อความจีนและแปลไทย"""
     from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
+    from google.genai import types as genai_types
 
     if not _has_api_key():
         return {"text": "", "translation": ""}
 
-    image_part = {"mime_type": mime_type, "data": image_bytes}
+    image_part = genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
     prompt = (
         "อ่านข้อความภาษาจีนทั้งหมดในรูปนี้ (รองรับแนวนอนและแนวตั้ง)\n"
@@ -58,11 +59,12 @@ def _find_words_in_text(text: str, db: Session) -> list:
 def _ocr_structured(image_bytes: bytes, mime_type: str) -> dict:
     """ส่งรูปให้ Gemini Vision อ่านข้อความจีนแบบแยกบรรทัด/ส่วน พร้อมแปลไทย"""
     from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
+    from google.genai import types as genai_types
 
     if not _has_api_key():
         return {"lines": []}
 
-    image_part = {"mime_type": mime_type, "data": image_bytes}
+    image_part = genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
     prompt = (
         "อ่านข้อความภาษาจีนในรูปนี้ทั้งหมด (รองรับแนวนอนและแนวตั้ง)\n"
