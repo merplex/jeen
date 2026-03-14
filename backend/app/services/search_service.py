@@ -239,6 +239,26 @@ def search_words(db: Session, query: str) -> SearchResult:
         # 3) Gemini fallback — disabled (quota)
         return SearchResult(query=q, found=False)
 
+    # Thai AND search — ถ้ามีเว้นวรรค ต้องมีทุกคำใน thai_meaning
+    if lang == 'thai' and ' ' in q:
+        terms = [t for t in q.split() if t]
+        filters = [Word.status == 'verified'] + [Word.thai_meaning.like(f'%{t}%') for t in terms]
+        results = (
+            db.query(Word)
+            .filter(*filters)
+            .order_by(Word.char_count.asc())
+            .limit(80)
+            .all()
+        )
+        _mark_multiple_readings(results)
+        return SearchResult(
+            query=q,
+            prefix_group=results,
+            inner_group=[],
+            total=len(results),
+            found=len(results) > 0,
+        )
+
     # Chinese or Thai — query column ตาม lang เท่านั้น (ไม่ OR ข้าม column เพื่อความเร็ว)
     if lang == 'chinese':
         prefix_col = Word.chinese.like(f'{q}%')
