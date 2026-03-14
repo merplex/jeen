@@ -74,11 +74,6 @@ def approve_pending(
         raise HTTPException(status_code=400, detail="กรุณาใส่ความหมายภาษาไทยก่อน approve")
 
     english = pending.english_meaning
-    if not english and pending.chinese and thai:
-        eng_result = generate_english_meaning(pending.chinese, thai)
-        english = eng_result["english"]
-        if eng_result["thai_addition"] and eng_result["thai_addition"] not in thai:
-            thai = thai + "\n" + eng_result["thai_addition"]
 
     # ใช้ค่าที่ admin แก้ไข หรือ fallback จาก pending
     pinyin_val = body.pinyin or pending.pinyin or ""
@@ -106,24 +101,6 @@ def approve_pending(
     _log(db, "word_added", chinese=pending.chinese, detail=f"ความหมาย: {thai[:60]}")
     db.commit()
     db.refresh(word)
-
-    # Auto-generate examples (best effort — ไม่ block approval ถ้า Gemini ล้มเหลว)
-    try:
-        examples = generate_examples_for_word(word.chinese, word.pinyin, word.thai_meaning, word.category or "")
-        for idx, ex in enumerate(examples):
-            db.add(Example(
-                word_id=word.id,
-                chinese=ex.get("chinese", ""),
-                pinyin=ex.get("pinyin"),
-                thai=ex.get("thai"),
-                type=ex.get("type"),
-                meaning_line=_to_int(ex.get("meaning_line")),
-                sort_order=idx,
-            ))
-        db.commit()
-        db.refresh(word)
-    except Exception:
-        pass
 
     return word
 
