@@ -41,7 +41,7 @@ class ExampleGenerationQueue:
         logger.info(f"[ExampleQueue] daily limit hit — sleeping {seconds}s")
         time.sleep(seconds)
 
-    BATCH_SIZE = 50
+    BATCH_SIZE = 500
 
     def _drain_batch(self) -> list[int]:
         """ดึง word_ids ออกจาก queue สูงสุด BATCH_SIZE คำ (non-blocking หลังตัวแรก)"""

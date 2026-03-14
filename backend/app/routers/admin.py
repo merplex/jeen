@@ -513,12 +513,12 @@ def english_stats(
 
 @router.post("/bulk-generate-english")
 def bulk_generate_english(
-    limit: int = 50,
+    limit: int = 500,
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
     """สร้าง english_meaning ให้ verified words ที่ยังไม่มี (batch ทีละ limit คำ ใน 1 Gemini call)"""
-    limit = min(max(limit, 1), 100)
+    limit = min(max(limit, 1), 500)
 
     words = (
         db.query(Word)

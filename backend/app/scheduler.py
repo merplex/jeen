@@ -121,9 +121,9 @@ def _job_purge_old_image_cache():
 
 def start_scheduler() -> BackgroundScheduler:
     scheduler = BackgroundScheduler(timezone="Asia/Bangkok")
-    scheduler.add_job(_job_gen_english, "interval", minutes=5, id="gen_english", max_instances=1)
-    scheduler.add_job(_job_gen_examples, "interval", minutes=15, id="gen_examples", max_instances=1)
+    # scheduler.add_job(_job_gen_english, "interval", minutes=5, id="gen_english", max_instances=1)
+    # scheduler.add_job(_job_gen_examples, "interval", minutes=15, id="gen_examples", max_instances=1)
     scheduler.add_job(_job_purge_old_image_cache, "cron", hour=3, minute=0, id="image_purge", max_instances=1)
     scheduler.start()
-    logger.info("[scheduler] started — english every 5m, examples every 15m, image purge daily 3am")
+    logger.info("[scheduler] started — image purge daily 3am (auto english/examples disabled)")
     return scheduler
