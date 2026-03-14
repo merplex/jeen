@@ -236,8 +236,8 @@ def search_words(db: Session, query: str) -> SearchResult:
             _mark_multiple_readings(prefix + inner)
             return SearchResult(query=q, prefix_group=prefix, inner_group=inner, total=total, found=True)
 
-        # 3) Gemini fallback
-        return _search_english(db, q)
+        # 3) Gemini fallback — disabled (quota)
+        return SearchResult(query=q, found=False)
 
     # Chinese or Thai — query column ตาม lang เท่านั้น (ไม่ OR ข้าม column เพื่อความเร็ว)
     if lang == 'chinese':
@@ -378,8 +378,10 @@ def validate_and_record_missed(db: Session, query: str) -> bool:
     if db.query(MissedSearch).filter(MissedSearch.query == query).first():
         _record_missed(db, query)
         return True
-    from ..services.translate_service import validate_word_exists
     lang = detect_language(query)
+    if lang != "chinese":
+        return False  # validate เฉพาะจีน ภาษาอื่นไม่บันทึก
+    from ..services.translate_service import validate_word_exists
     if validate_word_exists(query, lang):
         _record_missed(db, query)
         return True
