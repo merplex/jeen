@@ -109,7 +109,7 @@ export const adminBulkRegenShortExamples = (limit = 30, min_length = 10) =>
   api.post('/admin/bulk-regen-short-examples', null, { params: { limit, min_length } })
 export const adminEnglishStats = () =>
   api.get('/admin/english-stats')
-export const adminBulkGenerateEnglish = (limit = 50) =>
+export const adminBulkGenerateEnglish = (limit = 500) =>
   api.post('/admin/bulk-generate-english', null, { params: { limit } })
 export const adminFixLongEnglish = (maxLen = 100) =>
   api.get('/admin/fix-long-english', { params: { max_len: maxLen } })

@@ -79,7 +79,7 @@ export default function BulkExamples() {
     let total = 0
     while (!stopRef.current) {
       try {
-        const r = await adminBulkGenerateEnglish(50)
+        const r = await adminBulkGenerateEnglish(500)
         const { done, errors, remaining } = r.data
         total += done
         addLog(`✓ อัปเดต ${done} คำ | error ${errors} | เหลือ ${remaining} คำ`)
