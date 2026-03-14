@@ -455,6 +455,11 @@ def batch_generate_examples(words: list[dict]) -> dict[int, list[dict]]:
         results = json.loads(raw)
         results = [r for r in results if isinstance(r, dict) and r.get("chinese", "") not in ("", "...")]
 
+        input_ids = {w["id"] for w in words}
+        returned_ids = {r.get("word_id") for r in results if r.get("word_id") is not None}
+        missing_ids = input_ids - {int(i) for i in returned_ids if i is not None}
+        logger.info(f"[batch_gen_examples] got {len(results)} examples for {len(returned_ids)}/{len(input_ids)} words, missing={missing_ids if missing_ids else 'none'}")
+
         # จัดกลุ่มตาม word_id
         grouped: dict[int, list[dict]] = {}
         for r in results:
