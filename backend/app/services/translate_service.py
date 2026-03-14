@@ -412,6 +412,70 @@ def validate_word_exists(word: str, lang: str) -> bool:
 NON_CONVERSATIONAL_CATEGORIES = {"แพทย์", "กฎหมาย", "สำนวน", "วิศวกรรม", "เทคนิค"}
 
 
+def batch_generate_examples(words: list[dict]) -> dict[int, list[dict]]:
+    """
+    รับ [{"id": int, "chinese": str, "pinyin": str, "thai": str, "category": str}]
+    คืน {word_id: [{"meaning_line": int, "type": str, "chinese": str, "pinyin": str, "thai": str}]}
+
+    1 Gemini request สำหรับทั้ง batch
+    """
+    if not _has_api_key() or not words:
+        return {}
+    try:
+        lines = []
+        for w in words:
+            meaning_lines = [l.strip() for l in w["thai"].split("\n") if l.strip()] or [w["thai"].strip()]
+            thai_repr = " | ".join(meaning_lines)
+            cat = w.get("category", "")
+            non_conv = "(non-everyday category)" if cat in NON_CONVERSATIONAL_CATEGORIES else ""
+            lines.append(
+                f'id={w["id"]} chinese={w["chinese"]} pinyin={w["pinyin"]} '
+                f'thai="{thai_repr}" category={cat} {non_conv}'
+            )
+        word_list = "\n".join(lines)
+
+        prompt = (
+            "Generate example sentences for each Chinese word below.\n\n"
+            "RULES:\n"
+            "- Split thai by ' | ' to get meaning lines (meaning_line index starts at 0)\n"
+            "- For each meaning line, split by ';' to get sub-meanings\n"
+            "- type conv_0, conv_1, ... : one conversational sentence per sub-meaning\n"
+            "- type formal: one formal/article-style sentence per meaning line\n"
+            "- If marked (non-everyday category):\n"
+            "  - If the word IS used in everyday speech → generate conv + formal normally\n"
+            "  - If NOT used in everyday speech → generate ONLY formal_0 + formal_1 (no conv types)\n"
+            "- IMPORTANT: word_id must match the id from input exactly\n\n"
+            "WORDS:\n"
+            f"{word_list}\n\n"
+            "Return ONLY a JSON array, no explanation, no markdown:\n"
+            '[{"word_id":<id>,"meaning_line":0,"type":"conv_0","chinese":"...","pinyin":"...","thai":"..."},...]'
+        )
+
+        raw = _clean_json(_strip_markdown(_call_gemini(prompt)))
+        results = json.loads(raw)
+        results = [r for r in results if isinstance(r, dict) and r.get("chinese", "") not in ("", "...")]
+
+        # จัดกลุ่มตาม word_id
+        grouped: dict[int, list[dict]] = {}
+        for r in results:
+            wid = r.get("word_id")
+            if wid is None:
+                continue
+            grouped.setdefault(int(wid), []).append({
+                "meaning_line": r.get("meaning_line", 0),
+                "type": r.get("type", "conv_0"),
+                "chinese": r.get("chinese", ""),
+                "pinyin": r.get("pinyin", ""),
+                "thai": r.get("thai", ""),
+            })
+        return grouped
+    except RuntimeError:
+        raise  # quota exceeded — ให้ queue worker จับ
+    except Exception as e:
+        logger.error(f"[batch_gen_examples] failed: {e}")
+        return {}
+
+
 def generate_examples_for_word(chinese: str, pinyin: str, thai: str, category: str = "") -> list[dict]:
     """
     For each Thai meaning line (split by \\n):
