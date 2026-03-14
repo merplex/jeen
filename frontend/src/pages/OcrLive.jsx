@@ -151,13 +151,7 @@ export default function OcrLive() {
               title={isOnline ? 'ออนไลน์' : 'ออฟไลน์'}
             />
           </div>
-          <button
-            onClick={() => doScanRef.current?.()}
-            disabled={scanning || !cameraReady || !isOnline}
-            className="text-xs text-white border border-white/40 rounded-lg px-2.5 py-1 disabled:opacity-40"
-          >
-            สแกน
-          </button>
+          <div className="w-16" />
         </div>
 
         {cameraError && (
@@ -171,6 +165,24 @@ export default function OcrLive() {
             <p className="text-white/60 text-sm">กำลังเปิดกล้อง...</p>
           </div>
         )}
+
+        {/* Scan button — bottom center */}
+        <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+          <button
+            onClick={() => doScanRef.current?.()}
+            disabled={scanning || !cameraReady || !isOnline}
+            className="w-16 h-16 rounded-full bg-white/90 shadow-lg flex items-center justify-center disabled:opacity-40 active:scale-95 transition-transform"
+          >
+            {scanning ? (
+              <svg className="w-6 h-6 animate-spin text-gray-500" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-chinese-red/90" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* ===== Results ===== */}
