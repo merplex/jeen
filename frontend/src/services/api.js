@@ -129,7 +129,7 @@ export const refreshWordImage = (wordId) => api.post(`/words/${wordId}/image/ref
 export const uploadWordImage = (wordId, file) => {
   const form = new FormData()
   form.append('file', file)
-  return api.post(`/words/${wordId}/image/upload`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  return api.post(`/words/${wordId}/image/upload`, form)
 }
 
 // Favorites
