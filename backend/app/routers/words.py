@@ -707,9 +707,15 @@ def upload_word_image(
     MAX_BYTES = 300 * 1024  # 300KB
 
     raw = file.file.read()
+    import logging
+    logging.getLogger("uvicorn").info(
+        f"[upload_word_image] word_id={word_id} filename={file.filename!r} "
+        f"content_type={file.content_type!r} raw_len={len(raw)} first16={raw[:16]!r}"
+    )
     try:
         img = Image.open(io.BytesIO(raw)).convert("RGB")
-    except Exception:
+    except Exception as exc:
+        logging.getLogger("uvicorn").info(f"[upload_word_image] PIL failed: {exc!r}")
         raise HTTPException(status_code=400, detail="ไฟล์รูปไม่ถูกต้อง")
 
     # center crop → square
