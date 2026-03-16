@@ -169,7 +169,7 @@ export default function BulkExamples() {
     let total = 0
     while (!stopRef.current) {
       try {
-        const r = await adminBulkRegenSingleEnglish(50, apiCat)
+        const r = await adminBulkRegenSingleEnglish(500, apiCat)
         const { done, skipped, errors, remaining } = r.data
         total += done
         addLog(`✓ อัปเดต ${done} คำ | ข้าม ${skipped} (ยังคำเดียว) | error ${errors} | เหลือ ${remaining} คำ`)

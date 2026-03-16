@@ -575,13 +575,13 @@ def single_english_stats(
 
 @router.post("/bulk-regen-single-english")
 def bulk_regen_single_english(
-    limit: int = 50,
+    limit: int = 500,
     category: str = None,
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
     """Regen english สำหรับคำที่มีแค่คำเดียว (ไม่มี comma) ให้ครอบคลุมทุกความหมาย"""
-    limit = min(max(limit, 1), 100)
+    limit = min(max(limit, 1), 500)
     words = _single_english_base_query(db, category).limit(limit).all()
 
     if not words:
