@@ -219,6 +219,8 @@ def import_file(db: Session, file_path: str, source: str = "prem_file") -> dict:
                         "new": thai,
                     })
                 word.thai_meaning = thai
+                if word.status == "hsk_pending":
+                    word.status = "verified"
                 if g["category"]:
                     word.category = g["category"]
                 if g["chinese_traditional"]:
