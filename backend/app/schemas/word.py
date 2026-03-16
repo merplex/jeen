@@ -43,6 +43,7 @@ class WordOut(BaseModel):
     english_meaning: Optional[str] = None
     category: Optional[str] = None
     char_count: Optional[int] = None
+    hsk_level: Optional[str] = None
     status: str
     source: Optional[str] = None
     admin_edited: bool = False
