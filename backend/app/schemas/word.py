@@ -25,6 +25,7 @@ class WordSearchOut(BaseModel):
     thai_meaning: str
     category: Optional[str] = None
     char_count: Optional[int] = None
+    hsk_level: Optional[str] = None
     status: str
     has_multiple_readings: bool = False
 

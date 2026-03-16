@@ -15,6 +15,7 @@ class Word(Base):
     english_meaning = Column(Text, index=True)
     category = Column(String(50))
     char_count = Column(SmallInteger, Computed("LENGTH(chinese)"), index=True)
+    hsk_level = Column(String(10), nullable=True, index=True)
     status = Column(String(20), default="verified")
     source = Column(String(100), nullable=True)
     admin_edited = Column(Boolean, default=False, nullable=False)

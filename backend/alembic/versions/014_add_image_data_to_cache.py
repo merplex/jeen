@@ -14,10 +14,18 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column("word_image_cache", sa.Column("image_data", sa.LargeBinary(), nullable=True))
-    op.add_column("word_image_cache", sa.Column("image_source", sa.String(32), nullable=True))
-    op.add_column("word_image_cache", sa.Column("last_accessed_at", sa.DateTime(), nullable=True,
-                                                  server_default=sa.func.now()))
+    # สร้างตารางถ้ายังไม่มี (กรณี DB ใหม่ที่ไม่เคยรัน migration เก่าก่อน)
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS word_image_cache (
+            word_id     INTEGER PRIMARY KEY REFERENCES words(id) ON DELETE CASCADE,
+            image_url   TEXT,
+            cached_at   TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    # เพิ่ม columns ถ้ายังไม่มี
+    op.execute("ALTER TABLE word_image_cache ADD COLUMN IF NOT EXISTS image_data BYTEA")
+    op.execute("ALTER TABLE word_image_cache ADD COLUMN IF NOT EXISTS image_source VARCHAR(32)")
+    op.execute("ALTER TABLE word_image_cache ADD COLUMN IF NOT EXISTS last_accessed_at TIMESTAMP DEFAULT NOW()")
 
 
 def downgrade():

@@ -15,9 +15,11 @@ def _mark_multiple_readings(words: list) -> None:
 
 
 def detect_language(query: str) -> str:
-    """Detect query type: position, mixed, chinese, english, thai."""
+    """Detect query type: position, hsk, mixed, chinese, english, thai."""
     if '@' in query:
         return 'position'
+    if re.fullmatch(r'hsk\d+', query.lower()):
+        return 'hsk'
     has_chinese = any('\u4e00' <= c <= '\u9fff' for c in query)
     has_latin = any(c.isalpha() and ord(c) < 128 for c in query)
     if has_chinese and has_latin:
@@ -217,6 +219,9 @@ def search_words(db: Session, query: str) -> SearchResult:
     if lang == 'position':
         return _search_by_position(db, q)
 
+    if lang == 'hsk':
+        return _search_by_hsk(db, q.lower())
+
     if lang == 'mixed':
         return _search_mixed(db, q)
 
@@ -317,6 +322,26 @@ def search_words(db: Session, query: str) -> SearchResult:
 # ---------------------------------------------------------------------------
 # Helper searches
 # ---------------------------------------------------------------------------
+
+def _search_by_hsk(db: Session, q: str) -> SearchResult:
+    """ค้นหาด้วย 'hsk1'–'hsk9' — คืนคำทุกคำที่อยู่ระดับนั้น เรียงตาม char_count"""
+    results = (
+        db.query(Word)
+        .filter(Word.hsk_level == q)
+        .order_by(Word.char_count.asc())
+        .limit(200)
+        .all()
+    )
+    _mark_multiple_readings(results)
+    return SearchResult(
+        query=q,
+        prefix_group=results,
+        inner_group=[],
+        total=len(results),
+        found=len(results) > 0,
+        search_mode='hsk',
+    )
+
 
 def _search_by_pinyin(db: Session, q: str) -> SearchResult:
     from sqlalchemy import func as sqlfunc
