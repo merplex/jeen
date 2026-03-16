@@ -18,11 +18,18 @@ export default function WordCard({ word, starred = false }) {
             )}
           </div>
         </div>
-        {word.category && (
-          <span className="text-xs bg-chinese-gold/20 text-chinese-gold px-2 py-0.5 rounded-full whitespace-nowrap">
-            {word.category}
-          </span>
-        )}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {word.hsk_level && (
+            <span className="text-xs bg-navy-700 bg-[#1a3a5c] text-white px-2 py-0.5 rounded-full whitespace-nowrap uppercase">
+              {word.hsk_level}
+            </span>
+          )}
+          {word.category && (
+            <span className="text-xs bg-chinese-gold/20 text-chinese-gold px-2 py-0.5 rounded-full whitespace-nowrap">
+              {word.category}
+            </span>
+          )}
+        </div>
       </div>
       <div className="text-sm text-gray-500 mt-0.5">{word.pinyin}</div>
       <div className="text-gray-800 mt-1">

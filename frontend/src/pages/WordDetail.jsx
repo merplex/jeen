@@ -354,6 +354,11 @@ export default function WordDetail() {
         {/* Meanings */}
         <div className="bg-white rounded-xl p-4 shadow-sm">
           <div className="flex flex-wrap items-center gap-1.5 mb-3">
+            {word.hsk_level && (
+              <span className="text-xs bg-[#1a3a5c] text-white px-2 py-0.5 rounded-full uppercase">
+                {word.hsk_level}
+              </span>
+            )}
             {word.category && (
               <span className="text-xs bg-chinese-gold/20 text-chinese-gold px-2 py-0.5 rounded-full">
                 {word.category}
