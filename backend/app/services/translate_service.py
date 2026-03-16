@@ -583,7 +583,10 @@ def batch_generate_examples(words: list[dict]) -> dict[int, list[dict]]:
     except RuntimeError:
         raise  # quota exceeded — ให้ queue worker จับ
     except Exception as e:
-        logger.error(f"[batch_gen_examples] failed: {e}")
+        try:
+            logger.error(f"[batch_gen_examples] failed: {e} | raw_len={len(raw)} | raw_head={raw[:200]!r} | raw_tail={raw[-200:]!r}")
+        except Exception:
+            logger.error(f"[batch_gen_examples] failed: {e}")
         return {}
 
 
