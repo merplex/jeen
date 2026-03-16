@@ -119,8 +119,10 @@ export const adminBulkRegenSingleEnglish = (limit = 50, category = null) =>
   api.post('/admin/bulk-regen-single-english', null, { params: { limit, ...(category ? { category } : {}) } })
 export const adminHskEnglishStats = () =>
   api.get('/admin/hsk-english-stats')
-export const adminBulkRegenHskEnglish = (limit = 50, offset = 0) =>
-  api.post('/admin/bulk-regen-hsk-english', null, { params: { limit, offset } })
+export const adminStartHskEnglishQueue = () =>
+  api.post('/admin/start-hsk-english-queue')
+export const adminStopHskEnglishQueue = () =>
+  api.post('/admin/stop-hsk-english-queue')
 export const adminActivityLog = (limit = 50) =>
   api.get('/admin/activity-log', { params: { limit } })
 export const adminGetSettings = () => api.get('/admin/settings')

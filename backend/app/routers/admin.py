@@ -624,67 +624,31 @@ def hsk_english_stats(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
+    from ..services.hsk_english_queue import hsk_english_queue
     total = db.query(Word).filter(
         Word.status == "verified",
         Word.hsk_level.isnot(None),
         Word.hsk_level != "",
     ).count()
-    return {"total": total}
+    return {"total": total, "queue": hsk_english_queue.status()}
 
 
-@router.post("/bulk-regen-hsk-english")
-def bulk_regen_hsk_english(
-    limit: int = 50,
-    offset: int = 0,
-    db: Session = Depends(get_db),
+@router.post("/start-hsk-english-queue")
+def start_hsk_english_queue(
     _: User = Depends(require_admin),
 ):
-    """Regen english_meaning ของคำ HSK ทั้งหมด (overwrite เลย ไม่สนว่าเดิมเป็นอะไร) — ใช้ offset pagination"""
-    limit = min(max(limit, 1), 100)
+    from ..services.hsk_english_queue import hsk_english_queue
+    started = hsk_english_queue.start()
+    return {"started": started, "queue": hsk_english_queue.status()}
 
-    total = db.query(Word).filter(
-        Word.status == "verified",
-        Word.hsk_level.isnot(None),
-        Word.hsk_level != "",
-    ).count()
 
-    words = (
-        db.query(Word)
-        .filter(Word.status == "verified", Word.hsk_level.isnot(None), Word.hsk_level != "")
-        .order_by(Word.id)
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
-
-    if not words:
-        return {"done": 0, "errors": 0, "total": total, "next_offset": offset, "finished": True}
-
-    batch = [{"id": w.id, "chinese": w.chinese, "thai": w.thai_meaning or ""} for w in words]
-    results = batch_generate_english(batch)
-
-    done = 0
-    errors = len(words) - len(results) if results else len(words)
-    for item in results:
-        word = next((w for w in words if w.id == item.get("id")), None)
-        if not word:
-            continue
-        new_eng = item.get("english", "").strip()
-        if not new_eng:
-            errors += 1
-            continue
-        word.english_meaning = new_eng
-        thai_addition = str(item.get("thai_addition", "")).strip()
-        if thai_addition and thai_addition not in (word.thai_meaning or ""):
-            word.thai_meaning = (word.thai_meaning or "") + "\n" + thai_addition
-        done += 1
-
-    if done > 0:
-        _log(db, "regen_hsk_english", detail=f"อัปเดต {done} คำ HSK (offset {offset})")
-    db.commit()
-
-    next_offset = offset + len(words)
-    return {"done": done, "errors": errors, "total": total, "next_offset": next_offset, "finished": next_offset >= total}
+@router.post("/stop-hsk-english-queue")
+def stop_hsk_english_queue(
+    _: User = Depends(require_admin),
+):
+    from ..services.hsk_english_queue import hsk_english_queue
+    hsk_english_queue.stop()
+    return {"queue": hsk_english_queue.status()}
 
 
 @router.post("/bulk-generate-examples")

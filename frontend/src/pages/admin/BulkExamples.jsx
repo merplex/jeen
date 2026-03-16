@@ -5,7 +5,7 @@ import {
   adminRegenExamplesByCategory, adminBulkRegenShortExamples,
   adminSingleEnglishStats, adminBulkRegenSingleEnglish,
   adminGetSettings, adminUpdateSettings, adminDeleteImageCache, adminDeleteNullImageCache, adminDeleteAllImageCache,
-  adminHskEnglishStats, adminBulkRegenHskEnglish,
+  adminHskEnglishStats, adminStartHskEnglishQueue, adminStopHskEnglishQueue,
 } from '../../services/api'
 import { CATEGORIES } from '../../utils/categories'
 
@@ -43,6 +43,7 @@ export default function BulkExamples() {
   const [singleEngCat, setSingleEngCat] = useState('ทั้งหมด')
   const [singleEngCount, setSingleEngCount] = useState(null)
   const [hskEngTotal, setHskEngTotal] = useState(null)
+  const [hskEngQueue, setHskEngQueue] = useState(null)
   const [imageCategories, setImageCategories] = useState([])
   const [settingsSaving, setSettingsSaving] = useState(false)
 
@@ -70,7 +71,7 @@ export default function BulkExamples() {
   useEffect(() => {
     loadStats()
     loadSettings()
-    adminHskEnglishStats().then((r) => setHskEngTotal(r.data.total)).catch(() => {})
+    adminHskEnglishStats().then((r) => { setHskEngTotal(r.data.total); setHskEngQueue(r.data.queue) }).catch(() => {})
   }, [])
   useEffect(() => { loadSingleEngCount(singleEngCat) }, [singleEngCat])
 
@@ -130,29 +131,32 @@ export default function BulkExamples() {
     addLog('หยุดหลังรอบนี้เสร็จ...')
   }
 
-  const runRegenHskEnglish = async () => {
-    if (running) return
-    setRunning(true)
-    stopRef.current = false
-    setLog([])
-    addLog('เริ่ม regen English คำ HSK ทั้งหมด...')
-    let total = 0
-    let offset = 0
-    while (!stopRef.current) {
-      try {
-        const r = await adminBulkRegenHskEnglish(50, offset)
-        const { done, errors, total: grandTotal, next_offset, finished } = r.data
-        total += done
-        addLog(`✓ อัปเดต ${done} คำ | error ${errors} | ${next_offset}/${grandTotal}`)
-        offset = next_offset
-        if (finished || done === 0) break
-      } catch (e) {
-        addLog(`✗ ${e.response?.data?.detail || e.message}`)
-        break
-      }
+  const refreshHskQueue = async () => {
+    try {
+      const r = await adminHskEnglishStats()
+      setHskEngTotal(r.data.total)
+      setHskEngQueue(r.data.queue)
+    } catch (e) { /* ignore */ }
+  }
+
+  const startHskQueue = async () => {
+    try {
+      const r = await adminStartHskEnglishQueue()
+      setHskEngQueue(r.data.queue)
+      addLog(r.data.started ? '📥 เริ่ม Background Queue HSK English แล้ว — ปิดหน้าจอได้เลย' : '⚠️ Queue กำลังทำงานอยู่แล้ว')
+    } catch (e) {
+      addLog(`✗ ${e.response?.data?.detail || e.message}`)
     }
-    addLog(`เสร็จ — รวม ${total} คำ HSK`)
-    setRunning(false)
+  }
+
+  const stopHskQueue = async () => {
+    try {
+      const r = await adminStopHskEnglishQueue()
+      setHskEngQueue(r.data.queue)
+      addLog('⏹ สั่งหยุด HSK English Queue แล้ว')
+    } catch (e) {
+      addLog(`✗ ${e.response?.data?.detail || e.message}`)
+    }
   }
 
   const runRegenSingleEnglish = async () => {
@@ -374,25 +378,37 @@ export default function BulkExamples() {
         </div>
       </Section>
 
-      {/* Regen HSK english — overwrite all */}
+      {/* Regen HSK english — background queue */}
       <Section title="Regen English คำ HSK ทั้งหมด" badge={hskEngTotal !== null ? `${hskEngTotal} คำ` : null}>
         <div className="pt-3">
           <p className="text-xs text-gray-400 mb-3">
-            overwrite english_meaning ของคำ HSK ทุกคำ ไม่สนว่าเดิมเป็นอะไร — ใช้แก้คำแปลที่ import มาแล้วไม่ครอบคลุม
+            overwrite english_meaning ของคำ HSK ทุกคำ — ทำงาน background ปิดหน้าจอได้เลย
           </p>
-          {!running ? (
+          {hskEngQueue && (
+            <div className="text-xs text-gray-500 mb-3">
+              {hskEngQueue.running
+                ? <span className="text-green-600 animate-pulse">● กำลังทำงาน — {hskEngQueue.done}/{hskEngQueue.total} คำ (error {hskEngQueue.errors})</span>
+                : <span>หยุดอยู่ — ทำไปแล้ว {hskEngQueue.done} คำ</span>
+              }
+            </div>
+          )}
+          <div className="flex gap-2">
             <button
-              onClick={runRegenHskEnglish}
-              disabled={running || hskEngTotal === 0}
-              className="w-full bg-chinese-red text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
+              onClick={startHskQueue}
+              disabled={hskEngQueue?.running}
+              className="flex-1 bg-chinese-red text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
             >
-              🔁 Regen English คำ HSK ทั้งหมด ({hskEngTotal ?? '...'} คำ)
+              📥 เริ่ม Background Queue
             </button>
-          ) : (
-            <button onClick={stopAll} className="w-full bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium">
+            <button
+              onClick={stopHskQueue}
+              disabled={!hskEngQueue?.running}
+              className="flex-1 bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
+            >
               ⏹ หยุด
             </button>
-          )}
+            <button onClick={refreshHskQueue} className="px-3 border border-gray-200 rounded-lg text-sm text-gray-500">🔄</button>
+          </div>
         </div>
       </Section>
 
