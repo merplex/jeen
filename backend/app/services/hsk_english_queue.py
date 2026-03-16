@@ -28,10 +28,12 @@ class HskEnglishQueue:
         with self._lock:
             if self._running:
                 return False  # already running
+            # ถ้าทำจบแล้ว (offset >= total) ให้เริ่มใหม่ ไม่งั้น resume จาก offset ที่ค้างไว้
+            if self._total > 0 and self._offset >= self._total:
+                self._offset = 0
+                self._done = 0
+                self._errors = 0
             self._running = True
-            self._offset = 0
-            self._done = 0
-            self._errors = 0
             self._thread = threading.Thread(target=self._worker, daemon=True, name="hsk-english-queue")
             self._thread.start()
             return True
