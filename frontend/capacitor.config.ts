@@ -15,6 +15,9 @@ const config: CapacitorConfig = {
       releaseType: 'APK',
     },
   },
+  ios: {
+    allowsInlineMediaPlayback: true,
+  },
   plugins: {
     SplashScreen: {
       launchShowDuration: 1500,

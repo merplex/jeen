@@ -6,7 +6,7 @@ export default function WordCard({ word, starred = false }) {
   return (
     <button
       onClick={() => navigate(`/word/${word.id}`)}
-      className="w-full text-left bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:border-chinese-red hover:shadow-md transition-all active:scale-95"
+      className="w-full text-left bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:border-chinese-red hover:shadow-md transition-all active:scale-95 overflow-visible"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-1.5">
