@@ -531,6 +531,7 @@ def batch_generate_examples(words: list[dict]) -> dict[int, list[dict]]:
         lines = []
         for w in words:
             meaning_lines = [l.strip() for l in w["thai"].split("\n") if l.strip()] or [w["thai"].strip()]
+            meaning_lines = meaning_lines[:3]  # cap ที่ 3 บรรทัดแรก ป้องกัน output truncation
             thai_repr = " | ".join(meaning_lines)
             cat = w.get("category", "")
             non_conv = "(non-everyday category)" if cat in NON_CONVERSATIONAL_CATEGORIES else ""
