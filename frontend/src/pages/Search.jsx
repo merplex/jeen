@@ -31,6 +31,9 @@ export default function Search() {
   const [categoryGridConfig, setCategoryGridConfig] = useState(() => {
     try { return JSON.parse(localStorage.getItem('admin_grid_config') || '{}') } catch { return {} }
   })
+  const [categoryCounts, setCategoryCounts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('category_counts') || '{}') } catch { return {} }
+  })
   const [ocrResult, setOcrResult] = useState(null)  // { text, translation, words }
   const [ocrLoading, setOcrLoading] = useState(false)
   const [showOcrSheet, setShowOcrSheet] = useState(false)
@@ -42,9 +45,9 @@ export default function Search() {
 
   const sortedCategories = [
     'ทั้งหมด',
-    ...favCategories,
+    ...favCategories.filter(c => (categoryCounts[c] || 0) > 0),
     ...SEARCH_CATEGORIES
-      .filter(c => c !== 'ทั้งหมด' && !favCategories.includes(c))
+      .filter(c => c !== 'ทั้งหมด' && !favCategories.includes(c) && (categoryCounts[c] || 0) > 0)
       .sort((a, b) => (catUsage[b] || 0) - (catUsage[a] || 0)),
   ]
 
@@ -96,6 +99,11 @@ export default function Search() {
         if (cfg && typeof cfg === 'object') {
           setCategoryGridConfig(cfg)
           try { localStorage.setItem('admin_grid_config', JSON.stringify(cfg)) } catch { /* ignore */ }
+        }
+        const counts = r.data?.category_counts
+        if (counts && typeof counts === 'object') {
+          setCategoryCounts(counts)
+          try { localStorage.setItem('category_counts', JSON.stringify(counts)) } catch { /* ignore */ }
         }
       })
       .catch(() => {})

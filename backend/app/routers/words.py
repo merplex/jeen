@@ -148,6 +148,10 @@ def get_public_settings(db: Session = Depends(get_db)):
                 result[key] = row.value
         else:
             result[key] = [] if key == "image_categories" else ({} if key == "category_grid_config" else None)
+    # category word counts — filter ออก category ที่มี 0 คำ
+    from sqlalchemy import func as _func
+    counts = db.query(Word.category, _func.count(Word.id)).filter(Word.category.isnot(None)).group_by(Word.category).all()
+    result["category_counts"] = {cat: cnt for cat, cnt in counts if cat}
     return result
 
 

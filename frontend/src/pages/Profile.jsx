@@ -12,6 +12,9 @@ export default function Profile() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [favCats, setFavCats] = useState(loadFavCategories)
+  const [categoryCounts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('category_counts') || '{}') } catch { return {} }
+  })
 
   const toggleFavCat = (cat) => {
     setFavCats(prev => {
@@ -121,7 +124,7 @@ export default function Profile() {
           <div className="text-sm text-gray-500 font-medium mb-1">หมวดหมู่โปรด</div>
           <div className="text-xs text-gray-400 mb-3">กดเพื่อเพิ่ม — จะแสดงถัดจาก "ทั้งหมด" ในหน้าค้นหา</div>
           <div className="flex flex-wrap gap-2">
-            {CATEGORIES.map(cat => {
+            {CATEGORIES.filter(cat => (categoryCounts[cat] || 0) > 0).map(cat => {
               const favIdx = favCats.indexOf(cat)
               const isFav = favIdx !== -1
               const color = getCategoryColor(cat)
