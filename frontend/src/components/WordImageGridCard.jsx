@@ -49,17 +49,23 @@ export default function WordImageGridCard({ word }) {
             onError={() => setImgError(true)}
           />
         ) : (
-          /* no image — food icon placeholder */
-          <svg viewBox="0 0 64 64" className="w-12 h-12 text-gray-200" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            {/* bowl */}
-            <path d="M12 28 C12 44 52 44 52 28" />
-            <line x1="8" y1="28" x2="56" y2="28" />
-            <line x1="32" y1="44" x2="32" y2="50" />
-            <line x1="24" y1="50" x2="40" y2="50" />
+          /* no image — colorful noodle bowl icon */
+          <svg viewBox="0 0 64 64" className="w-14 h-14" fill="none" xmlns="http://www.w3.org/2000/svg">
             {/* steam */}
-            <path d="M22 22 C22 18 26 18 26 14" />
-            <path d="M32 22 C32 18 36 18 36 14" />
-            <path d="M42 22 C42 18 46 18 46 14" />
+            <path d="M22 18 C21 15 23 13 22 10" stroke="#CBD5E1" strokeWidth="2" strokeLinecap="round" fill="none"/>
+            <path d="M32 18 C31 15 33 13 32 10" stroke="#CBD5E1" strokeWidth="2" strokeLinecap="round" fill="none"/>
+            <path d="M42 18 C41 15 43 13 42 10" stroke="#CBD5E1" strokeWidth="2" strokeLinecap="round" fill="none"/>
+            {/* bowl body */}
+            <path d="M10 28 C10 46 54 46 54 28 Z" fill="#FEF3C7"/>
+            <path d="M10 28 C10 46 54 46 54 28" stroke="#F59E0B" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+            {/* rim */}
+            <rect x="8" y="24" width="48" height="6" rx="3" fill="#F59E0B"/>
+            {/* noodles inside */}
+            <path d="M18 30 Q22 27 26 30 Q30 33 34 30 Q38 27 42 30" stroke="#EF4444" strokeWidth="2" fill="none" strokeLinecap="round"/>
+            <path d="M16 34 Q21 31 25 34 Q29 37 33 34 Q37 31 41 34 Q45 37 46 34" stroke="#F97316" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+            {/* base */}
+            <rect x="26" y="46" width="12" height="3" rx="1.5" fill="#F59E0B"/>
+            <rect x="22" y="49" width="20" height="3" rx="1.5" fill="#F59E0B"/>
           </svg>
         )}
       </div>
