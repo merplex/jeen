@@ -87,6 +87,7 @@ class WordUpdate(BaseModel):
     thai_meaning: Optional[str] = None
     english_meaning: Optional[str] = None
     category: Optional[str] = None
+    image_url: Optional[str] = None
 
 
 class WordPendingOut(BaseModel):

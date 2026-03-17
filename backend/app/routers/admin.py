@@ -66,6 +66,29 @@ def list_words_for_translation(
     ]
 
 
+@router.get("/category-words")
+def list_words_by_category(
+    category: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """ดึง words ในหมวดหนึ่งพร้อม image_url สำหรับหน้า ตั้งค่ารูปประกอบ"""
+    q = db.query(Word).filter(Word.status == "verified")
+    if category and category != "ทั้งหมด":
+        q = q.filter(Word.category == category)
+    words = q.order_by(Word.char_count, Word.chinese).limit(500).all()
+    return [
+        {
+            "id": w.id,
+            "chinese": w.chinese,
+            "pinyin": w.pinyin,
+            "thai_meaning": w.thai_meaning,
+            "image_url": w.image_url,
+        }
+        for w in words
+    ]
+
+
 @router.get("/pending", response_model=list[WordPendingOut])
 def list_pending(
     skip: int = 0,

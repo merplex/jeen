@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords, scanOcr, getFavorites } from '../services/api'
+import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords, scanOcr, getFavorites, getPublicSettings } from '../services/api'
 import WordCard from '../components/WordCard'
+import MarqueeText from '../components/MarqueeText'
 import TonedChinese from '../components/TonedChinese'
 import HandwritingModal from '../components/HandwritingModal'
 import OfflineAlert from '../components/OfflineAlert'
@@ -26,6 +27,7 @@ export default function Search() {
   const [category, setCategory] = useState(() => sessionStorage.getItem('search_category') || 'ทั้งหมด')
   const [catUsage, setCatUsage] = useState(loadCatUsage)
   const [favCategories] = useState(loadFavCategories)
+  const [categoryGridConfig, setCategoryGridConfig] = useState({})
   const [ocrResult, setOcrResult] = useState(null)  // { text, translation, words }
   const [ocrLoading, setOcrLoading] = useState(false)
   const [showOcrSheet, setShowOcrSheet] = useState(false)
@@ -82,6 +84,13 @@ export default function Search() {
     if (!token) return
     getFavorites().then((r) => setFavoriteIds(new Set(r.data.map((f) => f.word_id)))).catch(() => {})
   }, [token])
+
+  // โหลด public settings สำหรับ category grid config
+  useEffect(() => {
+    getPublicSettings()
+      .then(r => { if (r.data?.category_grid_config) setCategoryGridConfig(r.data.category_grid_config) })
+      .catch(() => {})
+  }, [])
 
   const scheduleMissedReport = useCallback((q) => {
     clearTimeout(missedTimerRef.current)
@@ -563,28 +572,57 @@ export default function Search() {
             <div>
               <div className="flex items-center justify-between mb-2 px-1">
                 <span className="text-xs text-gray-400">คำศัพท์วันนี้</span>
-                <button
-                  onClick={() => refreshRandom(category)}
-                  className="text-xs text-chinese-red"
-                >
+                <button onClick={() => refreshRandom(category)} className="text-xs text-chinese-red">
                   สุ่มใหม่
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {randomWords.map((w) => (
-                  <button
-                    key={w.id}
-                    onClick={() => navigate(`/word/${w.id}`)}
-                    className="bg-white rounded-xl p-3 text-left shadow-sm border border-gray-100 active:scale-95 transition-transform"
-                  >
-                    <TonedChinese chinese={w.chinese} pinyin={w.pinyin} className="font-chinese text-2xl leading-tight" />
-                    <div className="text-[11px] text-gray-400 mt-0.5">{w.pinyin}</div>
-                    <div className="text-xs text-gray-600 mt-1 line-clamp-2 leading-snug">
-                      {w.thai_meaning.split('\n')[0]}
-                    </div>
-                  </button>
-                ))}
-              </div>
+
+              {/* Grid with images mode */}
+              {categoryGridConfig[category] && randomWords.some(w => w.image_url) ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {randomWords.filter(w => w.image_url).map((w) => (
+                    <button
+                      key={w.id}
+                      onClick={() => navigate(`/word/${w.id}`)}
+                      className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 active:scale-95 transition-transform text-left"
+                    >
+                      <img
+                        src={w.image_url}
+                        alt={w.chinese}
+                        className="w-full aspect-square object-cover"
+                        onError={e => { e.target.style.display = 'none' }}
+                      />
+                      <div className="px-2 pt-1.5 pb-2">
+                        <MarqueeText
+                          text={w.chinese}
+                          className="font-chinese text-lg font-medium text-gray-800"
+                        />
+                        <MarqueeText
+                          text={w.thai_meaning.split('\n')[0]}
+                          className="text-xs text-gray-500 mt-0.5"
+                        />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                /* Normal grid (no images) */
+                <div className="grid grid-cols-2 gap-2">
+                  {randomWords.map((w) => (
+                    <button
+                      key={w.id}
+                      onClick={() => navigate(`/word/${w.id}`)}
+                      className="bg-white rounded-xl p-3 text-left shadow-sm border border-gray-100 active:scale-95 transition-transform"
+                    >
+                      <TonedChinese chinese={w.chinese} pinyin={w.pinyin} className="font-chinese text-2xl leading-tight" />
+                      <div className="text-[11px] text-gray-400 mt-0.5">{w.pinyin}</div>
+                      <div className="text-xs text-gray-600 mt-1 line-clamp-2 leading-snug">
+                        {w.thai_meaning.split('\n')[0]}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-16 text-gray-400">

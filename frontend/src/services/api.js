@@ -146,6 +146,9 @@ export const getFavorites = () => api.get('/words/favorites')
 export const toggleFavorite = (wordId) => api.post(`/words/${wordId}/favorite`)
 export const getFavoriteStatus = (wordId) => api.get(`/words/${wordId}/favorite-status`)
 
+export const adminGetCategoryWords = (category) =>
+  api.get('/admin/category-words', { params: { category } })
+
 // Admin image cache
 export const adminDeleteImageCache = (category) => api.delete('/admin/image-cache', { params: { category } })
 export const adminDeleteNullImageCache = () => api.delete('/admin/image-cache/null')

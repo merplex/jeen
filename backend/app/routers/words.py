@@ -137,7 +137,7 @@ def favorite_status(word_id: int, db: Session = Depends(get_db), user: User = De
 @router.get("/public-settings")
 def get_public_settings(db: Session = Depends(get_db)):
     """Settings ที่ผู้ใช้ทั่วไปเห็นได้ (เช่น image_categories)"""
-    public_keys = ["image_categories"]
+    public_keys = ["image_categories", "category_grid_config"]
     result = {}
     for key in public_keys:
         row = db.query(AppSetting).filter(AppSetting.key == key).first()
@@ -147,7 +147,7 @@ def get_public_settings(db: Session = Depends(get_db)):
             except Exception:
                 result[key] = row.value
         else:
-            result[key] = [] if key == "image_categories" else None
+            result[key] = [] if key == "image_categories" else ({} if key == "category_grid_config" else None)
     return result
 
 
