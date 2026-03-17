@@ -184,7 +184,7 @@ def _search_per_char(db: Session, chars: list) -> list:
             db.query(Word)
             .filter(Word.status == 'verified', Word.chinese.like(f'{char}%'))
             .order_by(Word.char_count.asc())
-            .limit(20)
+            .limit(30)
             .all()
         )
         prefix_ids = {w.id for w in prefix}
@@ -196,7 +196,7 @@ def _search_per_char(db: Session, chars: list) -> list:
                 Word.chinese.like(f'%{char}%'),
             )
             .order_by(Word.char_count.asc())
-            .limit(20)
+            .limit(30)
             .all()
         )
         seen_ids |= prefix_ids | {w.id for w in inner}

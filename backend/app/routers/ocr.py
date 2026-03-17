@@ -53,7 +53,7 @@ def _find_words_in_text(text: str, db: Session) -> list:
     all_words = db.query(Word).filter(Word.status == "verified").all()
     found = [w for w in all_words if w.chinese and w.chinese in text]
     found.sort(key=lambda w: len(w.chinese), reverse=True)
-    return found[:20]
+    return found[:30]
 
 
 def _ocr_structured(image_bytes: bytes, mime_type: str) -> dict:

@@ -34,7 +34,7 @@ export default function WordDetail() {
   // context จาก admin "เช็ค" — { reportId, reportMsg, reportUserName }
   const reportContext = location.state?.reportId ? location.state : null
 
-  const isPremium = user?.is_admin || subscription?.active === true
+  const canReport = user?.is_admin || ['learner', 'lifetime', 'superuser'].includes(subscription?.tier)
   const [imageCategories, setImageCategories] = useState([])
   const [wordImageUrl, setWordImageUrl] = useState(undefined) // undefined=ยังไม่โหลด, null=ไม่มีรูป
   const [favorited, setFavorited] = useState(false)
@@ -287,7 +287,7 @@ export default function WordDetail() {
         <div className="flex items-center justify-between mb-3">
           <button onClick={() => navigate(-1)} className="text-white text-2xl">←</button>
           <div className="flex items-center gap-2">
-            {isPremium && (
+            {canReport && (
               <button
                 onClick={() => setShowReportModal(true)}
                 title="รายงานปัญหาคำศัพท์"
