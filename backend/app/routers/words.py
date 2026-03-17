@@ -703,8 +703,10 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
     if word.category not in enabled_cats and not grid_config.get(word.category):
         return {"url": None}
 
-    # อาหาร category → meishichina เท่านั้น (ไม่ fallback Wikipedia/Spoonacular)
+    # อาหาร category → meishichina เท่านั้น แต่ juhe_dataset ไม่ auto-fetch (ช้า)
     if word.category == "อาหาร":
+        if word.source == "juhe_dataset":
+            return {"url": None}
         raw_url = _fetch_meishichina_image_url(word.chinese)
         if raw_url:
             image_bytes = _download_image(raw_url)
