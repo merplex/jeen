@@ -464,12 +464,21 @@ export default function WordDetail() {
               <p className="text-xs text-gray-400 leading-relaxed py-1">
                 รูปอ้างอิงจาก{' '}
                 <a
+                  href={`https://baike.baidu.com/item/${word.chinese}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  百度百科
+                </a>
+                {' '}และ{' '}
+                <a
                   href={`https://home.meishichina.com/search/${word.chinese}/`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline"
                 >
-                  美食天下 (meishichina.com)
+                  美食天下
                 </a>
                 {' '}อาหารสำเร็จรูปปกติจะต่างออกไปในแต่ละร้านอาหาร โปรดดูด้วยวิจารณญาน
               </p>
