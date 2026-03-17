@@ -547,7 +547,16 @@ def _fetch_meishichina_image_url(chinese: str) -> str | None:
         "Referer": "https://home.meishichina.com/",
     }
     try:
-        # 1) recipe search
+        # 1) ingredient search ก่อน — ถ้าเจอ attachment/ingredient/ แสดงว่าเป็นวัตถุดิบ
+        r_ing = httpx.get(f"https://home.meishichina.com/search/ingredient/{chinese}/",
+                          headers=headers, timeout=10, follow_redirects=True)
+        if r_ing.status_code == 200:
+            imgs_ing = _re.findall(
+                r'data-src="(https?://i3[r]?\.meishichina\.com/attachment/ingredient/[^"]+\.jpg)', r_ing.text)
+            if imgs_ing:
+                return imgs_ing[0].split("?")[0] + "?x-oss-process=style/p800"
+
+        # 2) recipe search — สำหรับเมนูอาหาร
         r = httpx.get(f"https://home.meishichina.com/search/{chinese}/",
                       headers=headers, timeout=10, follow_redirects=True)
         if r.status_code == 200:
@@ -557,14 +566,6 @@ def _fetch_meishichina_image_url(chinese: str) -> str | None:
                 imgs = _re.findall(r"https://i3[r]?\.meishichina\.com/atta/recipe/[^\s\"'<>]+\.jpg", r2.text)
                 if imgs:
                     return imgs[0].split("?")[0] + "?x-oss-process=style/p800"
-
-        # 2) ingredient search fallback
-        r3 = httpx.get(f"https://home.meishichina.com/search/ingredient/{chinese}/",
-                       headers=headers, timeout=10, follow_redirects=True)
-        if r3.status_code == 200:
-            imgs2 = _re.findall(r'data-src="(https?://i3[r]?\.meishichina\.com/attachment/ingredient/[^"]+\.jpg)', r3.text)
-            if imgs2:
-                return imgs2[0].split("?")[0] + "?x-oss-process=style/p800"
 
         return None
     except Exception:
