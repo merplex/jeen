@@ -5,7 +5,7 @@ import WordCard from '../components/WordCard'
 import TonedChinese from '../components/TonedChinese'
 import HandwritingModal from '../components/HandwritingModal'
 import OfflineAlert from '../components/OfflineAlert'
-import { SEARCH_CATEGORIES } from '../utils/categories'
+import { SEARCH_CATEGORIES, getCategoryColor, loadFavCategories } from '../utils/categories'
 import useAuthStore from '../stores/authStore'
 
 function loadCatUsage() {
@@ -25,6 +25,7 @@ export default function Search() {
   const [randomWords, setRandomWords] = useState([])
   const [category, setCategory] = useState(() => sessionStorage.getItem('search_category') || 'ทั้งหมด')
   const [catUsage, setCatUsage] = useState(loadCatUsage)
+  const [favCategories] = useState(loadFavCategories)
   const [ocrResult, setOcrResult] = useState(null)  // { text, translation, words }
   const [ocrLoading, setOcrLoading] = useState(false)
   const [showOcrSheet, setShowOcrSheet] = useState(false)
@@ -36,7 +37,9 @@ export default function Search() {
 
   const sortedCategories = [
     'ทั้งหมด',
-    ...SEARCH_CATEGORIES.filter((c) => c !== 'ทั้งหมด')
+    ...favCategories,
+    ...SEARCH_CATEGORIES
+      .filter(c => c !== 'ทั้งหมด' && !favCategories.includes(c))
       .sort((a, b) => (catUsage[b] || 0) - (catUsage[a] || 0)),
   ]
 
@@ -358,27 +361,35 @@ export default function Search() {
 
       {/* Category filter */}
       <div className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide">
-        {sortedCategories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => {
-              setCategory(cat)
-              if (cat !== 'ทั้งหมด') {
-                const updated = { ...catUsage, [cat]: (catUsage[cat] || 0) + 1 }
-                setCatUsage(updated)
-                localStorage.setItem('cat_usage', JSON.stringify(updated))
-              }
-              if (!query) refreshRandom(cat)
-            }}
-            className={`whitespace-nowrap px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              category === cat
-                ? 'bg-chinese-red text-white'
-                : 'bg-white text-gray-600 border border-gray-200'
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
+        {sortedCategories.map((cat) => {
+          const isFav = favCategories.includes(cat)
+          const isActive = category === cat
+          const color = isFav ? getCategoryColor(cat) : null
+          return (
+            <button
+              key={cat}
+              onClick={() => {
+                setCategory(cat)
+                if (cat !== 'ทั้งหมด') {
+                  const updated = { ...catUsage, [cat]: (catUsage[cat] || 0) + 1 }
+                  setCatUsage(updated)
+                  localStorage.setItem('cat_usage', JSON.stringify(updated))
+                }
+                if (!query) refreshRandom(cat)
+              }}
+              style={isFav && !isActive ? { borderColor: color, borderWidth: 2 } : undefined}
+              className={`whitespace-nowrap px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                isActive
+                  ? 'bg-chinese-red text-white border-transparent'
+                  : isFav
+                  ? 'bg-white text-gray-700'
+                  : 'bg-white text-gray-600 border-gray-200'
+              }`}
+            >
+              {cat}
+            </button>
+          )
+        })}
       </div>
 
       {showOfflineAlert && <OfflineAlert onClose={() => setShowOfflineAlert(false)} />}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import { deleteAccount } from '../services/api'
+import { CATEGORIES, getCategoryColor, loadFavCategories, saveFavCategories } from '../utils/categories'
 
 export default function Profile() {
   const navigate = useNavigate()
@@ -10,6 +11,17 @@ export default function Profile() {
   const { subscription, fetch: fetchSub } = useSubscriptionStore()
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [favCats, setFavCats] = useState(loadFavCategories)
+
+  const toggleFavCat = (cat) => {
+    setFavCats(prev => {
+      const next = prev.includes(cat)
+        ? prev.filter(c => c !== cat)
+        : [...prev, cat]
+      saveFavCategories(next)
+      return next
+    })
+  }
 
   useEffect(() => {
     if (user) fetchSub()
@@ -102,6 +114,34 @@ export default function Profile() {
           ) : (
             <div className="text-gray-500 text-sm">Free — ใช้งานได้ทุกฟีเจอร์</div>
           )}
+        </div>
+
+        {/* Favorite categories */}
+        <div className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="text-sm text-gray-500 font-medium mb-1">หมวดหมู่โปรด</div>
+          <div className="text-xs text-gray-400 mb-3">กดเพื่อเพิ่ม — จะแสดงถัดจาก "ทั้งหมด" ในหน้าค้นหา</div>
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIES.map(cat => {
+              const favIdx = favCats.indexOf(cat)
+              const isFav = favIdx !== -1
+              const color = getCategoryColor(cat)
+              return (
+                <button
+                  key={cat}
+                  onClick={() => toggleFavCat(cat)}
+                  style={isFav ? { borderColor: color, borderWidth: 2 } : undefined}
+                  className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-all border ${
+                    isFav ? 'bg-white text-gray-700' : 'bg-gray-100 text-gray-500 border-transparent'
+                  }`}
+                >
+                  {isFav && (
+                    <span className="text-gray-400 text-xs leading-none">{favIdx + 1}</span>
+                  )}
+                  {cat}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         <button
