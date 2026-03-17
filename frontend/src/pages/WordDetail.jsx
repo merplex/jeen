@@ -444,11 +444,13 @@ export default function WordDetail() {
         </div>
 
         {/* Examples */}
-        {(word.examples?.length > 0 || user?.is_admin) && (
+        {(word.examples?.length > 0 || user?.is_admin) && (() => {
+          const isJuheOnly = word.source === 'juhe_dataset'
+          return (
           <div className="bg-white rounded-xl p-4 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-500">ประโยคตัวอย่าง</h3>
-              {user?.is_admin && (
+              {user?.is_admin && !isJuheOnly && (
                 <button
                   onClick={generateExamples}
                   disabled={genExLoading}
@@ -458,7 +460,11 @@ export default function WordDetail() {
                 </button>
               )}
             </div>
-            {word.examples?.length === 0 ? (
+            {isJuheOnly ? (
+              <p className="text-xs text-gray-400 leading-relaxed py-1">
+                รูปเพื่อการอ้างอิงรูปภาพเมนูอาหารเท่านั้น อาหารสำเร็จรูปปกติจะต่างออกไปในแต่ละร้านอาหาร โปรดดูด้วยวิจารณญาน
+              </p>
+            ) : word.examples?.length === 0 ? (
               <p className="text-xs text-gray-400 text-center py-2">
                 {user?.is_admin ? 'ยังไม่มีตัวอย่าง — กด ✨ สร้างตัวอย่าง' : 'ยังไม่มีตัวอย่าง'}
               </p>
@@ -532,7 +538,7 @@ export default function WordDetail() {
               )
             })()}
           </div>
-        )}
+        )})()}
 
         {/* Admin Edit */}
         {user?.is_admin && (

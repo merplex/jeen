@@ -769,6 +769,7 @@ def bulk_queue_examples(
         row[0]
         for row in db.query(Word.id)
         .filter(Word.status == "verified")
+        .filter(Word.source != "juhe_dataset")
         .filter(Word.id.notin_(select(Example.word_id).distinct()))
         .all()
     ]
