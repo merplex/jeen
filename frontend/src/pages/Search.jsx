@@ -224,6 +224,18 @@ export default function Search() {
   const filterByCategory = (words) =>
     category === 'ทั้งหมด' ? words : words.filter((w) => w.category === category)
 
+  const isGridMode = !!categoryGridConfig[category] && category !== 'ทั้งหมด'
+
+  const renderWordList = (words) => isGridMode ? (
+    <div className="grid grid-cols-2 gap-2">
+      {words.map((w) => <WordImageGridCard key={w.id} word={w} />)}
+    </div>
+  ) : (
+    <div className="space-y-2">
+      {words.map((w) => <WordCard key={w.id} word={w} starred={favoriteIds.has(w.id)} />)}
+    </div>
+  )
+
   const sortFav = (words) =>
     favoriteIds.size === 0 ? words : [...words].sort((a, b) => (favoriteIds.has(b.id) ? 1 : 0) - (favoriteIds.has(a.id) ? 1 : 0))
 
@@ -511,9 +523,7 @@ export default function Search() {
                 <h2 className="text-xs font-semibold text-chinese-gold uppercase tracking-wider mb-2">
                   @คำที่ค้นหาได้
                 </h2>
-                <div className="space-y-2">
-                  {prefix.map((w) => <WordCard key={w.id} word={w} starred={favoriteIds.has(w.id)} />)}
-                </div>
+                {renderWordList(prefix)}
               </div>
             )}
 
@@ -525,9 +535,7 @@ export default function Search() {
                     <h2 className="text-xs font-semibold text-chinese-gold uppercase tracking-wider mb-2">
                       คำที่ขึ้นต้นด้วย "{result.query}"
                     </h2>
-                    <div className="space-y-2">
-                      {prefix.map((w) => <WordCard key={w.id} word={w} starred={favoriteIds.has(w.id)} />)}
-                    </div>
+                    {renderWordList(prefix)}
                   </div>
                 )}
                 {inner.length > 0 && (
@@ -535,9 +543,7 @@ export default function Search() {
                     <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                       คำที่มี "{result.query}" อยู่ข้างใน
                     </h2>
-                    <div className="space-y-2">
-                      {inner.map((w) => <WordCard key={w.id} word={w} starred={favoriteIds.has(w.id)} />)}
-                    </div>
+                    {renderWordList(inner)}
                   </div>
                 )}
               </>
@@ -558,17 +564,13 @@ export default function Search() {
                 {group.prefix_group?.length > 0 && (
                   <div className="mb-2">
                     <p className="text-xs text-chinese-gold mb-1.5">คำที่ขึ้นต้นด้วย "{group.char}"</p>
-                    <div className="space-y-2">
-                      {sortFav(filterByCategory(group.prefix_group)).map((w) => <WordCard key={w.id} word={w} starred={favoriteIds.has(w.id)} />)}
-                    </div>
+                    {renderWordList(sortFav(filterByCategory(group.prefix_group)))}
                   </div>
                 )}
                 {group.inner_group?.length > 0 && (
                   <div>
                     <p className="text-xs text-gray-400 mb-1.5">คำที่มี "{group.char}" อยู่ข้างใน</p>
-                    <div className="space-y-2">
-                      {sortFav(filterByCategory(group.inner_group)).map((w) => <WordCard key={w.id} word={w} starred={favoriteIds.has(w.id)} />)}
-                    </div>
+                    {renderWordList(sortFav(filterByCategory(group.inner_group)))}
                   </div>
                 )}
               </div>
