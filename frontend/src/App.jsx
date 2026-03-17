@@ -23,6 +23,7 @@ import AddWord from './pages/admin/AddWord'
 import BulkExamples from './pages/admin/BulkExamples'
 import ActivityLog from './pages/admin/ActivityLog'
 import Subscriptions from './pages/admin/Subscriptions'
+import MassTranslation from './pages/admin/MassTranslation'
 import OcrLive from './pages/OcrLive'
 import DownloadApp from './pages/DownloadApp'
 import PrivacyPolicy from './pages/PrivacyPolicy'
@@ -103,6 +104,7 @@ export default function App() {
           <Route path="examples" element={<BulkExamples />} />
           <Route path="activity" element={<ActivityLog />} />
           <Route path="subscriptions" element={<Subscriptions />} />
+          <Route path="bulkinput" element={<MassTranslation />} />
         </Route>
       </Routes>
       <BottomNav />

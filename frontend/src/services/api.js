@@ -66,6 +66,9 @@ export const createNote = (data) => api.post('/notes', data)
 export const updateNote = (id, data) => api.put(`/notes/${id}`, data)
 export const deleteNote = (id) => api.delete(`/notes/${id}`)
 
+export const adminGetWords = (hsk_level = null) =>
+  api.get('/admin/words', { params: { ...(hsk_level ? { hsk_level } : {}) } })
+
 export const adminGetPending = (skip = 0, limit = 50) =>
   api.get('/admin/pending', { params: { skip, limit } })
 export const adminApprove = (id, thaiMeaning = null, pinyin = null, category = null) =>

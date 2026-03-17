@@ -8,6 +8,7 @@ const TABS = [
   { to: '/admin/examples', label: 'ตัวอย่าง' },
   { to: '/admin/activity', label: 'ประวัติ' },
   { to: '/admin/subscriptions', label: 'Subscription' },
+  { to: '/admin/bulkinput', label: 'Bulk Input' },
 ]
 
 export default function AdminDashboard() {

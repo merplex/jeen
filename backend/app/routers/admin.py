@@ -42,6 +42,30 @@ def _log(db: Session, action: str, word_id: int = None, chinese: str = None, det
     db.flush()
 
 
+@router.get("/words")
+def list_words_for_translation(
+    hsk_level: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    q = db.query(Word).filter(Word.status == "verified", Word.hsk_level.isnot(None))
+    if hsk_level:
+        q = q.filter(Word.hsk_level == hsk_level)
+    words = q.order_by(Word.hsk_level, Word.char_count, Word.chinese).limit(5000).all()
+    return [
+        {
+            "id": w.id,
+            "chinese": w.chinese,
+            "pinyin": w.pinyin,
+            "thai_meaning": w.thai_meaning,
+            "category": w.category,
+            "hsk_level": w.hsk_level,
+            "char_count": w.char_count,
+        }
+        for w in words
+    ]
+
+
 @router.get("/pending", response_model=list[WordPendingOut])
 def list_pending(
     skip: int = 0,
