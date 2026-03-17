@@ -106,10 +106,6 @@ export default function MassTranslation() {
     setEdits(prev => ({ ...prev, [wordId]: { ...prev[wordId], [field]: value } }))
   }, [])
 
-  const clearWord = useCallback((wordId) => {
-    setEdits(prev => { const next = { ...prev }; delete next[wordId]; return next })
-  }, [])
-
   const handleAddDB = async () => {
     const toSave = words.filter(w => edits[w.id]?.thai_meaning?.trim())
     if (toSave.length === 0) return
@@ -252,11 +248,10 @@ export default function MassTranslation() {
         <div className="bg-white rounded-xl overflow-hidden shadow-sm">
           {/* Header */}
           <div className="grid px-2 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-500 font-medium gap-2"
-            style={{ gridTemplateColumns: '22px 90px 1fr 18px' }}>
+            style={{ gridTemplateColumns: '22px 90px 1fr' }}>
             <span>#</span>
             <span>คำศัพท์</span>
             <span>คำแปลไทย</span>
-            <span />
           </div>
 
           {filteredWords.length === 0 ? (
@@ -276,7 +271,7 @@ export default function MassTranslation() {
                   className={`grid gap-2 px-2 py-2 border-b border-gray-50 transition-colors items-start ${
                     isFocused ? 'bg-blue-50' : hasLocalEdit ? 'bg-green-50' : ''
                   }`}
-                  style={{ gridTemplateColumns: '22px 90px 1fr 18px' }}
+                  style={{ gridTemplateColumns: '22px 90px 1fr' }}
                 >
                   {/* Index */}
                   <span className="text-xs text-gray-400 pt-1 select-none">{idx + 1}</span>
@@ -339,18 +334,6 @@ export default function MassTranslation() {
                     )
                   })}
 
-                  {/* Clear button */}
-                  <div className="pt-1 flex items-start justify-center">
-                    {hasLocalEdit && (
-                      <button
-                        onClick={e => { e.stopPropagation(); clearWord(word.id) }}
-                        className="text-gray-300 hover:text-red-400 text-sm leading-none"
-                        title="ยกเลิกการแก้ไขแถวนี้"
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
                 </div>
               )
             })
