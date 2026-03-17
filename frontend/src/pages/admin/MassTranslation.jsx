@@ -2,28 +2,28 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { adminGetWords, adminUpdateWord } from '../../services/api'
 
 // ─── Lock threshold ───────────────────────────────────────────────────────────
-// คำที่ id <= ตัวนี้ = คำเก่าของเปรม (ตรวจแล้ว) → lock
-// คำที่ id > ตัวนี้ = import ใหม่ยังไม่ตรวจ → แก้ได้
-// TODO: เปรมกรอก ID สุดท้ายก่อน import ตรงนี้
+// id <= ตัวนี้ = คำเก่าของเปรม (lock), id > ตัวนี้ = import ใหม่ (แก้ได้)
 const LOCK_BELOW_ID = 27268
 
 // ─── Field config ────────────────────────────────────────────────────────────
-// ถ้าอยากเพิ่ม field ใหม่ในอนาคต แก้แค่นี้ที่เดียว
+// placement: 'main' = คอลัมน์หลัก (thai_meaning), 'under_chinese' = ใต้คำจีน
 const EDIT_FIELDS = [
   {
     key: 'thai_meaning',
     label: 'คำแปลไทย',
     placeholder: 'คำแปลไทย...',
     type: 'textarea',
-    rows: 2,
-    canLock: true,   // lock ได้ตาม threshold + lockedIds
+    rows: 3,
+    placement: 'main',
+    canLock: true,
   },
   {
     key: 'category',
     label: 'หมวดหมู่',
-    placeholder: 'เช่น อาหาร, สถานที่...',
+    placeholder: 'หมวดหมู่...',
     type: 'input',
-    canLock: false,  // แก้ได้เสมอ
+    placement: 'under_chinese',
+    canLock: false,
   },
 ]
 
@@ -37,21 +37,15 @@ function writeLS(data) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch { /* quota exceeded */ }
 }
 
-// ─── Helper: is this field locked for a given word? ──────────────────────────
-// Lock ถ้า: คำเก่า (id <= threshold) หรือ เคยกด Add DB ไปแล้วในหน้านี้
-function isFieldLocked(word, field, lockedIds) {
-  if (!field.canLock) return false
-  if (word.id <= LOCK_BELOW_ID) return true
-  if (lockedIds.includes(word.id)) return true
-  return false
+function isWordLocked(word, lockedIds) {
+  return word.id <= LOCK_BELOW_ID || lockedIds.includes(word.id)
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function MassTranslation() {
-  // All persisted in localStorage — survives page close / network cut
   const [hskFilter, setHskFilter] = useState(() => readLS().hskFilter ?? 'all')
   const [searchQuery, setSearchQuery] = useState(() => readLS().searchQuery ?? '')
-  const [showOnlyEdited, setShowOnlyEdited] = useState(() => readLS().showOnlyEdited ?? false)
+  const [viewFilter, setViewFilter] = useState(() => readLS().viewFilter ?? 'all') // 'all' | 'edited' | 'unedited'
   const [edits, setEdits] = useState(() => readLS().edits ?? {})
   const [lockedIds, setLockedIds] = useState(() => readLS().lockedIds ?? [])
   const [focusedId, setFocusedId] = useState(() => readLS().focusedId ?? null)
@@ -59,18 +53,15 @@ export default function MassTranslation() {
   const [words, setWords] = useState([])
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState('')
-
   const [saving, setSaving] = useState(false)
   const [saveResult, setSaveResult] = useState(null)
 
   const focusRowRef = useRef(null)
 
-  // ── Persist state on every change ──────────────────────────────────────────
   useEffect(() => {
-    writeLS({ hskFilter, searchQuery, showOnlyEdited, edits, lockedIds, focusedId })
-  }, [hskFilter, searchQuery, showOnlyEdited, edits, lockedIds, focusedId])
+    writeLS({ hskFilter, searchQuery, viewFilter, edits, lockedIds, focusedId })
+  }, [hskFilter, searchQuery, viewFilter, edits, lockedIds, focusedId])
 
-  // ── Fetch words ─────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -83,14 +74,12 @@ export default function MassTranslation() {
     return () => { cancelled = true }
   }, [hskFilter])
 
-  // ── Scroll to focused row after words load ───────────────────────────────────
   useEffect(() => {
     if (focusedId && focusRowRef.current) {
       focusRowRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' })
     }
   }, [words])
 
-  // ── Derived ──────────────────────────────────────────────────────────────────
   const filteredWords = useMemo(() => {
     let list = words
     const q = searchQuery.trim()
@@ -99,18 +88,20 @@ export default function MassTranslation() {
         w.chinese.includes(q) || w.pinyin?.toLowerCase().includes(q.toLowerCase())
       )
     }
-    if (showOnlyEdited) {
+    if (viewFilter === 'edited') {
       list = list.filter(w => edits[w.id])
+    } else if (viewFilter === 'unedited') {
+      // เฉพาะคำที่แก้ได้ (ไม่ lock) และยังไม่ได้กรอก
+      list = list.filter(w => !isWordLocked(w, lockedIds) && !edits[w.id])
     }
     return list
-  }, [words, searchQuery, showOnlyEdited, edits])
+  }, [words, searchQuery, viewFilter, edits, lockedIds])
 
   const pendingCount = useMemo(
     () => words.filter(w => edits[w.id]?.thai_meaning?.trim()).length,
     [edits, words]
   )
 
-  // ── Handlers ─────────────────────────────────────────────────────────────────
   const handleChange = useCallback((wordId, field, value) => {
     setEdits(prev => ({ ...prev, [wordId]: { ...prev[wordId], [field]: value } }))
   }, [])
@@ -119,7 +110,6 @@ export default function MassTranslation() {
     setEdits(prev => { const next = { ...prev }; delete next[wordId]; return next })
   }, [])
 
-  // ── Add DB ───────────────────────────────────────────────────────────────────
   const handleAddDB = async () => {
     const toSave = words.filter(w => edits[w.id]?.thai_meaning?.trim())
     if (toSave.length === 0) return
@@ -138,12 +128,9 @@ export default function MassTranslation() {
         await adminUpdateWord(word.id, payload)
         savedIds.push(word.id)
         done++
-      } catch {
-        // continue with next
-      }
+      } catch { /* continue */ }
     }
 
-    // Update local words array to reflect new DB values
     setWords(prev => prev.map(w => {
       if (!savedIds.includes(w.id)) return w
       return {
@@ -153,10 +140,8 @@ export default function MassTranslation() {
       }
     }))
 
-    // Add saved IDs to lockedIds → thai_meaning becomes read-only
     setLockedIds(prev => [...new Set([...prev, ...savedIds])])
 
-    // Remove thai_meaning from edits (saved to DB), keep category edit if any
     setEdits(prev => {
       const next = { ...prev }
       savedIds.forEach(id => {
@@ -173,7 +158,9 @@ export default function MassTranslation() {
     setSaveResult({ done, total: toSave.length })
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  const mainFields = EDIT_FIELDS.filter(f => f.placement === 'main')
+  const underChineseFields = EDIT_FIELDS.filter(f => f.placement === 'under_chinese')
+
   return (
     <div className="px-4 py-6">
 
@@ -208,27 +195,33 @@ export default function MassTranslation() {
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           placeholder="ค้นหาด้วยอักษรจีนหรือพินอิน..."
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-chinese-red"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-chinese-red mb-3"
         />
 
-        {/* Stats + actions */}
-        <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500">
-              แสดง {filteredWords.length} คำ · กรอกใหม่ {pendingCount} คำ
-            </span>
+        {/* View filter toggle */}
+        <div className="flex gap-1.5 mb-3">
+          {[
+            { val: 'all', label: 'ทั้งหมด' },
+            { val: 'unedited', label: 'ยังไม่กรอก' },
+            { val: 'edited', label: 'กรอกแล้ว' },
+          ].map(opt => (
             <button
-              onClick={() => setShowOnlyEdited(v => !v)}
-              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-                showOnlyEdited
-                  ? 'bg-amber-100 text-amber-700 border-amber-200'
-                  : 'bg-gray-50 text-gray-500 border-gray-200'
+              key={opt.val}
+              onClick={() => setViewFilter(opt.val)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                viewFilter === opt.val ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-600'
               }`}
             >
-              {showOnlyEdited ? '✓ เฉพาะที่กรอกแล้ว' : 'เฉพาะที่กรอกแล้ว'}
+              {opt.label}
             </button>
-          </div>
+          ))}
+        </div>
 
+        {/* Stats + Add DB */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <span className="text-xs text-gray-500">
+            แสดง {filteredWords.length} คำ · กรอกใหม่ {pendingCount} คำ
+          </span>
           {pendingCount > 0 && (
             <button
               onClick={handleAddDB}
@@ -250,18 +243,6 @@ export default function MassTranslation() {
         )}
       </div>
 
-      {/* ── Legend ── */}
-      <div className="flex gap-3 text-xs text-gray-400 mb-2 px-1">
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-green-100 inline-block border border-green-200" />
-          กรอกใหม่ (ยังไม่ add DB)
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-gray-100 inline-block border border-gray-200" />
-          lock (คำเก่า / add DB แล้ว)
-        </span>
-      </div>
-
       {/* ── Table ── */}
       {loading ? (
         <div className="text-center py-10 text-gray-400 text-sm">กำลังโหลด...</div>
@@ -270,13 +251,11 @@ export default function MassTranslation() {
       ) : (
         <div className="bg-white rounded-xl overflow-hidden shadow-sm">
           {/* Header */}
-          <div
-            className="px-2 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-500 font-medium grid gap-1"
-            style={{ gridTemplateColumns: `22px 76px repeat(${EDIT_FIELDS.length}, 1fr) 18px` }}
-          >
+          <div className="grid px-2 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-500 font-medium gap-2"
+            style={{ gridTemplateColumns: '22px 90px 1fr 18px' }}>
             <span>#</span>
             <span>คำศัพท์</span>
-            {EDIT_FIELDS.map(f => <span key={f.key}>{f.label}</span>)}
+            <span>คำแปลไทย</span>
             <span />
           </div>
 
@@ -286,6 +265,7 @@ export default function MassTranslation() {
             filteredWords.map((word, idx) => {
               const wordEdit = edits[word.id]
               const hasLocalEdit = !!wordEdit
+              const locked = isWordLocked(word, lockedIds)
               const isFocused = focusedId === word.id
 
               return (
@@ -293,31 +273,48 @@ export default function MassTranslation() {
                   key={word.id}
                   ref={isFocused ? focusRowRef : null}
                   onClick={() => setFocusedId(word.id)}
-                  className={`grid gap-1 px-2 py-1.5 border-b border-gray-50 transition-colors ${
+                  className={`grid gap-2 px-2 py-2 border-b border-gray-50 transition-colors items-start ${
                     isFocused ? 'bg-blue-50' : hasLocalEdit ? 'bg-green-50' : ''
                   }`}
-                  style={{ gridTemplateColumns: `22px 76px repeat(${EDIT_FIELDS.length}, 1fr) 18px` }}
+                  style={{ gridTemplateColumns: '22px 90px 1fr 18px' }}
                 >
                   {/* Index */}
-                  <span className="text-xs text-gray-400 pt-2 select-none">{idx + 1}</span>
+                  <span className="text-xs text-gray-400 pt-1 select-none">{idx + 1}</span>
 
-                  {/* Chinese card */}
-                  <div className="pt-1 min-w-0">
-                    <div className="text-sm font-medium leading-tight">{word.chinese}</div>
-                    <div className="text-xs text-gray-400 truncate leading-tight">{word.pinyin}</div>
+                  {/* Chinese card + under_chinese fields */}
+                  <div className="min-w-0">
+                    <div className="text-base font-medium leading-tight">{word.chinese}</div>
+                    <div className="text-xs text-gray-400 leading-tight mt-0.5">{word.pinyin}</div>
                     {word.hsk_level && (
-                      <div className="text-xs text-red-400">{word.hsk_level}</div>
+                      <div className="text-xs text-red-400 leading-tight">{word.hsk_level}</div>
                     )}
+                    {/* Fields under chinese (e.g. category) */}
+                    {underChineseFields.map(field => {
+                      const val = wordEdit?.[field.key] !== undefined
+                        ? wordEdit[field.key]
+                        : (word[field.key] ?? '')
+                      return (
+                        <input
+                          key={field.key}
+                          type="text"
+                          value={val}
+                          onChange={e => handleChange(word.id, field.key, e.target.value)}
+                          onFocus={() => setFocusedId(word.id)}
+                          placeholder={field.placeholder}
+                          disabled={locked && field.canLock}
+                          className="mt-1 w-full text-xs border border-gray-200 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-chinese-red disabled:bg-gray-50 disabled:text-gray-300"
+                        />
+                      )
+                    })}
                   </div>
 
-                  {/* Edit fields */}
-                  {EDIT_FIELDS.map(field => {
-                    const locked = isFieldLocked(word, field, lockedIds)
-                    const currentVal = wordEdit?.[field.key] !== undefined
+                  {/* Main field (thai_meaning) */}
+                  {mainFields.map(field => {
+                    const val = wordEdit?.[field.key] !== undefined
                       ? wordEdit[field.key]
                       : (word[field.key] ?? '')
 
-                    if (locked) {
+                    if (locked && field.canLock) {
                       return (
                         <div
                           key={field.key}
@@ -329,34 +326,20 @@ export default function MassTranslation() {
                       )
                     }
 
-                    if (field.type === 'textarea') {
-                      return (
-                        <textarea
-                          key={field.key}
-                          value={currentVal}
-                          onChange={e => handleChange(word.id, field.key, e.target.value)}
-                          onFocus={() => setFocusedId(word.id)}
-                          placeholder={field.placeholder}
-                          rows={field.rows ?? 2}
-                          className="text-xs border border-gray-200 rounded px-1.5 py-1 resize-none focus:outline-none focus:ring-1 focus:ring-chinese-red w-full leading-snug"
-                        />
-                      )
-                    }
-
                     return (
-                      <input
+                      <textarea
                         key={field.key}
-                        type="text"
-                        value={currentVal}
+                        value={val}
                         onChange={e => handleChange(word.id, field.key, e.target.value)}
                         onFocus={() => setFocusedId(word.id)}
                         placeholder={field.placeholder}
-                        className="text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-chinese-red w-full"
+                        rows={field.rows ?? 3}
+                        className="text-xs border border-gray-200 rounded px-1.5 py-1 resize-none focus:outline-none focus:ring-1 focus:ring-chinese-red w-full leading-snug"
                       />
                     )
                   })}
 
-                  {/* Clear row button */}
+                  {/* Clear button */}
                   <div className="pt-1 flex items-start justify-center">
                     {hasLocalEdit && (
                       <button
