@@ -467,7 +467,7 @@ export default function WordDetail() {
                   href={`https://baike.baidu.com/item/${word.chinese}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="underline"
+                  className="underline text-gray-500"
                 >
                   百度百科
                 </a>
@@ -476,7 +476,7 @@ export default function WordDetail() {
                   href={`https://home.meishichina.com/search/${word.chinese}/`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="underline"
+                  className="underline text-gray-500"
                 >
                   美食天下
                 </a>
