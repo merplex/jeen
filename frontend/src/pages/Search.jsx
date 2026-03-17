@@ -27,7 +27,9 @@ export default function Search() {
   const [category, setCategory] = useState(() => sessionStorage.getItem('search_category') || 'ทั้งหมด')
   const [catUsage, setCatUsage] = useState(loadCatUsage)
   const [favCategories] = useState(loadFavCategories)
-  const [categoryGridConfig, setCategoryGridConfig] = useState({})
+  const [categoryGridConfig, setCategoryGridConfig] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('admin_grid_config') || '{}') } catch { return {} }
+  })
   const [ocrResult, setOcrResult] = useState(null)  // { text, translation, words }
   const [ocrLoading, setOcrLoading] = useState(false)
   const [showOcrSheet, setShowOcrSheet] = useState(false)
@@ -85,10 +87,16 @@ export default function Search() {
     getFavorites().then((r) => setFavoriteIds(new Set(r.data.map((f) => f.word_id)))).catch(() => {})
   }, [token])
 
-  // โหลด public settings สำหรับ category grid config
+  // โหลด public settings สำหรับ category grid config (อัพเดต cache ด้วย)
   useEffect(() => {
     getPublicSettings()
-      .then(r => { if (r.data?.category_grid_config) setCategoryGridConfig(r.data.category_grid_config) })
+      .then(r => {
+        const cfg = r.data?.category_grid_config
+        if (cfg && typeof cfg === 'object') {
+          setCategoryGridConfig(cfg)
+          try { localStorage.setItem('admin_grid_config', JSON.stringify(cfg)) } catch { /* ignore */ }
+        }
+      })
       .catch(() => {})
   }, [])
 

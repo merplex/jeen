@@ -2,8 +2,16 @@ import { useState, useEffect } from 'react'
 import { CATEGORIES } from '../../utils/categories'
 import { adminGetSettings, adminUpdateSettings, adminGetCategoryWords, adminUpdateWord } from '../../services/api'
 
+const GRID_CFG_KEY = 'admin_grid_config'
+function loadCachedGridConfig() {
+  try { return JSON.parse(localStorage.getItem(GRID_CFG_KEY) || '{}') } catch { return {} }
+}
+function saveGridConfigCache(cfg) {
+  try { localStorage.setItem(GRID_CFG_KEY, JSON.stringify(cfg)) } catch { /* ignore */ }
+}
+
 export default function CategoryImageConfig() {
-  const [gridConfig, setGridConfig] = useState({})  // { category: bool }
+  const [gridConfig, setGridConfig] = useState(loadCachedGridConfig)  // load instantly from cache
   const [selectedCat, setSelectedCat] = useState(null)
   const [words, setWords] = useState([])
   const [loadingWords, setLoadingWords] = useState(false)
@@ -14,13 +22,17 @@ export default function CategoryImageConfig() {
   useEffect(() => {
     adminGetSettings().then(res => {
       const cfg = res.data?.category_grid_config
-      if (cfg && typeof cfg === 'object') setGridConfig(cfg)
+      if (cfg && typeof cfg === 'object') {
+        setGridConfig(cfg)
+        saveGridConfigCache(cfg)
+      }
     }).catch(() => {})
   }, [])
 
   const toggleGrid = async (cat) => {
     const next = { ...gridConfig, [cat]: !gridConfig[cat] }
     setGridConfig(next)
+    saveGridConfigCache(next)  // บันทึก cache ทันทีก่อน save backend
     setSettingsSaving(true)
     try {
       await adminUpdateSettings({ category_grid_config: next })
