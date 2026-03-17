@@ -538,25 +538,35 @@ def _wiki_fallback(word, wiki_art: str, _model, _get_text) -> list[str]:
 
 
 def _fetch_meishichina_image_url(chinese: str) -> str | None:
-    """ค้นหาชื่อเมนูจีนใน meishichina แล้วคืน URL รูปหลัก (p800) หรือ None"""
+    """ค้นหาชื่อเมนู/วัตถุดิบจีนใน meishichina แล้วคืน URL รูปหลัก (p800) หรือ None
+    ลำดับ: recipe search → ingredient search
+    """
     import httpx, re as _re
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Referer": "https://home.meishichina.com/",
     }
     try:
+        # 1) recipe search
         r = httpx.get(f"https://home.meishichina.com/search/{chinese}/",
                       headers=headers, timeout=10, follow_redirects=True)
-        if r.status_code != 200:
-            return None
-        links = _re.findall(r'href="(https://home\.meishichina\.com/recipe-\d+\.html)"', r.text)
-        if not links:
-            return None
-        r2 = httpx.get(links[0], headers=headers, timeout=10, follow_redirects=True)
-        imgs = _re.findall(r"https://i3[r]?\.meishichina\.com/atta/recipe/[^\s\"'<>]+\.jpg", r2.text)
-        if not imgs:
-            return None
-        return imgs[0].split("?")[0] + "?x-oss-process=style/p800"
+        if r.status_code == 200:
+            links = _re.findall(r'href="(https://home\.meishichina\.com/recipe-\d+\.html)"', r.text)
+            if links:
+                r2 = httpx.get(links[0], headers=headers, timeout=10, follow_redirects=True)
+                imgs = _re.findall(r"https://i3[r]?\.meishichina\.com/atta/recipe/[^\s\"'<>]+\.jpg", r2.text)
+                if imgs:
+                    return imgs[0].split("?")[0] + "?x-oss-process=style/p800"
+
+        # 2) ingredient search fallback
+        r3 = httpx.get(f"https://home.meishichina.com/search/ingredient/{chinese}/",
+                       headers=headers, timeout=10, follow_redirects=True)
+        if r3.status_code == 200:
+            imgs2 = _re.findall(r'data-src="(https?://i3[r]?\.meishichina\.com/attachment/ingredient/[^"]+\.jpg)', r3.text)
+            if imgs2:
+                return imgs2[0].split("?")[0] + "?x-oss-process=style/p800"
+
+        return None
     except Exception:
         return None
 
@@ -787,10 +797,13 @@ def upload_word_image(
 
 @router.get("/{word_id}/image/debug")
 def debug_word_image(word_id: int, db: Session = Depends(get_db), _: User = Depends(require_admin)):
-    """Debug: ดู info จาก Gemini และ pool URLs โดยไม่แก้ cache"""
+    """Debug: ดู info และทดสอบ meishichina fetch"""
     word = db.query(Word).filter(Word.id == word_id).first()
     if not word:
         raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์")
+    if word.category == "อาหาร":
+        meishi_url = _fetch_meishichina_image_url(word.chinese)
+        return {"word": word.chinese, "category": word.category, "source": word.source, "meishichina_url": meishi_url}
     from ..services.translate_service import _model, _has_api_key, _get_text
     if not _has_api_key():
         return {"error": "no api key"}
