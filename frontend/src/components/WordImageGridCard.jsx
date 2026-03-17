@@ -49,8 +49,18 @@ export default function WordImageGridCard({ word }) {
             onError={() => setImgError(true)}
           />
         ) : (
-          /* no image */
-          <span className="text-3xl text-gray-300">📷</span>
+          /* no image — food icon placeholder */
+          <svg viewBox="0 0 64 64" className="w-12 h-12 text-gray-200" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {/* bowl */}
+            <path d="M12 28 C12 44 52 44 52 28" />
+            <line x1="8" y1="28" x2="56" y2="28" />
+            <line x1="32" y1="44" x2="32" y2="50" />
+            <line x1="24" y1="50" x2="40" y2="50" />
+            {/* steam */}
+            <path d="M22 22 C22 18 26 18 26 14" />
+            <path d="M32 22 C32 18 36 18 36 14" />
+            <path d="M42 22 C42 18 46 18 46 14" />
+          </svg>
         )}
       </div>
 

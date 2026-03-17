@@ -444,7 +444,7 @@ export default function WordDetail() {
         </div>
 
         {/* Examples */}
-        {(word.examples?.length > 0 || user?.is_admin) && (() => {
+        {(word.examples?.length > 0 || user?.is_admin || word.source === 'juhe_dataset') && (() => {
           const isJuheOnly = word.source === 'juhe_dataset'
           return (
           <div className="bg-white rounded-xl p-4 shadow-sm">
@@ -462,7 +462,16 @@ export default function WordDetail() {
             </div>
             {isJuheOnly ? (
               <p className="text-xs text-gray-400 leading-relaxed py-1">
-                รูปเพื่อการอ้างอิงรูปภาพเมนูอาหารเท่านั้น อาหารสำเร็จรูปปกติจะต่างออกไปในแต่ละร้านอาหาร โปรดดูด้วยวิจารณญาน
+                รูปอ้างอิงจาก{' '}
+                <a
+                  href={`https://home.meishichina.com/search/${word.chinese}/`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  美食天下 (meishichina.com)
+                </a>
+                {' '}อาหารสำเร็จรูปปกติจะต่างออกไปในแต่ละร้านอาหาร โปรดดูด้วยวิจารณญาน
               </p>
             ) : word.examples?.length === 0 ? (
               <p className="text-xs text-gray-400 text-center py-2">

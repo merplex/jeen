@@ -537,6 +537,30 @@ def _wiki_fallback(word, wiki_art: str, _model, _get_text) -> list[str]:
     return pool
 
 
+def _fetch_meishichina_image_url(chinese: str) -> str | None:
+    """ค้นหาชื่อเมนูจีนใน meishichina แล้วคืน URL รูปหลัก (p800) หรือ None"""
+    import httpx, re as _re
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://home.meishichina.com/",
+    }
+    try:
+        r = httpx.get(f"https://home.meishichina.com/search/{chinese}/",
+                      headers=headers, timeout=10, follow_redirects=True)
+        if r.status_code != 200:
+            return None
+        links = _re.findall(r'href="(https://home\.meishichina\.com/recipe-\d+\.html)"', r.text)
+        if not links:
+            return None
+        r2 = httpx.get(links[0], headers=headers, timeout=10, follow_redirects=True)
+        imgs = _re.findall(r"https://i3[r]?\.meishichina\.com/atta/recipe/[^\s\"'<>]+\.jpg", r2.text)
+        if not imgs:
+            return None
+        return imgs[0].split("?")[0] + "?x-oss-process=style/p800"
+    except Exception:
+        return None
+
+
 def _build_image_pool(word, _model, _get_text, limit: int = 15) -> tuple[list[str], dict]:
     """
     Entry point หลัก — แยก path ตาม word.category:
@@ -662,6 +686,17 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
     except Exception:
         grid_config = {}
     if word.category not in enabled_cats and not grid_config.get(word.category):
+        return {"url": None}
+
+    # juhe_dataset words → ดึงรูปจาก meishichina แล้วเก็บ binary
+    if word.source == "juhe_dataset":
+        raw_url = _fetch_meishichina_image_url(word.chinese)
+        if raw_url:
+            image_bytes = _download_image(raw_url)
+            if image_bytes:
+                db.add(WordImageCache(word_id=word_id, image_data=image_bytes, image_url=None, image_source="meishichina"))
+                db.commit()
+                return {"url": f"/words/{word_id}/image/blob"}
         return {"url": None}
 
     from ..services.translate_service import _model, _has_api_key, _get_text
