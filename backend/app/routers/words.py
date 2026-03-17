@@ -650,13 +650,18 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
     if not word:
         raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์")
 
-    # ตรวจว่า category ของคำนี้ถูก enable ใน image_categories setting ไหม
-    setting = db.query(AppSetting).filter(AppSetting.key == "image_categories").first()
+    # ตรวจว่า category ถูก enable ใน image_categories หรือ category_grid_config
+    setting_img = db.query(AppSetting).filter(AppSetting.key == "image_categories").first()
+    setting_grid = db.query(AppSetting).filter(AppSetting.key == "category_grid_config").first()
     try:
-        enabled_cats = json.loads(setting.value) if setting and setting.value else []
+        enabled_cats = json.loads(setting_img.value) if setting_img and setting_img.value else []
     except Exception:
         enabled_cats = []
-    if word.category not in enabled_cats:
+    try:
+        grid_config = json.loads(setting_grid.value) if setting_grid and setting_grid.value else {}
+    except Exception:
+        grid_config = {}
+    if word.category not in enabled_cats and not grid_config.get(word.category):
         return {"url": None}
 
     from ..services.translate_service import _model, _has_api_key, _get_text

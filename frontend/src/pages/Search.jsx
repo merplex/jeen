@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords, scanOcr, getFavorites, getPublicSettings } from '../services/api'
 import WordCard from '../components/WordCard'
 import MarqueeText from '../components/MarqueeText'
+import WordImageGridCard from '../components/WordImageGridCard'
 import TonedChinese from '../components/TonedChinese'
 import HandwritingModal from '../components/HandwritingModal'
 import OfflineAlert from '../components/OfflineAlert'
@@ -586,31 +587,10 @@ export default function Search() {
               </div>
 
               {/* Grid with images mode */}
-              {categoryGridConfig[category] && randomWords.some(w => w.image_url) ? (
+              {categoryGridConfig[category] ? (
                 <div className="grid grid-cols-2 gap-2">
-                  {randomWords.filter(w => w.image_url).map((w) => (
-                    <button
-                      key={w.id}
-                      onClick={() => navigate(`/word/${w.id}`)}
-                      className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 active:scale-95 transition-transform text-left"
-                    >
-                      <img
-                        src={w.image_url}
-                        alt={w.chinese}
-                        className="w-full aspect-square object-cover"
-                        onError={e => { e.target.style.display = 'none' }}
-                      />
-                      <div className="px-2 pt-1.5 pb-2">
-                        <MarqueeText
-                          text={w.chinese}
-                          className="font-chinese text-lg font-medium text-gray-800"
-                        />
-                        <MarqueeText
-                          text={w.thai_meaning.split('\n')[0]}
-                          className="text-xs text-gray-500 mt-0.5"
-                        />
-                      </div>
-                    </button>
+                  {randomWords.map((w) => (
+                    <WordImageGridCard key={w.id} word={w} />
                   ))}
                 </div>
               ) : (
