@@ -97,9 +97,17 @@ export default function MassTranslation() {
     return list
   }, [words, searchQuery, viewFilter, edits, lockedIds])
 
+  const hasPendingEdit = useCallback((w) => {
+    const edit = edits[w.id]
+    if (!edit) return false
+    if (edit.thai_meaning?.trim()) return true
+    if (edit.category !== undefined && edit.category !== (w.category ?? '')) return true
+    return false
+  }, [edits])
+
   const pendingCount = useMemo(
-    () => words.filter(w => edits[w.id]?.thai_meaning?.trim()).length,
-    [edits, words]
+    () => words.filter(w => hasPendingEdit(w)).length,
+    [words, hasPendingEdit]
   )
 
   const handleChange = useCallback((wordId, field, value) => {
@@ -107,7 +115,7 @@ export default function MassTranslation() {
   }, [])
 
   const handleAddDB = async () => {
-    const toSave = words.filter(w => edits[w.id]?.thai_meaning?.trim())
+    const toSave = words.filter(w => hasPendingEdit(w))
     if (toSave.length === 0) return
     if (!window.confirm(`บันทึก ${toSave.length} คำ ลง DB?`)) return
 
@@ -144,6 +152,7 @@ export default function MassTranslation() {
         if (!next[id]) return
         const remaining = { ...next[id] }
         delete remaining.thai_meaning
+        delete remaining.category
         if (Object.keys(remaining).length === 0) delete next[id]
         else next[id] = remaining
       })
