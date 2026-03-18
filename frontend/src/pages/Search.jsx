@@ -364,14 +364,20 @@ export default function Search() {
             <p className="px-4 py-3 text-sm text-gray-400">ไม่พบข้อความภาษาจีนในรูป</p>
           ) : (
             <div className="px-4 py-3 space-y-3">
-              <div>
-                <p className="text-xs text-gray-400 mb-1">ข้อความที่อ่านได้</p>
-                <p className="font-chinese text-lg text-gray-800 leading-relaxed">{ocrResult.text}</p>
-              </div>
+              {/* Thai translation first */}
               {ocrResult.translation && (
                 <div>
-                  <p className="text-xs text-gray-400 mb-1">คำแปล</p>
-                  <p className="text-sm text-gray-700">{ocrResult.translation}</p>
+                  {ocrResult.translation.split('\n').map((t, i) => (
+                    t.trim()
+                      ? <p key={i} className="text-sm text-gray-700 leading-snug">{t}</p>
+                      : <div key={i} className="h-2" />
+                  ))}
+                </div>
+              )}
+              {/* Chinese reference below */}
+              {ocrResult.text && (
+                <div className="border-t border-gray-100 pt-2">
+                  <p className="font-chinese text-sm text-gray-400 leading-relaxed">{ocrResult.text}</p>
                 </div>
               )}
               {ocrResult.words?.length > 0 && (

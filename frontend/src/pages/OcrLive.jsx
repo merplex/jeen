@@ -213,21 +213,23 @@ export default function OcrLive() {
           <div className="px-4 pt-3 pb-1">
             <p className="text-xs text-gray-400 mb-2 font-medium">คำแปล AI</p>
             <div className="bg-white rounded-xl px-3 py-3 shadow-sm space-y-2">
-              {/* Chinese lines */}
-              <div>
-                {lines.map((line, i) => (
-                  <p key={i} className="font-chinese text-base text-gray-800 leading-snug">
-                    {line.text}
-                  </p>
-                ))}
-              </div>
-              {/* Thai translation — preserves line breaks */}
+              {/* Thai translation first — preserves line breaks */}
               {translation && (
-                <div className="border-t border-gray-100 pt-2">
+                <div>
                   {translation.split('\n').map((t, i) => (
                     t.trim()
                       ? <p key={i} className="text-sm text-gray-700 leading-snug">{t}</p>
                       : <div key={i} className="h-2" />
+                  ))}
+                </div>
+              )}
+              {/* Chinese reference below */}
+              {lines.length > 0 && (
+                <div className="border-t border-gray-100 pt-2">
+                  {lines.map((line, i) => (
+                    <p key={i} className="font-chinese text-sm text-gray-400 leading-snug">
+                      {line.text}
+                    </p>
                   ))}
                 </div>
               )}
