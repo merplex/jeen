@@ -227,26 +227,6 @@ export default function MassTranslation() {
           <span className="text-xs text-gray-500">
             แสดง {filteredWords.length} คำ · กรอกใหม่ {pendingCount} คำ
           </span>
-          {pendingCount > 0 && !saving && (
-            confirmingAddDB ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">บันทึก {pendingCount} คำ?</span>
-                <button onClick={handleAddDB} className="text-xs px-3 py-1.5 bg-chinese-red text-white rounded-full">
-                  ยืนยัน
-                </button>
-                <button onClick={() => setConfirmingAddDB(false)} className="text-xs px-3 py-1.5 bg-gray-200 text-gray-600 rounded-full">
-                  ยกเลิก
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmingAddDB(true)}
-                className="text-xs px-4 py-1.5 bg-chinese-red text-white rounded-full"
-              >
-                Add DB ({pendingCount} คำ)
-              </button>
-            )
-          )}
           {saving && <span className="text-xs text-gray-500">กำลัง save...</span>}
         </div>
 
@@ -361,6 +341,38 @@ export default function MassTranslation() {
               )
             })
           )}
+        </div>
+      )}
+    </div>
+
+      {/* Floating Add DB button */}
+      {pendingCount > 0 && !saving && (
+        <div className="fixed bottom-20 right-4 z-50">
+          {confirmingAddDB ? (
+            <div className="flex flex-col items-end gap-2">
+              <div className="bg-white rounded-2xl shadow-xl px-4 py-3 flex items-center gap-2 border border-gray-200">
+                <span className="text-xs text-gray-500">บันทึก {pendingCount} คำ?</span>
+                <button onClick={handleAddDB} className="text-xs px-3 py-1.5 bg-chinese-red text-white rounded-full">
+                  ยืนยัน
+                </button>
+                <button onClick={() => setConfirmingAddDB(false)} className="text-xs px-3 py-1.5 bg-gray-200 text-gray-600 rounded-full">
+                  ยกเลิก
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmingAddDB(true)}
+              className="px-5 py-3 bg-chinese-red text-white rounded-2xl shadow-xl text-sm font-medium"
+            >
+              Add DB ({pendingCount} คำ)
+            </button>
+          )}
+        </div>
+      )}
+      {saving && (
+        <div className="fixed bottom-20 right-4 z-50 bg-white rounded-2xl shadow-xl px-4 py-3 text-xs text-gray-500">
+          กำลัง save...
         </div>
       )}
     </div>
