@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { adminMissed, adminDeleteMissed, adminClearSingleMissed, adminGetWordReports, adminDeleteWordReport, adminGeminiQuota, adminImageStorage } from '../../services/api'
 import { thaiDateTime } from '../../utils/time'
+import ActivityLog from './ActivityLog'
 
 const SOURCE_LABEL = {
   google_places: 'Google Places',
@@ -145,6 +146,14 @@ export default function MissedSearches() {
           }`}
         >
           ระบบ
+        </button>
+        <button
+          onClick={() => setTab('activity')}
+          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            tab === 'activity' ? 'bg-gray-700 text-white' : 'bg-white text-gray-600 border border-gray-200'
+          }`}
+        >
+          ประวัติ
         </button>
       </div>
 
@@ -356,6 +365,8 @@ export default function MissedSearches() {
           )}
         </div>
       )}
+
+      {tab === 'activity' && <ActivityLog />}
     </div>
   )
 }

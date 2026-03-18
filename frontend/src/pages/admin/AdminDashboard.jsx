@@ -2,7 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 
 const TABS = [
   { to: '/admin/add', label: 'เพิ่มคำ' },
-  { to: '/admin/report', label: 'รายงาน' },
+  { to: '/admin/missed', label: 'รายงาน' },
   { to: '/admin/examples', label: 'ตัวอย่าง' },
   { to: '/admin/image-config', label: 'รูปประกอบ' },
   { to: '/admin/subscriptions', label: 'Subscription' },

@@ -21,9 +21,7 @@ import MissedSearches from './pages/admin/MissedSearches'
 import ImportWords from './pages/admin/ImportWords'
 import AddWord from './pages/admin/AddWord'
 import AddWordSection from './pages/admin/AddWordSection'
-import ReportSection from './pages/admin/ReportSection'
 import BulkExamples from './pages/admin/BulkExamples'
-import ActivityLog from './pages/admin/ActivityLog'
 import Subscriptions from './pages/admin/Subscriptions'
 import MassTranslation from './pages/admin/MassTranslation'
 import CategoryImageConfig from './pages/admin/CategoryImageConfig'
@@ -106,11 +104,7 @@ export default function App() {
             <Route path="import" element={<ImportWords />} />
             <Route path="pending" element={<PendingWords />} />
           </Route>
-          <Route path="report" element={<ReportSection />}>
-            <Route index element={<Navigate to="/admin/report/missed" />} />
-            <Route path="missed" element={<MissedSearches />} />
-            <Route path="activity" element={<ActivityLog />} />
-          </Route>
+          <Route path="missed" element={<MissedSearches />} />
           <Route path="examples" element={<BulkExamples />} />
           <Route path="subscriptions" element={<Subscriptions />} />
           <Route path="bulkinput" element={<MassTranslation />} />

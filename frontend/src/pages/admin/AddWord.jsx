@@ -50,7 +50,7 @@ export default function AddWord() {
       // ถ้ามาจาก missed search → ลบออกจาก list แล้ว navigate กลับ
       if (missedId) {
         await adminDeleteMissed(missedId).catch(() => {})
-        navigate('/admin/report/missed')
+        navigate('/admin/missed')
         return
       }
       setSuccess(true)
