@@ -168,9 +168,13 @@ def scan_image_structured(
     except Exception:
         raise HTTPException(status_code=400, detail="image_base64 ไม่ถูกต้อง")
 
-    # Request 1: OCR แกะตัวอักษร
+    # Request 1: OCR แกะตัวอักษร (fallback to flat OCR ถ้า structured ได้ว่าง)
     result = _ocr_structured(image_bytes, body.mime_type)
     lines = result.get("lines", [])
+    if not lines:
+        flat = _ocr_and_translate(image_bytes, body.mime_type)
+        if flat.get("text"):
+            lines = [{"text": flat["text"], "translation": flat.get("translation", "")}]
     combined_text = "".join(l["text"] for l in lines)
 
     # นับเฉพาะเมื่อเจอข้อความจริง
@@ -212,9 +216,14 @@ def scan_image(
     except Exception:
         raise HTTPException(status_code=400, detail="image_base64 ไม่ถูกต้อง")
 
-    # Request 1: OCR แกะตัวอักษร + แปลเบื้องต้น
-    result = _ocr_and_translate(image_bytes, body.mime_type)
-    text = result.get("text", "")
+    # Request 1: OCR แกะตัวอักษร แบบแยก lines (fallback to flat OCR ถ้าได้ว่าง)
+    result = _ocr_structured(image_bytes, body.mime_type)
+    lines = result.get("lines", [])
+    if not lines:
+        flat = _ocr_and_translate(image_bytes, body.mime_type)
+        if flat.get("text"):
+            lines = [{"text": flat["text"], "translation": flat.get("translation", "")}]
+    text = "".join(l["text"] for l in lines)
 
     if not text:
         return {"text": "", "translation": "", "words": []}
@@ -225,11 +234,8 @@ def scan_image(
     # Match DB
     words = _find_words_in_text(text, db)
 
-    # Request 2: แปลโดยใช้คำแปลจาก DB
-    if words:
-        translation = _translate_lines_with_vocab([{"text": text}], words)
-    else:
-        translation = result.get("translation", "")
+    # Request 2: แปลแบบ structured lines + vocab hints
+    translation = _translate_lines_with_vocab(lines, words)
 
     return {
         "text": text,
