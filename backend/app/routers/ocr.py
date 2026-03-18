@@ -70,10 +70,11 @@ def _ocr_structured(image_bytes: bytes, mime_type: str) -> dict:
         "อ่านข้อความภาษาจีนในรูปนี้ทั้งหมด (รองรับแนวนอนและแนวตั้ง)\n"
         "แบ่งตามบรรทัดหรือส่วนของข้อความที่ดูแยกจากกัน\n"
         "ตอบเป็น JSON เท่านั้น:\n"
-        "{\"lines\":[{\"text\":\"<ข้อความจีน>\",\"translation\":\"<แปลเป็นภาษาไทย>\"}]}\n"
+        "{\"lines\":[{\"text\":\"<ข้อความจีน>\",\"align\":\"<left|right|center>\"}]}\n"
         "กฎ: แต่ละ element = 1 บรรทัด หรือ 1 ส่วนที่แยกกันในภาพ "
         "ถ้าข้อความอยู่ใกล้กัน/บรรทัดเดียวกัน รวมเป็น element เดียว "
         "ถ้าห่างกันหรือดูเป็นคนละส่วน แบ่งเป็นคนละ element "
+        "align คือตำแหน่งข้อความในภาพ: ชิดซ้าย=left, ชิดขวา=right, กลาง=center "
         "ถ้าไม่มีข้อความจีนในรูป ตอบ: {\"lines\":[]}"
     )
 
@@ -84,7 +85,7 @@ def _ocr_structured(image_bytes: bytes, mime_type: str) -> dict:
         data = json.loads(raw)
         lines = data.get("lines", [])
         valid = [
-            {"text": l.get("text", ""), "translation": l.get("translation", "")}
+            {"text": l.get("text", ""), "align": l.get("align", "left")}
             for l in lines if isinstance(l, dict) and l.get("text")
         ]
         logger.info(f"[OCR structured] valid lines: {len(valid)}")
@@ -124,7 +125,8 @@ def _translate_lines_with_vocab(lines: list, all_words: list,
         line_words = [w for w in all_words if w.chinese and w.chinese in text]
         line_words.sort(key=lambda w: len(w.chinese), reverse=True)
 
-        block = f"[{i+1}] {text}"
+        align = line.get("align", "left")
+        block = f"[{i+1}|{align}] {text}"
         if line_words:
             hints = ", ".join(
                 f"{w.chinese}={(w.thai_meaning or '').split(chr(10))[0]}"
@@ -144,8 +146,8 @@ def _translate_lines_with_vocab(lines: list, all_words: list,
         "กฎ:\n"
         "1. แต่ละ [หมายเลข] = 1 บรรทัดในคำแปล คั่นด้วย newline\n"
         "2. ดู layout ของภาพเพื่อตัดสินใจ:\n"
-        "   - บทสนทนา (แชท หรือ dialog ในหนังสือ) → ระบุผู้พูดทุกบรรทัดโดยดูจากตำแหน่งข้อความ:\n"
-        "     ข้อความชิดขวา = A, ข้อความชิดซ้าย = B (ใช้กฎนี้เสมอ)\n"
+        "   - บทสนทนา (แชท หรือ dialog) → ระบุผู้พูดทุกบรรทัดโดยดูจาก [หมายเลข|align]:\n"
+        "     right = A, left = B, center = ไม่ใส่ชื่อ (ใช้กฎนี้เสมอ ห้ามสลับ)\n"
         "     ถ้ามีชื่อปรากฏในภาพให้ใช้ชื่อนั้นแทน A หรือ B\n"
         "   - บทความ/ป้าย/ข้อความทั่วไป (มีย่อหน้า ไม่มีผู้พูด) → แปลตรงๆ ไม่ต้องใส่ชื่อ\n"
         "3. ตอบคำแปลภาษาไทยเท่านั้น ไม่ใส่ [หมายเลข] และไม่อธิบายเพิ่ม\n\n"
