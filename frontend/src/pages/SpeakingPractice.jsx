@@ -80,6 +80,7 @@ export default function SpeakingPractice() {
 
   const mediaRecorderRef = useRef(null)
   const chunksRef = useRef([])
+  const mimeTypeRef = useRef('')
 
   const current = sentences[sentenceIdx] || {}
 
@@ -101,7 +102,12 @@ export default function SpeakingPractice() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       chunksRef.current = []
-      const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+      // iOS Safari supports audio/mp4, not audio/webm
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
+        : ''
+      mimeTypeRef.current = mimeType
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {})
       mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
       mr.onstop = handleRecordingStop
       mediaRecorderRef.current = mr
@@ -121,7 +127,7 @@ export default function SpeakingPractice() {
 
   const handleRecordingStop = async () => {
     try {
-      const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+      const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current || 'audio/webm' })
       const audioBase64 = await blobToWavBase64(blob)
 
       const r = await assessSpeaking({

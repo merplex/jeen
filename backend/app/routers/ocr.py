@@ -216,6 +216,17 @@ def scan_image_structured(
     # Request 2: แปลแบบ structured per-line + vocab hints + image context
     if combined_text:
         full_translation = _translate_lines_with_vocab(lines, words, image_bytes, body.mime_type)
+        # Fallback: ถ้า call 2 fail ให้แปลตรงๆ จากข้อความที่อ่านได้
+        if not full_translation:
+            from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
+            try:
+                resp = _model.generate_content(
+                    f"แปลข้อความจีนนี้เป็นภาษาไทย ตอบคำแปลเท่านั้น ไม่ต้องอธิบาย:\n{combined_text}"
+                )
+                full_translation = _strip_markdown(_get_text(resp)).strip()
+            except Exception as e:
+                logger.error(f"[OCR fallback translate] error: {e}")
+                full_translation = ""
     else:
         full_translation = ""
 

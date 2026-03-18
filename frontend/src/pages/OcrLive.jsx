@@ -67,9 +67,18 @@ export default function OcrLive() {
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas || video.readyState < 2) return null
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    canvas.getContext('2d').drawImage(video, 0, 0)
+    // Cap to 1280px max to avoid oversized base64 on high-res iOS cameras
+    const MAX_DIM = 1280
+    let w = video.videoWidth
+    let h = video.videoHeight
+    if (w > MAX_DIM || h > MAX_DIM) {
+      const ratio = Math.min(MAX_DIM / w, MAX_DIM / h)
+      w = Math.round(w * ratio)
+      h = Math.round(h * ratio)
+    }
+    canvas.width = w
+    canvas.height = h
+    canvas.getContext('2d').drawImage(video, 0, 0, w, h)
     return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.75))
   }
 
