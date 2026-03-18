@@ -222,9 +222,9 @@ def scan_image(
     # Match DB
     words = _find_words_in_text(text, db)
 
-    # Request 2: แปลรวมโดยใช้คำแปลจาก DB (ถ้ามีคำใน DB)
+    # Request 2: แปลโดยใช้คำแปลจาก DB
     if words:
-        translation = _translate_with_db_context(text, words)
+        translation = _translate_lines_with_vocab([{"text": text}], words)
     else:
         translation = result.get("translation", "")
 
