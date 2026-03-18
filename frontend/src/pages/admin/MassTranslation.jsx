@@ -347,7 +347,7 @@ export default function MassTranslation() {
 
       {/* Floating Add DB button */}
       {pendingCount > 0 && !saving && (
-        <div className="fixed bottom-20 right-4 z-50">
+        <div className="fixed top-4 right-4 z-50">
           {confirmingAddDB ? (
             <div className="flex flex-col items-end gap-2">
               <div className="bg-white rounded-2xl shadow-xl px-4 py-3 flex items-center gap-2 border border-gray-200">
@@ -371,7 +371,7 @@ export default function MassTranslation() {
         </div>
       )}
       {saving && (
-        <div className="fixed bottom-20 right-4 z-50 bg-white rounded-2xl shadow-xl px-4 py-3 text-xs text-gray-500">
+        <div className="fixed top-4 right-4 z-50 bg-white rounded-2xl shadow-xl px-4 py-3 text-xs text-gray-500">
           กำลัง save...
         </div>
       )}
