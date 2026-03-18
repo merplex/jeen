@@ -167,6 +167,7 @@ export default function MassTranslation() {
   const underChineseFields = EDIT_FIELDS.filter(f => f.placement === 'under_chinese')
 
   return (
+    <>
     <div className="px-4 py-6">
 
       {/* ── Filter panel ── */}
@@ -376,5 +377,6 @@ export default function MassTranslation() {
         </div>
       )}
     </div>
+    </>
   )
 }
