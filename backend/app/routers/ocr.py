@@ -102,12 +102,15 @@ def _log_usage(db: Session, user_id: int | None, event_type: str):
         db.rollback()
 
 
-def _translate_lines_with_vocab(lines: list, all_words: list) -> str:
-    """Request 2: ส่ง lines แบบ structured + per-line vocab hints ให้ Gemini แปล
+def _translate_lines_with_vocab(lines: list, all_words: list,
+                                image_bytes: bytes = None, mime_type: str = None) -> str:
+    """Request 2: ส่ง lines + per-line vocab hints + รูปต้นฉบับ ให้ Gemini แปล
     - รักษา line breaks ตามต้นฉบับ
+    - ดู layout จากรูป: chat bubble / book dialogue / article
     - ระบุผู้พูดถ้าเป็นบทสนทนา
     """
     from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
+    from google.genai import types as genai_types
 
     if not _has_api_key() or not lines:
         return ""
@@ -118,7 +121,6 @@ def _translate_lines_with_vocab(lines: list, all_words: list) -> str:
         text = line.get("text", "")
         if not text:
             continue
-        # find words that appear in this specific line
         line_words = [w for w in all_words if w.chinese and w.chinese in text]
         line_words.sort(key=lambda w: len(w.chinese), reverse=True)
 
@@ -138,19 +140,24 @@ def _translate_lines_with_vocab(lines: list, all_words: list) -> str:
     structured_input = "\n\n".join(blocks)
 
     prompt = (
-        "แปลข้อความจีนต่อไปนี้เป็นภาษาไทย\n"
+        "ดูภาพนี้และแปลข้อความจีนต่อไปนี้เป็นภาษาไทย\n"
         "กฎ:\n"
         "1. แต่ละ [หมายเลข] = 1 บรรทัดในคำแปล คั่นด้วย newline\n"
-        "2. อ่าน content แล้วตัดสินใจ:\n"
-        "   - ถ้าเป็นบทสนทนา (คนโต้ตอบกัน, ประโยคสั้น, มีการถามตอบ) "
-        "→ ขึ้นต้นทุกบรรทัดด้วย A: หรือ B: สลับกัน (ถ้ารู้ชื่อใช้ชื่อ)\n"
-        "   - ถ้าเป็นบทความ/ป้าย/ข้อความทั่วไป → แปลตรงๆ ไม่ต้องใส่ A: B:\n"
+        "2. ดู layout ของภาพเพื่อตัดสินใจ:\n"
+        "   - แชท (bubble ซ้าย/ขวา หรือ avatar ข้างข้อความ) → ระบุผู้พูดทุกบรรทัด "
+        "ใช้ชื่อจากภาพถ้าเห็น หรือใช้ A: B: ถ้าไม่เห็นชื่อ\n"
+        "   - บทสนทนาในหนังสือ (ชื่อ: ข้อความ หรือเว้นบรรทัดสลับกัน) → ระบุผู้พูดทุกบรรทัด\n"
+        "   - บทความ/ป้าย/ข้อความทั่วไป (มีย่อหน้า ไม่มีผู้พูด) → แปลตรงๆ ไม่ต้องใส่ชื่อ\n"
         "3. ตอบคำแปลภาษาไทยเท่านั้น ไม่ใส่ [หมายเลข] และไม่อธิบายเพิ่ม\n\n"
         f"{structured_input}"
     )
 
     try:
-        resp = _model.generate_content(prompt)
+        if image_bytes and mime_type:
+            image_part = genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+            resp = _model.generate_content([prompt, image_part])
+        else:
+            resp = _model.generate_content(prompt)
         return _strip_markdown(_get_text(resp)).strip()
     except Exception as e:
         logger.error(f"[OCR translate] error: {e}")
@@ -184,9 +191,9 @@ def scan_image_structured(
     # Match DB
     words = _find_words_in_text(combined_text, db)
 
-    # Request 2: แปลแบบ structured per-line + vocab hints
+    # Request 2: แปลแบบ structured per-line + vocab hints + image context
     if combined_text:
-        full_translation = _translate_lines_with_vocab(lines, words)
+        full_translation = _translate_lines_with_vocab(lines, words, image_bytes, body.mime_type)
     else:
         full_translation = ""
 
@@ -234,8 +241,8 @@ def scan_image(
     # Match DB
     words = _find_words_in_text(text, db)
 
-    # Request 2: แปลแบบ structured lines + vocab hints
-    translation = _translate_lines_with_vocab(lines, words)
+    # Request 2: แปลแบบ structured lines + vocab hints + image context
+    translation = _translate_lines_with_vocab(lines, words, image_bytes, body.mime_type)
 
     return {
         "text": text,
