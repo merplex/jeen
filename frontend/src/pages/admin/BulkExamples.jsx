@@ -6,11 +6,11 @@ import {
   adminSingleEnglishStats, adminBulkRegenSingleEnglish,
   adminGetSettings, adminUpdateSettings, adminDeleteImageCache, adminDeleteNullImageCache, adminDeleteAllImageCache,
   adminHskEnglishStats, adminStartHskEnglishQueue, adminStopHskEnglishQueue,
+  adminCategoryWordCounts, adminRegenEnglishByCategory,
 } from '../../services/api'
 import { CATEGORIES } from '../../utils/categories'
 import CategoryImageConfig from './CategoryImageConfig'
 
-const REGEN_CATEGORIES = ['แพทย์', 'กฎหมาย', 'สำนวน', 'วิศวกรรม', 'เทคนิค']
 const SINGLE_ENG_CATEGORIES = ['ทั้งหมด', ...CATEGORIES, 'ไม่มีหมวด']
 const TABS = ['ตัวอย่างประโยค', 'แปลอังกฤษ', 'รูปประกอบ']
 
@@ -22,8 +22,11 @@ export default function BulkExamples() {
   const [running, setRunning] = useState(false)
   const [queueStatus, setQueueStatus] = useState(null)
   const stopRef = useRef(false)
-  const [regenCat, setRegenCat] = useState('แพทย์')
+  const [categoryWordCounts, setCategoryWordCounts] = useState(null)
+  const [regenCat, setRegenCat] = useState('')
   const [regenLimit, setRegenLimit] = useState(20)
+  const [engRegenCat, setEngRegenCat] = useState('')
+  const [engRegenLimit, setEngRegenLimit] = useState(100)
   const [singleEngCat, setSingleEngCat] = useState('ทั้งหมด')
   const [singleEngCount, setSingleEngCount] = useState(null)
   const [hskEngTotal, setHskEngTotal] = useState(null)
@@ -54,6 +57,14 @@ export default function BulkExamples() {
     loadStats()
     loadSettings()
     adminHskEnglishStats().then((r) => { setHskEngTotal(r.data.total); setHskEngQueue(r.data.queue) }).catch(() => {})
+    adminCategoryWordCounts().then((r) => {
+      setCategoryWordCounts(r.data)
+      const allOptions = [...r.data.categories.map(c => c.name), ...r.data.hsk_levels.map(h => h.name)]
+      if (allOptions.length > 0) {
+        setRegenCat(allOptions[0])
+        setEngRegenCat(allOptions[0])
+      }
+    }).catch(() => {})
   }, [])
   useEffect(() => { loadSingleEngCount(singleEngCat) }, [singleEngCat])
 
@@ -158,14 +169,19 @@ export default function BulkExamples() {
     setRunning(false); loadStats()
   }
 
+  const _isHskLevel = (val) => /^hsk\d$/.test(val)
+
   const runRegenByCategory = async () => {
     if (running) return
     setRunning(true); stopRef.current = false; setLog([])
-    addLog(`เริ่ม regen ตัวอย่างหมวด "${regenCat}"...`)
+    addLog(`เริ่ม regen ตัวอย่าง "${regenCat}"...`)
+    const isHsk = _isHskLevel(regenCat)
     let total = 0, offset = 0, retries = 0
     while (!stopRef.current) {
       try {
-        const r = await adminRegenExamplesByCategory(regenCat, regenLimit, offset)
+        const r = await adminRegenExamplesByCategory(
+          isHsk ? null : regenCat, regenLimit, offset, isHsk ? regenCat : null
+        )
         const { done, errors, total_in_category, next_offset, last_error } = r.data
         total += done; retries = 0
         addLog(`✓ regen ${done} คำ | error ${errors}${last_error ? ` (${last_error})` : ''} | ${next_offset}/${total_in_category} คำ`)
@@ -179,6 +195,32 @@ export default function BulkExamples() {
       }
     }
     addLog(`เสร็จ — regen รวม ${total} คำ`)
+    setRunning(false); loadStats()
+  }
+
+  const runRegenEnglishByCategory = async () => {
+    if (running) return
+    setRunning(true); stopRef.current = false; setLog([])
+    addLog(`เริ่ม regen English "${engRegenCat}"...`)
+    const isHsk = _isHskLevel(engRegenCat)
+    let total = 0, offset = 0, retries = 0
+    while (!stopRef.current) {
+      try {
+        const r = await adminRegenEnglishByCategory(
+          isHsk ? null : engRegenCat, isHsk ? engRegenCat : null, engRegenLimit, offset
+        )
+        const { done, errors, total_in_filter, next_offset } = r.data
+        total += done; retries = 0
+        addLog(`✓ อัปเดต ${done} คำ | error ${errors} | ${next_offset}/${total_in_filter} คำ`)
+        offset = next_offset
+        if (next_offset >= total_in_filter || (done === 0 && errors === 0)) break
+      } catch (e) {
+        retries++
+        if (retries <= 3) { addLog(`✗ Network error — retry ${retries}/3...`); await new Promise((res) => setTimeout(res, 2000 * retries)) }
+        else { addLog(`✗ หยุด — network error เกิน 3 ครั้ง (offset: ${offset})`); break }
+      }
+    }
+    addLog(`เสร็จ — regen English รวม ${total} คำ`)
     setRunning(false); loadStats()
   }
 
@@ -282,7 +324,18 @@ export default function BulkExamples() {
                     <select value={regenCat} onChange={(e) => setRegenCat(e.target.value)} disabled={running}
                       className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
                     >
-                      {REGEN_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      {categoryWordCounts ? (
+                        <>
+                          {categoryWordCounts.categories.map((c) => (
+                            <option key={c.name} value={c.name}>{c.name} ({c.count})</option>
+                          ))}
+                          {categoryWordCounts.hsk_levels.map((h) => (
+                            <option key={h.name} value={h.name}>{h.name} ({h.count})</option>
+                          ))}
+                        </>
+                      ) : (
+                        <option value="">กำลังโหลด...</option>
+                      )}
                     </select>
                     <select value={regenLimit} onChange={(e) => setRegenLimit(Number(e.target.value))} disabled={running}
                       className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
@@ -291,10 +344,10 @@ export default function BulkExamples() {
                     </select>
                   </div>
                   {!running ? (
-                    <button onClick={runRegenByCategory} disabled={running}
+                    <button onClick={runRegenByCategory} disabled={running || !regenCat}
                       className="w-full bg-amber-500 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
                     >
-                      🔁 Regen ตัวอย่างหมวด "{regenCat}"
+                      🔁 Regen ตัวอย่าง "{regenCat}"
                     </button>
                   ) : (
                     <button onClick={stopAll} className="w-full bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium">⏹ หยุด</button>
@@ -361,6 +414,44 @@ export default function BulkExamples() {
                 >⏹ หยุด</button>
                 <button onClick={refreshHskQueue} className="px-3 border border-gray-200 rounded-lg text-sm text-gray-500">🔄</button>
               </div>
+            </div>
+
+            {/* Regen English ตามหมวด */}
+            <div className="border-t border-gray-100 pt-3">
+              <p className="text-xs text-gray-500 font-medium mb-1">Regen English ตามหมวด (overwrite ทุกคำ)</p>
+              <p className="text-xs text-gray-400 mb-3">เขียนทับ english_meaning ของทุกคำในหมวด/ระดับ HSK ที่เลือก</p>
+              <div className="flex gap-2 mb-3">
+                <select value={engRegenCat} onChange={(e) => setEngRegenCat(e.target.value)} disabled={running}
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                >
+                  {categoryWordCounts ? (
+                    <>
+                      {categoryWordCounts.categories.map((c) => (
+                        <option key={c.name} value={c.name}>{c.name} ({c.count})</option>
+                      ))}
+                      {categoryWordCounts.hsk_levels.map((h) => (
+                        <option key={h.name} value={h.name}>{h.name} ({h.count})</option>
+                      ))}
+                    </>
+                  ) : (
+                    <option value="">กำลังโหลด...</option>
+                  )}
+                </select>
+                <select value={engRegenLimit} onChange={(e) => setEngRegenLimit(Number(e.target.value))} disabled={running}
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                >
+                  {[50, 100, 200].map((n) => <option key={n} value={n}>{n} คำ/รอบ</option>)}
+                </select>
+              </div>
+              {!running ? (
+                <button onClick={runRegenEnglishByCategory} disabled={running || !engRegenCat}
+                  className="w-full bg-blue-500 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
+                >
+                  🔁 Regen English "{engRegenCat}"
+                </button>
+              ) : (
+                <button onClick={stopAll} className="w-full bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium">⏹ หยุด</button>
+              )}
             </div>
 
             {/* Regen single English */}

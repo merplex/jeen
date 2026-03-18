@@ -854,29 +854,68 @@ def bulk_regen_short_examples(
     return {"done": done, "errors": errors, "remaining": remaining, "last_error": last_error}
 
 
+@router.get("/category-word-counts")
+def category_word_counts(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """คืน categories และ hsk_levels ที่มีคำ > 0"""
+    from sqlalchemy import func
+    CAT_ORDER = ['ทั่วไป', 'ชีวิตประจำวัน', 'อาหาร', 'สัตว์', 'สถานที่', 'ครอบครัว',
+                 'บุคคล', 'ร่างกาย', 'การงาน', 'การเดินทาง', 'กีฬา', 'แพทย์',
+                 'วิศวกรรม', 'เทคนิค', 'ธุรกิจ', 'กฎหมาย', 'สำนวน', 'พิเศษ']
+    HSK_LEVELS = ["hsk1", "hsk2", "hsk3", "hsk4", "hsk5", "hsk6", "hsk7"]
+
+    cat_rows = (
+        db.query(Word.category, func.count(Word.id).label("cnt"))
+        .filter(Word.status == "verified", Word.category.isnot(None), Word.category != "")
+        .group_by(Word.category)
+        .all()
+    )
+    cat_map = {r.category: r.cnt for r in cat_rows}
+    categories = [{"name": c, "count": cat_map[c]} for c in CAT_ORDER if cat_map.get(c, 0) > 0]
+    # เพิ่มหมวดที่มีในDB แต่ไม่อยู่ใน CAT_ORDER
+    for name, cnt in cat_map.items():
+        if name not in CAT_ORDER and cnt > 0:
+            categories.append({"name": name, "count": cnt})
+
+    hsk_rows = (
+        db.query(Word.hsk_level, func.count(Word.id).label("cnt"))
+        .filter(Word.status == "verified", Word.hsk_level.isnot(None), Word.hsk_level != "")
+        .group_by(Word.hsk_level)
+        .all()
+    )
+    hsk_map = {r.hsk_level: r.cnt for r in hsk_rows}
+    hsk_levels = [{"name": lvl, "count": hsk_map[lvl]} for lvl in HSK_LEVELS if hsk_map.get(lvl, 0) > 0]
+    return {"categories": categories, "hsk_levels": hsk_levels}
+
+
 @router.post("/regen-examples-by-category")
 def regen_examples_by_category(
-    category: str,
+    category: str = None,
+    hsk_level: str = None,
     limit: int = 20,
     offset: int = 0,
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    """ลบและ gen ตัวอย่างใหม่สำหรับคำใน category ที่กำหนด (ใช้ logic ใหม่)"""
+    """ลบและ gen ตัวอย่างใหม่สำหรับคำใน category หรือ hsk_level ที่กำหนด (ใช้ logic ใหม่)"""
+    if not category and not hsk_level:
+        raise HTTPException(status_code=400, detail="ต้องระบุ category หรือ hsk_level")
     limit = min(max(limit, 1), 50)
     offset = max(offset, 0)
 
-    words = (
-        db.query(Word)
-        .filter(Word.status == "verified", Word.category == category)
-        .order_by(Word.id)
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    base_q = db.query(Word).filter(Word.status == "verified")
+    if hsk_level:
+        base_q = base_q.filter(Word.hsk_level == hsk_level)
+    else:
+        base_q = base_q.filter(Word.category == category)
 
+    words = base_q.order_by(Word.id).offset(offset).limit(limit).all()
+
+    filter_label = f"hsk_level={hsk_level}" if hsk_level else f"category={category}"
     if not words:
-        return {"done": 0, "errors": 0, "total_in_category": 0, "next_offset": offset, "message": f"ไม่พบคำใน category '{category}'"}
+        return {"done": 0, "errors": 0, "total_in_category": 0, "next_offset": offset, "message": f"ไม่พบคำใน {filter_label}"}
 
     done = 0
     errors = 0
@@ -909,16 +948,70 @@ def regen_examples_by_category(
         time.sleep(0.3)
 
     if done > 0:
-        _log(db, "regen_examples", detail=f"regen ตัวอย่าง {done} คำ category={category}")
+        _log(db, "regen_examples", detail=f"regen ตัวอย่าง {done} คำ {filter_label}")
         db.commit()
 
-    total_in_cat = db.query(Word).filter(Word.status == "verified", Word.category == category).count()
+    total_in_cat = base_q.count()
     return {
         "done": done,
         "errors": errors,
         "total_in_category": total_in_cat,
         "next_offset": offset + len(words),
         "last_error": last_error,
+    }
+
+
+@router.post("/regen-english-by-category")
+def regen_english_by_category(
+    category: str = None,
+    hsk_level: str = None,
+    limit: int = 100,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Regen english_meaning (overwrite) สำหรับทุกคำใน category หรือ hsk_level — batch call"""
+    if not category and not hsk_level:
+        raise HTTPException(status_code=400, detail="ต้องระบุ category หรือ hsk_level")
+    limit = min(max(limit, 1), 200)
+    offset = max(offset, 0)
+
+    base_q = db.query(Word).filter(Word.status == "verified")
+    if hsk_level:
+        base_q = base_q.filter(Word.hsk_level == hsk_level)
+    else:
+        base_q = base_q.filter(Word.category == category)
+
+    words = base_q.order_by(Word.id).offset(offset).limit(limit).all()
+
+    filter_label = f"hsk_level={hsk_level}" if hsk_level else f"category={category}"
+    if not words:
+        return {"done": 0, "errors": 0, "total_in_filter": 0, "next_offset": offset}
+
+    batch = [{"id": w.id, "chinese": w.chinese, "thai": w.thai_meaning or ""} for w in words]
+    results = batch_generate_english(batch)
+
+    done = 0
+    errors = len(words) - len(results) if results else len(words)
+    for item in results:
+        word = next((w for w in words if w.id == item.get("id")), None)
+        if word and item.get("english"):
+            word.english_meaning = item["english"]
+            thai_addition = str(item.get("thai_addition", "")).strip()
+            if thai_addition and thai_addition not in (word.thai_meaning or ""):
+                word.thai_meaning = (word.thai_meaning or "") + "\n" + thai_addition
+            done += 1
+
+    if done > 0:
+        _log(db, "regen_english_by_cat", detail=f"อัปเดต {done} คำ {filter_label}")
+    db.commit()
+
+    total_in_filter = base_q.count()
+    return {
+        "done": done,
+        "errors": errors,
+        "total_in_filter": total_in_filter,
+        "next_offset": offset + len(words),
     }
 
 

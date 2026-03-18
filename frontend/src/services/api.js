@@ -110,8 +110,12 @@ export const adminBulkGenerateExamples = (limit = 30) =>
   api.post('/admin/bulk-generate-examples', null, { params: { limit } })
 export const adminBulkQueueExamples = () =>
   api.post('/admin/bulk-queue-examples')
-export const adminRegenExamplesByCategory = (category, limit = 20, offset = 0) =>
-  api.post('/admin/regen-examples-by-category', null, { params: { category, limit, offset } })
+export const adminCategoryWordCounts = () =>
+  api.get('/admin/category-word-counts')
+export const adminRegenExamplesByCategory = (category, limit = 20, offset = 0, hsk_level = null) =>
+  api.post('/admin/regen-examples-by-category', null, { params: { ...(hsk_level ? { hsk_level } : { category }), limit, offset } })
+export const adminRegenEnglishByCategory = (category, hsk_level, limit = 100, offset = 0) =>
+  api.post('/admin/regen-english-by-category', null, { params: { ...(hsk_level ? { hsk_level } : { category }), limit, offset } })
 export const adminBulkRegenShortExamples = (limit = 30, min_length = 10) =>
   api.post('/admin/bulk-regen-short-examples', null, { params: { limit, min_length } })
 export const adminEnglishStats = () =>
