@@ -20,6 +20,8 @@ import PendingWords from './pages/admin/PendingWords'
 import MissedSearches from './pages/admin/MissedSearches'
 import ImportWords from './pages/admin/ImportWords'
 import AddWord from './pages/admin/AddWord'
+import AddWordSection from './pages/admin/AddWordSection'
+import ReportSection from './pages/admin/ReportSection'
 import BulkExamples from './pages/admin/BulkExamples'
 import ActivityLog from './pages/admin/ActivityLog'
 import Subscriptions from './pages/admin/Subscriptions'
@@ -97,13 +99,19 @@ export default function App() {
             </AdminGuard>
           }
         >
-          <Route index element={<Navigate to="/admin/pending" />} />
-          <Route path="pending" element={<PendingWords />} />
-          <Route path="missed" element={<MissedSearches />} />
-          <Route path="import" element={<ImportWords />} />
-          <Route path="add" element={<AddWord />} />
+          <Route index element={<Navigate to="/admin/add/by-word" />} />
+          <Route path="add" element={<AddWordSection />}>
+            <Route index element={<Navigate to="/admin/add/by-word" />} />
+            <Route path="by-word" element={<AddWord />} />
+            <Route path="import" element={<ImportWords />} />
+            <Route path="pending" element={<PendingWords />} />
+          </Route>
+          <Route path="report" element={<ReportSection />}>
+            <Route index element={<Navigate to="/admin/report/missed" />} />
+            <Route path="missed" element={<MissedSearches />} />
+            <Route path="activity" element={<ActivityLog />} />
+          </Route>
           <Route path="examples" element={<BulkExamples />} />
-          <Route path="activity" element={<ActivityLog />} />
           <Route path="subscriptions" element={<Subscriptions />} />
           <Route path="bulkinput" element={<MassTranslation />} />
           <Route path="image-config" element={<CategoryImageConfig />} />

@@ -85,6 +85,10 @@ export const adminImport = (formData) =>
   api.post('/admin/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
 export const adminCreateWord = (data) => api.post('/words', data)
 export const adminUpdateWord = (id, data) => api.put(`/words/${id}`, data)
+export const adminUploadWordImage = (wordId, file) => {
+  const fd = new FormData(); fd.append('file', file)
+  return api.post(`/words/${wordId}/image/upload`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+}
 export const adminDeleteWord = (id) => api.delete(`/words/${id}`)
 export const adminGenerateDailyWords = (count, category = null, keyword = null) =>
   api.post('/admin/generate-daily-words', {

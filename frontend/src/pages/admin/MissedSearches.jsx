@@ -98,7 +98,7 @@ export default function MissedSearches() {
     const params = new URLSearchParams({ missed_id: item.id })
     if (lang === 'chinese') params.set('chinese', item.query)
     else if (lang === 'thai') params.set('thai', item.query)
-    navigate(`/admin/add?${params.toString()}`)
+    navigate(`/admin/add/by-word?${params.toString()}`)
   }
 
   const handleCheckReport = (r) => {

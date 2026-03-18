@@ -27,7 +27,7 @@ const EDIT_FIELDS = [
   },
 ]
 
-const HSK_LEVELS = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'HSK6']
+const HSK_LEVELS = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'HSK6', 'HSK7']
 const LS_KEY = 'massTranslation_v1'
 
 function readLS() {

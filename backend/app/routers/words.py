@@ -703,17 +703,8 @@ def get_word_image(word_id: int, db: Session = Depends(get_db)):
     if word.category not in enabled_cats and not grid_config.get(word.category):
         return {"url": None}
 
-    # อาหาร category → meishichina เท่านั้น แต่ juhe_dataset ไม่ auto-fetch (ช้า)
+    # อาหาร category → ไม่ auto-fetch (pre-cache เท่านั้น)
     if word.category == "อาหาร":
-        if word.source == "juhe_dataset":
-            return {"url": None}
-        raw_url = _fetch_meishichina_image_url(word.chinese)
-        if raw_url:
-            image_bytes = _download_image(raw_url)
-            if image_bytes:
-                db.add(WordImageCache(word_id=word_id, image_data=image_bytes, image_url=None, image_source="meishichina"))
-                db.commit()
-                return {"url": f"/words/{word_id}/image/blob"}
         return {"url": None}
 
     from ..services.translate_service import _model, _has_api_key, _get_text

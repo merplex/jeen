@@ -501,12 +501,13 @@ def examples_stats(
     """จำนวน verified words ที่มี/ไม่มี examples และมี examples สั้นเกินไป"""
     from sqlalchemy import func as sqlfunc
     total = db.query(Word).filter(Word.status == "verified").count()
+    juhe_count = db.query(Word).filter(Word.status == "verified", Word.source == "juhe_dataset").count()
     with_ex = (
         db.query(Word)
         .filter(Word.status == "verified")
         .filter(Word.id.in_(select(Example.word_id).distinct()))
         .count()
-    )
+    ) + juhe_count
     # words ที่มี example แต่ทุก example สั้นกว่า min_length (น่าจะเป็น example ที่ผิดพลาด)
     short_word_ids = (
         db.query(Example.word_id)

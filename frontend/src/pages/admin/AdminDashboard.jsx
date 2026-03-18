@@ -1,13 +1,10 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
 const TABS = [
-  { to: '/admin/pending', label: 'รอ Approve' },
-  { to: '/admin/missed', label: 'รายงาน' },
-  { to: '/admin/import', label: 'Import' },
   { to: '/admin/add', label: 'เพิ่มคำ' },
+  { to: '/admin/report', label: 'รายงาน' },
   { to: '/admin/examples', label: 'ตัวอย่าง' },
   { to: '/admin/image-config', label: 'รูปประกอบ' },
-  { to: '/admin/activity', label: 'ประวัติ' },
   { to: '/admin/subscriptions', label: 'Subscription' },
   { to: '/admin/bulkinput', label: 'Bulk Input' },
 ]
