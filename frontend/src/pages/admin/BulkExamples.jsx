@@ -8,6 +8,7 @@ import {
   adminHskEnglishStats, adminStartHskEnglishQueue, adminStopHskEnglishQueue,
 } from '../../services/api'
 import { CATEGORIES } from '../../utils/categories'
+import CategoryImageConfig from './CategoryImageConfig'
 
 const REGEN_CATEGORIES = ['แพทย์', 'กฎหมาย', 'สำนวน', 'วิศวกรรม', 'เทคนิค']
 const SINGLE_ENG_CATEGORIES = ['ทั้งหมด', ...CATEGORIES, 'ไม่มีหมวด']
@@ -444,6 +445,9 @@ export default function BulkExamples() {
             >
               🗑️ ลบ cache รูปทั้งหมด {imageCategories.length > 0 && `(ยกเว้น ${imageCategories.length} หมวดที่เลือก)`}
             </button>
+            <div className="border-t border-gray-100 mt-2 -mx-4">
+              <CategoryImageConfig />
+            </div>
           </>
         )}
 

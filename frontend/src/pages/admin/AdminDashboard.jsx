@@ -4,7 +4,6 @@ const TABS = [
   { to: '/admin/add', label: 'เพิ่มคำ' },
   { to: '/admin/missed', label: 'รายงาน' },
   { to: '/admin/examples', label: 'ตัวอย่าง' },
-  { to: '/admin/image-config', label: 'รูปประกอบ' },
   { to: '/admin/subscriptions', label: 'Subscription' },
   { to: '/admin/bulkinput', label: 'Bulk Input' },
 ]

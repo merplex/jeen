@@ -24,7 +24,6 @@ import AddWordSection from './pages/admin/AddWordSection'
 import BulkExamples from './pages/admin/BulkExamples'
 import Subscriptions from './pages/admin/Subscriptions'
 import MassTranslation from './pages/admin/MassTranslation'
-import CategoryImageConfig from './pages/admin/CategoryImageConfig'
 import OcrLive from './pages/OcrLive'
 import DownloadApp from './pages/DownloadApp'
 import PrivacyPolicy from './pages/PrivacyPolicy'
@@ -108,7 +107,6 @@ export default function App() {
           <Route path="examples" element={<BulkExamples />} />
           <Route path="subscriptions" element={<Subscriptions />} />
           <Route path="bulkinput" element={<MassTranslation />} />
-          <Route path="image-config" element={<CategoryImageConfig />} />
         </Route>
       </Routes>
       <BottomNav />
