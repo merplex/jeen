@@ -125,8 +125,9 @@ def _translate_lines_with_vocab(lines: list, all_words: list) -> str:
         block = f"[{i+1}] {text}"
         if line_words:
             hints = ", ".join(
-                f"{w.chinese}={w.thai_meaning.split(chr(10))[0]}"
+                f"{w.chinese}={(w.thai_meaning or '').split(chr(10))[0]}"
                 for w in line_words[:10]
+                if (w.thai_meaning or '').strip()
             )
             block += f"\n    คำศัพท์: {hints}"
         blocks.append(block)
