@@ -114,13 +114,41 @@ for batch_num in range(total_batches):
     end = min(start + BATCH_SIZE, len(words))
     batch = words[start:end]
 
+    # skip only if ALL words in batch have non-empty translations
     batch_done = all(all_translations[i].strip() for i in range(start, end))
     if batch_done:
         print(f"Batch {batch_num+1}/{total_batches} already done, skipping...")
         continue
 
+    # partial batch: translate only missing words, fill back in
+    missing_indices = [i for i in range(start, end) if not all_translations[i].strip()]
+    if len(missing_indices) < len(batch):
+        print(f"Batch {batch_num+1}/{total_batches} partial ({len(missing_indices)} missing)...", end=' ', flush=True)
+        missing_words = [words[i] for i in missing_indices]
+        for attempt in range(3):
+            try:
+                translations = translate_batch(missing_words)
+                if len(translations) == len(missing_words):
+                    for idx, trans in zip(missing_indices, translations):
+                        all_translations[idx] = trans
+                    print("✓")
+                    save_csv()
+                    break
+                else:
+                    raise ValueError(f"Length mismatch: got {len(translations)}, expected {len(missing_words)}")
+            except Exception as e:
+                print(f"\n  ✗ Attempt {attempt+1}/3: {e}")
+                if attempt < 2:
+                    time.sleep(5)
+                else:
+                    print(f"  Skipping partial batch {batch_num+1}")
+        if batch_num < total_batches - 1:
+            time.sleep(2)
+        continue
+
     print(f"Batch {batch_num+1}/{total_batches} (words {start+1}-{end})...", end=' ', flush=True)
 
+    success = False
     for attempt in range(3):
         try:
             translations = translate_batch(batch)
@@ -128,6 +156,7 @@ for batch_num in range(total_batches):
                 all_translations[start:end] = translations
                 print("✓")
                 save_csv()
+                success = True
                 break
             else:
                 raise ValueError(f"Length mismatch: got {len(translations)}, expected {len(batch)}")
@@ -135,8 +164,30 @@ for batch_num in range(total_batches):
             print(f"\n  ✗ Attempt {attempt+1}/3: {e}")
             if attempt < 2:
                 time.sleep(5)
-            else:
-                print(f"  Skipping batch {batch_num+1}")
+
+    if not success:
+        # fallback: แตกเป็น sub-batch ขนาด 50
+        print(f"  Fallback: แตกเป็น sub-batches ขนาด 50...")
+        SUB = 50
+        sub_batches = [(i, min(i + SUB, len(batch))) for i in range(0, len(batch), SUB)]
+        for sb_start, sb_end in sub_batches:
+            sb = batch[sb_start:sb_end]
+            for attempt in range(3):
+                try:
+                    trans = translate_batch(sb)
+                    if len(trans) == len(sb):
+                        for j, t in enumerate(trans):
+                            all_translations[start + sb_start + j] = t
+                        save_csv()
+                        print(f"    sub {sb_start+1}-{sb_end} ✓")
+                        break
+                    else:
+                        raise ValueError(f"got {len(trans)}, expected {len(sb)}")
+                except Exception as e:
+                    print(f"    sub {sb_start+1}-{sb_end} ✗ attempt {attempt+1}: {e}")
+                    if attempt < 2:
+                        time.sleep(5)
+            time.sleep(1)
 
     if batch_num < total_batches - 1:
         time.sleep(2)
