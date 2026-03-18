@@ -50,6 +50,7 @@ export default function MassTranslation() {
   const [lockedIds, setLockedIds] = useState(() => readLS().lockedIds ?? [])
   const [focusedId, setFocusedId] = useState(() => readLS().focusedId ?? null)
 
+  const [confirmingAddDB, setConfirmingAddDB] = useState(false)
   const [words, setWords] = useState([])
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState('')
@@ -117,8 +118,7 @@ export default function MassTranslation() {
   const handleAddDB = async () => {
     const toSave = words.filter(w => hasPendingEdit(w))
     if (toSave.length === 0) return
-    if (!window.confirm(`บันทึก ${toSave.length} คำ ลง DB?`)) return
-
+    setConfirmingAddDB(false)
     setSaving(true)
     setSaveResult(null)
     let done = 0
@@ -227,15 +227,27 @@ export default function MassTranslation() {
           <span className="text-xs text-gray-500">
             แสดง {filteredWords.length} คำ · กรอกใหม่ {pendingCount} คำ
           </span>
-          {pendingCount > 0 && (
-            <button
-              onClick={handleAddDB}
-              disabled={saving}
-              className="text-xs px-4 py-1.5 bg-chinese-red text-white rounded-full disabled:opacity-50"
-            >
-              {saving ? 'กำลัง save...' : `Add DB (${pendingCount} คำ)`}
-            </button>
+          {pendingCount > 0 && !saving && (
+            confirmingAddDB ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">บันทึก {pendingCount} คำ?</span>
+                <button onClick={handleAddDB} className="text-xs px-3 py-1.5 bg-chinese-red text-white rounded-full">
+                  ยืนยัน
+                </button>
+                <button onClick={() => setConfirmingAddDB(false)} className="text-xs px-3 py-1.5 bg-gray-200 text-gray-600 rounded-full">
+                  ยกเลิก
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmingAddDB(true)}
+                className="text-xs px-4 py-1.5 bg-chinese-red text-white rounded-full"
+              >
+                Add DB ({pendingCount} คำ)
+              </button>
+            )
           )}
+          {saving && <span className="text-xs text-gray-500">กำลัง save...</span>}
         </div>
 
         {saveResult && (
@@ -268,8 +280,8 @@ export default function MassTranslation() {
           ) : (
             filteredWords.map((word, idx) => {
               const wordEdit = edits[word.id]
-              const hasLocalEdit = !!wordEdit
               const locked = isWordLocked(word, lockedIds)
+              const hasLocalEdit = hasPendingEdit(word)
               const isFocused = focusedId === word.id
 
               return (
@@ -278,12 +290,14 @@ export default function MassTranslation() {
                   ref={isFocused ? focusRowRef : null}
                   onClick={() => setFocusedId(word.id)}
                   className={`grid gap-2 px-2 py-2 border-b border-gray-50 transition-colors items-start ${
-                    isFocused ? 'bg-blue-50' : hasLocalEdit ? 'bg-green-50' : ''
+                    isFocused ? 'bg-blue-50' : hasLocalEdit ? 'bg-green-50' : locked ? 'bg-gray-50/60' : ''
                   }`}
                   style={{ gridTemplateColumns: '22px 90px 1fr' }}
                 >
                   {/* Index */}
-                  <span className="text-xs text-gray-400 pt-1 select-none">{idx + 1}</span>
+                  <span className="text-xs text-gray-400 pt-1 select-none">
+                    {locked ? <span className="text-green-400">✓</span> : idx + 1}
+                  </span>
 
                   {/* Chinese card + under_chinese fields */}
                   <div className="min-w-0">
