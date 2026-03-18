@@ -377,7 +377,11 @@ export default function Search() {
               {/* Chinese reference below */}
               {ocrResult.text && (
                 <div className="border-t border-gray-100 pt-2">
-                  <p className="font-chinese text-sm text-gray-400 leading-relaxed">{ocrResult.text}</p>
+                  {ocrResult.text.split('\n').map((t, i) => (
+                    t.trim()
+                      ? <p key={i} className="font-chinese text-sm text-gray-400 leading-snug">{t}</p>
+                      : <div key={i} className="h-1" />
+                  ))}
                 </div>
               )}
               {ocrResult.words?.length > 0 && (

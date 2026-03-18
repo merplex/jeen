@@ -232,7 +232,7 @@ def scan_image(
         flat = _ocr_and_translate(image_bytes, body.mime_type)
         if flat.get("text"):
             lines = [{"text": flat["text"], "translation": flat.get("translation", "")}]
-    text = "".join(l["text"] for l in lines)
+    text = "\n".join(l["text"] for l in lines)
 
     if not text:
         return {"text": "", "translation": "", "words": []}
