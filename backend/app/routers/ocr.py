@@ -102,30 +102,54 @@ def _log_usage(db: Session, user_id: int | None, event_type: str):
         db.rollback()
 
 
-def _translate_with_db_context(text: str, words: list) -> str:
-    """Request 2: ส่ง text + คำแปลจาก DB ให้ Gemini แปลรวม โดยใช้ความหมาย/พินอินจาก DB"""
+def _translate_lines_with_vocab(lines: list, all_words: list) -> str:
+    """Request 2: ส่ง lines แบบ structured + per-line vocab hints ให้ Gemini แปล
+    - รักษา line breaks ตามต้นฉบับ
+    - ระบุผู้พูดถ้าเป็นบทสนทนา
+    """
     from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
 
-    if not _has_api_key() or not text:
+    if not _has_api_key() or not lines:
         return ""
 
-    if words:
-        vocab_lines = "\n".join(
-            f"- {w.chinese} = {w.thai_meaning}" + (f" (พินอิน: {w.pinyin})" if w.pinyin else "")
-            for w in words
-        )
-        prompt = (
-            f"แปลข้อความจีนต่อไปนี้เป็นภาษาไทย:\n{text}\n\n"
-            f"ใช้คำแปลเหล่านี้สำหรับคำที่ตรงกัน:\n{vocab_lines}\n\n"
-            "ตอบเป็นคำแปลภาษาไทยเท่านั้น ไม่ต้องอธิบายเพิ่ม"
-        )
-    else:
-        prompt = f"แปลข้อความจีนต่อไปนี้เป็นภาษาไทย:\n{text}\n\nตอบเป็นคำแปลภาษาไทยเท่านั้น"
+    # Build per-line blocks with vocab hints
+    blocks = []
+    for i, line in enumerate(lines):
+        text = line.get("text", "")
+        if not text:
+            continue
+        # find words that appear in this specific line
+        line_words = [w for w in all_words if w.chinese and w.chinese in text]
+        line_words.sort(key=lambda w: len(w.chinese), reverse=True)
+
+        block = f"[{i+1}] {text}"
+        if line_words:
+            hints = ", ".join(
+                f"{w.chinese}={w.thai_meaning.split(chr(10))[0]}"
+                for w in line_words[:10]
+            )
+            block += f"\n    คำศัพท์: {hints}"
+        blocks.append(block)
+
+    if not blocks:
+        return ""
+
+    structured_input = "\n\n".join(blocks)
+
+    prompt = (
+        "แปลข้อความจีนต่อไปนี้เป็นภาษาไทย\n"
+        "กฎ:\n"
+        "1. แต่ละ [หมายเลข] = 1 บรรทัดในคำแปล คั่นด้วย newline\n"
+        "2. ถ้าเป็นบทสนทนา ระบุผู้พูดด้วย เช่น A: ... / B: ... หรือชื่อถ้าเห็นในภาพ\n"
+        "3. ตอบคำแปลภาษาไทยเท่านั้น ไม่ใส่ [หมายเลข] และไม่อธิบายเพิ่ม\n\n"
+        f"{structured_input}"
+    )
 
     try:
         resp = _model.generate_content(prompt)
         return _strip_markdown(_get_text(resp)).strip()
-    except Exception:
+    except Exception as e:
+        logger.error(f"[OCR translate] error: {e}")
         return ""
 
 
@@ -152,11 +176,11 @@ def scan_image_structured(
     # Match DB
     words = _find_words_in_text(combined_text, db)
 
-    # Request 2: แปลรวมโดยใช้คำแปลจาก DB
-    if combined_text and words:
-        full_translation = _translate_with_db_context(combined_text, words)
+    # Request 2: แปลแบบ structured per-line + vocab hints
+    if combined_text:
+        full_translation = _translate_lines_with_vocab(lines, words)
     else:
-        full_translation = " ".join(l.get("translation", "") for l in lines).strip()
+        full_translation = ""
 
     return {
         "lines": lines,

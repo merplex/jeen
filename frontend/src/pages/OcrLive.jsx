@@ -17,6 +17,7 @@ export default function OcrLive() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [scanning, setScanning] = useState(false)
   const [lines, setLines] = useState([])
+  const [translation, setTranslation] = useState('')
   const [words, setWords] = useState([])
   const [selectedWord, setSelectedWord] = useState(null)
   const [cameraReady, setCameraReady] = useState(false)
@@ -87,6 +88,7 @@ export default function OcrLive() {
       const b64 = btoa(binary)
       const r = await scanOcrStructured({ image_base64: b64, mime_type: 'image/jpeg' })
       setLines(r.data.lines || [])
+      setTranslation(r.data.translation || '')
       setWords(r.data.words || [])
       setSelectedWord((prev) => {
         if (!prev) return null
@@ -206,19 +208,29 @@ export default function OcrLive() {
           </div>
         )}
 
-        {/* AI Translation lines — online only */}
-        {isOnline && lines.length > 0 && (
+        {/* AI Translation — online only */}
+        {isOnline && (lines.length > 0 || translation) && (
           <div className="px-4 pt-3 pb-1">
             <p className="text-xs text-gray-400 mb-2 font-medium">คำแปล AI</p>
-            <div className="space-y-2">
-              {lines.map((line, i) => (
-                <div key={i} className="bg-white rounded-xl px-3 py-2.5 shadow-sm">
-                  <p className="font-chinese text-base text-gray-800 leading-snug">{line.text}</p>
-                  {line.translation && (
-                    <p className="text-sm text-gray-600 mt-1 leading-snug">{line.translation}</p>
-                  )}
+            <div className="bg-white rounded-xl px-3 py-3 shadow-sm space-y-2">
+              {/* Chinese lines */}
+              <div>
+                {lines.map((line, i) => (
+                  <p key={i} className="font-chinese text-base text-gray-800 leading-snug">
+                    {line.text}
+                  </p>
+                ))}
+              </div>
+              {/* Thai translation — preserves line breaks */}
+              {translation && (
+                <div className="border-t border-gray-100 pt-2">
+                  {translation.split('\n').map((t, i) => (
+                    t.trim()
+                      ? <p key={i} className="text-sm text-gray-700 leading-snug">{t}</p>
+                      : <div key={i} className="h-2" />
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
