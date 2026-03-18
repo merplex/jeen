@@ -376,7 +376,6 @@ export default function MassTranslation() {
           กำลัง save...
         </div>
       )}
-    </div>
     </>
   )
 }
