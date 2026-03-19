@@ -347,12 +347,12 @@ export default function WordDetail() {
                 <button
                   key={deck}
                   onClick={() => !locked && toggleDeck(deck)}
-                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-all
+                  className={`flex-1 py-2 text-sm font-semibold rounded transition-all
                     ${inDeck
-                      ? 'bg-white/10 border border-white text-white underline underline-offset-2'
-                      : 'bg-transparent border border-white/40 text-white/70'
+                      ? 'bg-white/10 border-2 border-white text-white underline underline-offset-2'
+                      : 'bg-transparent border-2 border-white/50 text-white/80'
                     }
-                    ${locked ? 'opacity-40' : 'active:scale-95'}`}
+                    ${locked ? 'opacity-40' : 'active:scale-95 active:border-[3px]'}`}
                 >
                   {locked ? '🔒 ' : ''}Flash card {deck}
                 </button>
