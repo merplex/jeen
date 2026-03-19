@@ -723,6 +723,8 @@ def generate_related_words(chinese: str, pinyin: str, thai_meaning: str) -> dict
             '{"similar": [สำนวนที่มีความหมายใกล้เคียงกัน 1-2 สำนวน ความยาว 4-5 อักษร], '
             '"opposite": [สำนวนที่มีความหมายตรงข้ามกัน 1-2 สำนวน ความยาว 4-5 อักษร]}\n'
             'แต่ละ entry มีรูปแบบ: {"chinese": "XXXX", "pinyin": "xx xx xx xx", "thai": "..."}\n'
+            f"ข้อบังคับ: ห้ามใส่ {chinese} เองในคำตอบเด็ดขาด "
+            "ถ้าหาคำที่เหมาะสมไม่ได้จริงๆ ให้ตอบ array ว่าง [] แทน\n"
             "ตอบแค่ JSON เท่านั้น ไม่มีคำอธิบายเพิ่มเติม"
         )
     else:
@@ -733,6 +735,8 @@ def generate_related_words(chinese: str, pinyin: str, thai_meaning: str) -> dict
             '"opposite": [คำที่มีความหมายตรงข้ามกัน 2 คำ แต่ละคำต้องมี 2 อักษรจีนเท่านั้น], '
             '"collocations": [คำข้างเคียง คือ คำ 2 อักษรที่มักพบเห็นหรือใช้ร่วมในบริบทเดียวกับคำนี้บ่อยที่สุด 2 คำ แต่ละคำต้องมี 2 อักษรจีนเท่านั้น]}\n'
             'แต่ละ entry มีรูปแบบ: {"chinese": "XX", "pinyin": "xx xx", "thai": "..."}\n'
+            f"ข้อบังคับ: ห้ามใส่ {chinese} เองในคำตอบเด็ดขาด "
+            "ถ้าหาคำที่เหมาะสมไม่ได้จริงๆ ให้ตอบ array ว่าง [] แทน\n"
             "ตอบแค่ JSON เท่านั้น ไม่มีคำอธิบายเพิ่มเติม"
         )
 
@@ -743,7 +747,12 @@ def generate_related_words(chinese: str, pinyin: str, thai_meaning: str) -> dict
             raw = raw.split("```")[1]
             if raw.startswith("json"):
                 raw = raw[4:]
-        return json.loads(raw.strip())
+        result = json.loads(raw.strip())
+        # กรอง entry ที่ chinese ตรงกับคำหลักออก
+        for key in ("similar", "opposite", "collocations"):
+            if key in result:
+                result[key] = [e for e in result[key] if e.get("chinese") != chinese]
+        return result
     except RuntimeError:
         raise
     except Exception as e:
