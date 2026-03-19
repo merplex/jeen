@@ -360,8 +360,6 @@ def regenerate_english(
     eng_result = generate_english_meaning(word.chinese, word.thai_meaning or "")
     if eng_result["english"]:
         word.english_meaning = eng_result["english"]
-        if eng_result["thai_addition"] and eng_result["thai_addition"] not in (word.thai_meaning or ""):
-            word.thai_meaning = (word.thai_meaning or "") + "\n" + eng_result["thai_addition"]
         db.commit()
         db.refresh(word)
     return word
@@ -701,9 +699,6 @@ def bulk_generate_english(
         word = next((w for w in words if w.id == item.get("id")), None)
         if word and item.get("english"):
             word.english_meaning = item["english"]
-            thai_addition = str(item.get("thai_addition", "")).strip()
-            if thai_addition and thai_addition not in (word.thai_meaning or ""):
-                word.thai_meaning = (word.thai_meaning or "") + "\n" + thai_addition
             done += 1
     if done > 0:
         _log(db, "bulk_english", detail=f"อัปเดต {done} คำ")
@@ -773,9 +768,6 @@ def bulk_regen_single_english(
             skipped += 1
             continue
         word.english_meaning = new_eng
-        thai_addition = str(item.get("thai_addition", "")).strip()
-        if thai_addition and thai_addition not in (word.thai_meaning or ""):
-            word.thai_meaning = (word.thai_meaning or "") + "\n" + thai_addition
         done += 1
 
     if done > 0:
@@ -1116,9 +1108,6 @@ def regen_english_by_category(
         word = next((w for w in words if w.id == item.get("id")), None)
         if word and item.get("english"):
             word.english_meaning = item["english"]
-            thai_addition = str(item.get("thai_addition", "")).strip()
-            if thai_addition and thai_addition not in (word.thai_meaning or ""):
-                word.thai_meaning = (word.thai_meaning or "") + "\n" + thai_addition
             done += 1
 
     if done > 0:
@@ -1202,9 +1191,6 @@ def fix_long_english(
         new_eng = eng_result["english"]
         if new_eng and len(new_eng) <= max_len:
             w.english_meaning = new_eng
-            thai_addition = eng_result["thai_addition"]
-            if thai_addition and thai_addition not in (w.thai_meaning or ""):
-                w.thai_meaning = (w.thai_meaning or "") + "\n" + thai_addition
             fixed += 1
         else:
             failed += 1

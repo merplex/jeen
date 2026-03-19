@@ -36,9 +36,6 @@ def _job_gen_english():
             word = next((w for w in words if w.id == item.get("id")), None)
             if word and item.get("english"):
                 word.english_meaning = item["english"]
-                thai_addition = str(item.get("thai_addition", "")).strip()
-                if thai_addition and thai_addition not in (word.thai_meaning or ""):
-                    word.thai_meaning = (word.thai_meaning or "") + "\n" + thai_addition
                 done += 1
 
         if done > 0:

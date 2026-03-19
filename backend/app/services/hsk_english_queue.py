@@ -140,9 +140,6 @@ class HskEnglishQueue:
                         errors_batch += 1
                         continue
                     word.english_meaning = new_eng
-                    thai_addition = str(item.get("thai_addition", "")).strip()
-                    if thai_addition and thai_addition not in (word.thai_meaning or ""):
-                        word.thai_meaning = (word.thai_meaning or "") + "\n" + thai_addition
                     done_batch += 1
 
                 errors_batch += len(words) - len(results) if results else len(words)
