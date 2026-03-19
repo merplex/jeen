@@ -228,7 +228,17 @@ export default function MassTranslation() {
           <span className="text-xs text-gray-500">
             แสดง {filteredWords.length} คำ · กรอกใหม่ {pendingCount} คำ
           </span>
-          {saving && <span className="text-xs text-gray-500">กำลัง save...</span>}
+          <div className="flex items-center gap-2">
+            {lockedIds.length > 0 && (
+              <button
+                onClick={() => setLockedIds([])}
+                className="text-xs px-3 py-1 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200"
+              >
+                ปลดล็อค ({lockedIds.length})
+              </button>
+            )}
+            {saving && <span className="text-xs text-gray-500">กำลัง save...</span>}
+          </div>
         </div>
 
         {saveResult && (
