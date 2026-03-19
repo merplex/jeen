@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text, SmallInteger, Computed, DateTime, Boolean, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from ..database import Base
 
@@ -20,6 +21,7 @@ class Word(Base):
     source = Column(String(100), nullable=True)
     admin_edited = Column(Boolean, default=False, nullable=False)
     image_url = Column(String(500), nullable=True)
+    related_words = Column(JSONB, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 

@@ -48,6 +48,7 @@ class WordOut(BaseModel):
     source: Optional[str] = None
     admin_edited: bool = False
     examples: list[ExampleOut] = []
+    related_words: Optional[dict] = None
 
     class Config:
         from_attributes = True

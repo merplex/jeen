@@ -25,6 +25,7 @@ from ..services.translate_service import (
     batch_generate_english,
     generate_examples_for_word,
     generate_daily_words,
+    generate_related_words,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -394,6 +395,39 @@ def generate_examples(
         ))
 
     _log(db, "example_added", word_id=word_id, chinese=word.chinese, detail=f"สร้าง {len(examples)} ประโยค")
+    db.commit()
+    db.refresh(word)
+    return word
+
+
+@router.post("/generate-related/{word_id}", response_model=WordOut)
+def generate_related(
+    word_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Generate related words (similar, opposite, collocations/idioms) for a word.
+    รองรับเฉพาะคำ 2 อักษร หรือสำนวน 4+ อักษร"""
+    word = db.query(Word).filter(Word.id == word_id, Word.status == "verified").first()
+    if not word:
+        raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์ที่ verified")
+    char_len = len(word.chinese)
+    if char_len != 2 and char_len < 4:
+        raise HTTPException(status_code=400, detail="ใช้ได้เฉพาะคำ 2 อักษร หรือสำนวน 4+ อักษรเท่านั้น")
+    try:
+        result = generate_related_words(word.chinese, word.pinyin, word.thai_meaning)
+    except RuntimeError as e:
+        raise HTTPException(status_code=429, detail=str(e))
+    # Enrich each entry with word_id if found in DB
+    for group_key in ("similar", "opposite", "collocations"):
+        for entry in result.get(group_key, []):
+            ch = entry.get("chinese", "")
+            if ch:
+                found = db.query(Word.id).filter(Word.chinese == ch).first()
+                if found:
+                    entry["word_id"] = found[0]
+    word.related_words = result
+    _log(db, "related_words_generated", word_id=word_id, chinese=word.chinese)
     db.commit()
     db.refresh(word)
     return word

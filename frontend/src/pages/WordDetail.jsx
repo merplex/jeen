@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, getPublicSettings, getWordImage, refreshWordImage, uploadWordImage, getFavoriteStatus, toggleFavorite } from '../services/api'
+import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminGenerateRelated, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, getPublicSettings, getWordImage, refreshWordImage, uploadWordImage, getFavoriteStatus, toggleFavorite } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import SelectionPopup from '../components/SelectionPopup'
@@ -26,6 +26,7 @@ export default function WordDetail() {
   const [editData, setEditData] = useState(null) // null = ไม่ได้ edit
   const [editSaving, setEditSaving] = useState(false)
   const [genExLoading, setGenExLoading] = useState(false)
+  const [genRelatedLoading, setGenRelatedLoading] = useState(false)
   const [genEngLoading, setGenEngLoading] = useState(false)
   const [showReportModal, setShowReportModal] = useState(false)
   const [reportMsg, setReportMsg] = useState('')
@@ -184,6 +185,17 @@ export default function WordDetail() {
       alert(e.response?.data?.detail || 'สร้างตัวอย่างไม่สำเร็จ')
     }
     setGenExLoading(false)
+  }
+
+  const generateRelated = async () => {
+    setGenRelatedLoading(true)
+    try {
+      const r = await adminGenerateRelated(id)
+      setWord(r.data)
+    } catch (e) {
+      alert(e.response?.data?.detail || 'สร้างคำที่เกี่ยวข้องไม่สำเร็จ')
+    }
+    setGenRelatedLoading(false)
   }
 
   const generateEnglish = async () => {
@@ -442,6 +454,84 @@ export default function WordDetail() {
             )
           })()}
         </div>
+
+        {/* Related Words — เฉพาะคำ 2 อักษร หรือสำนวน 4+ อักษร */}
+        {(word.chinese.length === 2 || word.chinese.length >= 4) && (word.related_words || user?.is_admin) && (() => {
+          const rw = word.related_words
+          const isIdiom = word.chinese.length >= 4
+          const groups = isIdiom
+            ? [
+                { key: 'similar', label: 'ความหมายใกล้เคียง' },
+                { key: 'opposite', label: 'ความหมายตรงข้าม' },
+              ]
+            : [
+                { key: 'similar', label: 'คำคล้าย' },
+                { key: 'opposite', label: 'คำตรงข้าม' },
+                { key: 'collocations', label: 'ศัพท์ในกลุ่ม' },
+              ]
+
+          const handleRelatedWordClick = (item) => {
+            if (item.word_id) {
+              navigate(`/words/${item.word_id}`)
+            } else if (user?.is_admin) {
+              navigate(`/admin/add/by-word?chinese=${encodeURIComponent(item.chinese)}`)
+            }
+            // user ทั่วไป + ไม่มีใน DB → ไม่ทำอะไร
+          }
+
+          return (
+            <div className="bg-white rounded-xl p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-500">คำที่เกี่ยวข้อง</h3>
+                {user?.is_admin && (
+                  <button
+                    onClick={generateRelated}
+                    disabled={genRelatedLoading}
+                    className="text-xs text-chinese-red disabled:opacity-50"
+                  >
+                    {genRelatedLoading ? '⏳ กำลังสร้าง...' : rw ? '🔄 สร้างใหม่' : '✨ สร้างคำเกี่ยวข้อง'}
+                  </button>
+                )}
+              </div>
+              {!rw ? (
+                <p className="text-xs text-gray-400 text-center py-2">ยังไม่มีข้อมูล — กด ✨ สร้างคำเกี่ยวข้อง</p>
+              ) : (
+                <div className={`grid gap-3 ${isIdiom ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                  {groups.map(({ key, label }) => {
+                    const items = rw[key] || []
+                    if (items.length === 0) return null
+                    return (
+                      <div key={key}>
+                        <div className="text-[10px] text-gray-400 font-medium mb-1.5 text-center">{label}</div>
+                        <div className="flex flex-col gap-1.5">
+                          {items.map((item, i) => {
+                            const inDb = !!item.word_id
+                            const clickable = inDb || user?.is_admin
+                            return (
+                              <button
+                                key={i}
+                                onClick={() => handleRelatedWordClick(item)}
+                                disabled={!clickable}
+                                className={`w-full bg-chinese-cream rounded-lg px-2 py-1.5 transition-colors
+                                  ${clickable ? 'active:bg-chinese-gold/20' : 'opacity-50 cursor-default'}`}
+                              >
+                                <div className="font-chinese text-base text-gray-800 leading-tight text-center">{item.chinese}</div>
+                                <div className="text-[10px] text-gray-500 leading-tight text-center truncate">{item.thai}</div>
+                                {user?.is_admin && !inDb && (
+                                  <div className="text-[9px] text-orange-400 text-center leading-tight">+เพิ่มคำ</div>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Examples */}
         {(word.examples?.length > 0 || user?.is_admin || word.source === 'juhe_dataset') && (() => {

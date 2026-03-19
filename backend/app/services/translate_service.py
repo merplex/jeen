@@ -700,3 +700,52 @@ def generate_examples_for_word(chinese: str, pinyin: str, thai: str, category: s
     except Exception as e:
         logger.error(f"[gen_examples] outer exception for {chinese!r}: {e}")
         return []
+
+
+def generate_related_words(chinese: str, pinyin: str, thai_meaning: str) -> dict:
+    """
+    Generate related words for a word:
+    - 2-char words: similar (คำคล้าย), opposite (คำตรงข้าม), collocations (ศัพท์ในกลุ่ม)
+      each group has 3 words, 2 chars each
+    - 4-5 char words (idioms): similar, opposite only, 1-2 idioms each
+    Returns dict: {"similar": [...], "opposite": [...], "collocations": [...]}
+    Each entry: {"chinese": "XX", "pinyin": "...", "thai": "..."}
+    """
+    if not _has_api_key():
+        return {}
+    char_len = len(chinese)
+    is_idiom = char_len >= 4
+
+    if is_idiom:
+        prompt = (
+            f"คำศัพท์ภาษาจีน: {chinese} ({pinyin}) หมายความว่า {thai_meaning}\n"
+            "คำนี้เป็นสำนวน/成语 กรุณาสร้าง JSON ดังนี้:\n"
+            '{"similar": [สำนวนที่มีความหมายใกล้เคียงกัน 1-2 สำนวน ความยาว 4-5 อักษร], '
+            '"opposite": [สำนวนที่มีความหมายตรงข้ามกัน 1-2 สำนวน ความยาว 4-5 อักษร]}\n'
+            'แต่ละ entry มีรูปแบบ: {"chinese": "XXXX", "pinyin": "xx xx xx xx", "thai": "..."}\n'
+            "ตอบแค่ JSON เท่านั้น ไม่มีคำอธิบายเพิ่มเติม"
+        )
+    else:
+        prompt = (
+            f"คำศัพท์ภาษาจีน: {chinese} ({pinyin}) หมายความว่า {thai_meaning}\n"
+            "กรุณาสร้าง JSON ดังนี้:\n"
+            '{"similar": [คำที่มีความหมายคล้ายกัน 3 คำ แต่ละคำต้องมี 2 อักษรจีนเท่านั้น], '
+            '"opposite": [คำที่มีความหมายตรงข้ามกัน 3 คำ แต่ละคำต้องมี 2 อักษรจีนเท่านั้น], '
+            '"collocations": [คำที่มักใช้คู่กันหรือใช้ร่วมบริบทเดียวกับคำนี้บ่อย 3 คำ แต่ละคำต้องมี 2 อักษรจีนเท่านั้น]}\n'
+            'แต่ละ entry มีรูปแบบ: {"chinese": "XX", "pinyin": "xx xx", "thai": "..."}\n'
+            "ตอบแค่ JSON เท่านั้น ไม่มีคำอธิบายเพิ่มเติม"
+        )
+
+    try:
+        r = _model.generate_content(prompt)
+        raw = _get_text(r).strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        return json.loads(raw.strip())
+    except RuntimeError:
+        raise
+    except Exception as e:
+        logger.error(f"[gen_related_words] failed for {chinese!r}: {e}")
+        return {}

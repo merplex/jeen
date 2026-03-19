@@ -100,6 +100,8 @@ export const adminImportWords = (words) =>
   api.post('/admin/import-words', { words })
 export const adminGenerateExamples = (id) =>
   api.post(`/admin/generate-examples/${id}`)
+export const adminGenerateRelated = (id) =>
+  api.post(`/admin/generate-related/${id}`)
 export const adminRegenerateEnglish = (id) =>
   api.post(`/admin/regenerate-english/${id}`)
 export const adminExamplesStats = () =>
