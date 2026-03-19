@@ -64,6 +64,8 @@ export default function App() {
           </div>
         )
       }
+      // ยังไม่ login → ไป login
+      if (!token) { window.location.replace('/login'); return null }
       // ไม่ใช่ admin → DownloadApp
       if (!user?.is_admin) return <DownloadApp />
     }
