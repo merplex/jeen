@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminGenerateRelated, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, getPublicSettings, getWordImage, refreshWordImage, uploadWordImage, getFavoriteStatus, toggleFavorite } from '../services/api'
+import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminGenerateRelated, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, getPublicSettings, getWordImage, refreshWordImage, uploadWordImage, getFavoriteStatus, toggleFavorite, reportMissedSearchDirect } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import SelectionPopup from '../components/SelectionPopup'
@@ -467,14 +467,16 @@ export default function WordDetail() {
             : [
                 { key: 'similar', label: 'คำคล้าย' },
                 { key: 'opposite', label: 'คำตรงข้าม' },
-                { key: 'collocations', label: 'ศัพท์ในกลุ่ม' },
+                { key: 'collocations', label: 'คำข้างเคียง' },
               ]
 
-          const handleRelatedWordClick = (item) => {
+          const handleRelatedWordClick = async (item) => {
             if (item.word_id) {
               navigate(`/words/${item.word_id}`)
             } else if (user?.is_admin) {
-              navigate(`/admin/add/by-word?chinese=${encodeURIComponent(item.chinese)}`)
+              // เพิ่มเข้า missed searches แล้วไปหน้า ค้นไม่พบ
+              try { await reportMissedSearchDirect(item.chinese) } catch {}
+              navigate('/admin/missed')
             }
             // user ทั่วไป + ไม่มีใน DB → ไม่ทำอะไร
           }
@@ -496,31 +498,30 @@ export default function WordDetail() {
               {!rw ? (
                 <p className="text-xs text-gray-400 text-center py-2">ยังไม่มีข้อมูล — กด ✨ สร้างคำเกี่ยวข้อง</p>
               ) : (
-                <div className={`grid gap-3 ${isIdiom ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                <div className={`grid gap-2 ${isIdiom ? 'grid-cols-2' : 'grid-cols-3'}`}>
                   {groups.map(({ key, label }) => {
-                    const items = rw[key] || []
+                    const items = (rw[key] || []).slice(0, 2)
                     if (items.length === 0) return null
                     return (
                       <div key={key}>
                         <div className="text-[10px] text-gray-400 font-medium mb-1.5 text-center">{label}</div>
-                        <div className="flex flex-col gap-1.5">
+                        {/* กล่องเดียว มี 2 คำเคียงกัน แบ่งด้วยเส้นแนวตั้ง */}
+                        <div className="flex bg-chinese-cream rounded-lg overflow-hidden">
                           {items.map((item, i) => {
                             const inDb = !!item.word_id
                             const clickable = inDb || user?.is_admin
                             return (
-                              <button
-                                key={i}
-                                onClick={() => handleRelatedWordClick(item)}
-                                disabled={!clickable}
-                                className={`w-full bg-chinese-cream rounded-lg px-2 py-1.5 transition-colors
-                                  ${clickable ? 'active:bg-chinese-gold/20' : 'opacity-50 cursor-default'}`}
-                              >
-                                <div className="font-chinese text-base text-gray-800 leading-tight text-center">{item.chinese}</div>
-                                <div className="text-[10px] text-gray-500 leading-tight text-center truncate">{item.thai}</div>
-                                {user?.is_admin && !inDb && (
-                                  <div className="text-[9px] text-orange-400 text-center leading-tight">+เพิ่มคำ</div>
-                                )}
-                              </button>
+                              <div key={i} className="flex-1 flex">
+                                {i > 0 && <div className="w-px bg-gray-300 flex-shrink-0" />}
+                                <button
+                                  onClick={() => handleRelatedWordClick(item)}
+                                  disabled={!clickable}
+                                  className={`flex-1 py-2 transition-colors
+                                    ${clickable ? 'active:bg-chinese-gold/20' : 'opacity-40 cursor-default'}`}
+                                >
+                                  <div className="font-chinese text-base text-gray-800 leading-tight text-center">{item.chinese}</div>
+                                </button>
+                              </div>
                             )
                           })}
                         </div>
