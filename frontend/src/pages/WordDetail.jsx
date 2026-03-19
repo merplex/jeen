@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminGenerateRelated, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, getPublicSettings, getWordImage, refreshWordImage, uploadWordImage, getFavoriteStatus, toggleFavorite, reportMissedSearchDirect } from '../services/api'
+import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminGenerateRelated, autoGenerateRelated, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, getPublicSettings, getWordImage, refreshWordImage, uploadWordImage, getFavoriteStatus, toggleFavorite, reportMissedSearchDirect } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import SelectionPopup from '../components/SelectionPopup'
@@ -83,6 +83,14 @@ export default function WordDetail() {
     if (!user || !word) return
     getFavoriteStatus(word.id).then((r) => setFavorited(r.data.favorited)).catch(() => {})
   }, [user, word?.id])
+
+  // auto-generate related_words ถ้ายังไม่มี (เฉพาะคำ 2 หรือ 4+ อักษร)
+  useEffect(() => {
+    if (!word || !token) return
+    const len = word.chinese.length
+    if (word.related_words !== null || (len !== 2 && len < 4)) return
+    autoGenerateRelated(word.id).then((r) => setWord(r.data)).catch(() => {})
+  }, [word?.id])
 
   // โหลดรูปภาพเมื่อ word โหลดแล้ว
   // admin: โหลดทุก category, user ทั่วไป: เฉพาะ category ที่ตั้งไว้

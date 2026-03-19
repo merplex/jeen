@@ -7,12 +7,13 @@ import {
   adminGetSettings, adminUpdateSettings, adminDeleteImageCache, adminDeleteNullImageCache, adminDeleteAllImageCache,
   adminHskEnglishStats, adminStartHskEnglishQueue, adminStopHskEnglishQueue,
   adminCategoryWordCounts, adminRegenEnglishByCategory,
+  adminRelatedStats, adminRegenRelatedByCategory,
 } from '../../services/api'
 import { CATEGORIES } from '../../utils/categories'
 import CategoryImageConfig from './CategoryImageConfig'
 
 const SINGLE_ENG_CATEGORIES = ['ทั้งหมด', ...CATEGORIES, 'ไม่มีหมวด']
-const TABS = ['ตัวอย่างประโยค', 'แปลอังกฤษ', 'รูปประกอบ']
+const TABS = ['ตัวอย่างประโยค', 'แปลอังกฤษ', 'คำเกี่ยวข้อง', 'รูปประกอบ']
 
 export default function BulkExamples() {
   const [activeTab, setActiveTab] = useState('ตัวอย่างประโยค')
@@ -33,11 +34,45 @@ export default function BulkExamples() {
   const [hskEngQueue, setHskEngQueue] = useState(null)
   const [imageCategories, setImageCategories] = useState([])
   const [settingsSaving, setSettingsSaving] = useState(false)
+  const [relatedStats, setRelatedStats] = useState(null)
+  const [relatedRegenCat, setRelatedRegenCat] = useState('')
+  const [relatedRegenLimit, setRelatedRegenLimit] = useState(10)
 
   const loadStats = async () => {
     const [ex, en] = await Promise.all([adminExamplesStats(), adminEnglishStats()])
     setExStats(ex.data)
     setEnStats(en.data)
+  }
+
+  const loadRelatedStats = async () => {
+    adminRelatedStats().then((r) => setRelatedStats(r.data)).catch(() => {})
+  }
+
+  const runRegenRelated = async () => {
+    if (running) return
+    setRunning(true); stopRef.current = false; setLog([])
+    const isHsk = /^hsk\d$/.test(relatedRegenCat)
+    addLog(`เริ่ม regen คำเกี่ยวข้อง "${relatedRegenCat}"...`)
+    let total = 0, offset = 0, retries = 0
+    while (!stopRef.current) {
+      try {
+        const r = await adminRegenRelatedByCategory(
+          isHsk ? null : relatedRegenCat, isHsk ? relatedRegenCat : null, relatedRegenLimit, offset
+        )
+        const { done, errors, total_in_filter, next_offset, last_error } = r.data
+        total += done; retries = 0
+        addLog(`✓ สร้าง ${done} คำ | error ${errors}${last_error ? ` (${last_error})` : ''} | ${next_offset}/${total_in_filter} คำ`)
+        offset = next_offset
+        if (done === 0 && errors === 0) break
+        if (next_offset >= total_in_filter) break
+      } catch (e) {
+        retries++
+        if (retries <= 3) { addLog(`✗ Network error — retry ${retries}/3...`); await new Promise((res) => setTimeout(res, 2000 * retries)) }
+        else { addLog(`✗ หยุด — network error เกิน 3 ครั้ง`); break }
+      }
+    }
+    addLog(`เสร็จ — regen รวม ${total} คำ`)
+    setRunning(false); loadRelatedStats()
   }
 
   const loadSingleEngCount = async (cat) => {
@@ -56,6 +91,7 @@ export default function BulkExamples() {
   useEffect(() => {
     loadStats()
     loadSettings()
+    loadRelatedStats()
     adminHskEnglishStats().then((r) => { setHskEngTotal(r.data.total); setHskEngQueue(r.data.queue) }).catch(() => {})
     adminCategoryWordCounts().then((r) => {
       setCategoryWordCounts(r.data)
@@ -63,6 +99,7 @@ export default function BulkExamples() {
       if (allOptions.length > 0) {
         setRegenCat(allOptions[0])
         setEngRegenCat(allOptions[0])
+        setRelatedRegenCat(allOptions[0])
       }
     }).catch(() => {})
   }, [])
@@ -475,6 +512,70 @@ export default function BulkExamples() {
                 <button onClick={runRegenSingleEnglish} disabled={running || singleEngCount === 0}
                   className="w-full bg-blue-500 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
                 >🔁 Regen English คำเดียว</button>
+              ) : (
+                <button onClick={stopAll} className="w-full bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium">⏹ หยุด</button>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── คำเกี่ยวข้อง ── */}
+        {activeTab === 'คำเกี่ยวข้อง' && (
+          <>
+            {relatedStats ? (
+              <>
+                <div className="text-xs text-gray-500 pt-2">
+                  {relatedStats.with_related} / {relatedStats.total_eligible} คำ (eligible: 2 หรือ 4+ อักษร)
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2">
+                  <div
+                    className="bg-purple-500 h-2 rounded-full transition-all"
+                    style={{ width: `${Math.round((relatedStats.with_related / (relatedStats.total_eligible || 1)) * 100)}%` }}
+                  />
+                </div>
+              </>
+            ) : <p className="text-xs text-gray-400 pt-2">กำลังโหลด...</p>}
+
+            <div className="border-t border-gray-100 pt-3">
+              <p className="text-xs text-gray-500 font-medium mb-1">Regen คำเกี่ยวข้อง ตามหมวด (overwrite)</p>
+              <p className="text-xs text-gray-400 mb-3">เขียนทับ related_words ของทุกคำในหมวด/ระดับ HSK ที่เลือก</p>
+              <div className="flex gap-2 mb-3">
+                <select
+                  value={relatedRegenCat}
+                  onChange={(e) => setRelatedRegenCat(e.target.value)}
+                  disabled={running}
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                >
+                  {categoryWordCounts ? (
+                    <>
+                      {categoryWordCounts.categories.map((c) => (
+                        <option key={c.name} value={c.name}>{c.name} ({c.count})</option>
+                      ))}
+                      {categoryWordCounts.hsk_levels.map((h) => (
+                        <option key={h.name} value={h.name}>{h.name} ({h.count})</option>
+                      ))}
+                    </>
+                  ) : (
+                    <option value="">กำลังโหลด...</option>
+                  )}
+                </select>
+                <select
+                  value={relatedRegenLimit}
+                  onChange={(e) => setRelatedRegenLimit(Number(e.target.value))}
+                  disabled={running}
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                >
+                  {[5, 10, 20, 30].map((n) => <option key={n} value={n}>{n} คำ/รอบ</option>)}
+                </select>
+              </div>
+              {!running ? (
+                <button
+                  onClick={runRegenRelated}
+                  disabled={running || !relatedRegenCat}
+                  className="w-full bg-purple-600 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-40"
+                >
+                  🔁 Regen คำเกี่ยวข้อง "{relatedRegenCat}"
+                </button>
               ) : (
                 <button onClick={stopAll} className="w-full bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium">⏹ หยุด</button>
               )}

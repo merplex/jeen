@@ -433,6 +433,91 @@ def generate_related(
     return word
 
 
+@router.get("/related-words-stats")
+def related_words_stats(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    """สถิติ related_words — eligible คือคำ 2 อักษร หรือ 4+ อักษร"""
+    from sqlalchemy import or_
+    eligible_q = db.query(Word).filter(
+        Word.status == "verified",
+        or_(Word.char_count == 2, Word.char_count >= 4),
+    )
+    total_eligible = eligible_q.count()
+    with_related = eligible_q.filter(Word.related_words.isnot(None)).count()
+    return {
+        "total_eligible": total_eligible,
+        "with_related": with_related,
+        "without_related": total_eligible - with_related,
+    }
+
+
+@router.post("/regen-related-by-category")
+def regen_related_by_category(
+    category: str = None,
+    hsk_level: str = None,
+    limit: int = 20,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Regen related_words (overwrite) ตาม category หรือ hsk_level — batch call
+    เฉพาะคำ 2 อักษร หรือ 4+ อักษรเท่านั้น"""
+    import time
+    from sqlalchemy import or_
+    if not category and not hsk_level:
+        raise HTTPException(status_code=400, detail="ต้องระบุ category หรือ hsk_level")
+    limit = min(max(limit, 1), 50)
+    offset = max(offset, 0)
+
+    base_q = db.query(Word).filter(
+        Word.status == "verified",
+        or_(Word.char_count == 2, Word.char_count >= 4),
+    )
+    if hsk_level:
+        base_q = base_q.filter(Word.hsk_level == hsk_level)
+    else:
+        base_q = base_q.filter(Word.category == category)
+
+    words = base_q.order_by(Word.id).offset(offset).limit(limit).all()
+    if not words:
+        return {"done": 0, "errors": 0, "total_in_filter": base_q.count(), "next_offset": offset}
+
+    done = 0
+    errors = 0
+    last_error = None
+    for word in words:
+        try:
+            result = generate_related_words(word.chinese, word.pinyin, word.thai_meaning)
+            for group_key in ("similar", "opposite", "collocations"):
+                for entry in result.get(group_key, []):
+                    ch = entry.get("chinese", "")
+                    if ch:
+                        found = db.query(Word.id).filter(Word.chinese == ch).first()
+                        if found:
+                            entry["word_id"] = found[0]
+            word.related_words = result
+            done += 1
+        except RuntimeError as e:
+            raise HTTPException(status_code=429, detail=str(e))
+        except Exception as e:
+            errors += 1
+            last_error = str(e)
+        time.sleep(0.2)
+
+    if done > 0:
+        filter_label = f"hsk_level={hsk_level}" if hsk_level else f"category={category}"
+        _log(db, "regen_related", detail=f"สร้าง related_words {done} คำ {filter_label}")
+        db.commit()
+
+    total_in_filter = base_q.count()
+    return {
+        "done": done,
+        "errors": errors,
+        "total_in_filter": total_in_filter,
+        "next_offset": offset + len(words),
+        "last_error": last_error,
+    }
+
+
 @router.get("/test-gemini")
 def test_gemini(_: User = Depends(require_admin)):
     """ทดสอบว่า Gemini API ใช้งานได้ไหม"""

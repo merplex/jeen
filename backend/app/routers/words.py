@@ -245,6 +245,40 @@ def update_word(
     return word
 
 
+@router.post("/{word_id}/auto-related", response_model=WordOut)
+def auto_generate_related(
+    word_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_user),
+):
+    """สร้าง related_words ถ้ายังไม่มี (skip ถ้ามีแล้ว) — ใช้ได้ทุก user"""
+    word = db.query(Word).filter(Word.id == word_id, Word.status == "verified").first()
+    if not word:
+        raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์")
+    char_len = len(word.chinese)
+    if char_len != 2 and char_len < 4:
+        return word  # ไม่ eligible — คืน word เฉยๆ
+    if word.related_words is not None:
+        return word  # มีแล้ว ไม่ต้อง generate
+    from ..services.translate_service import generate_related_words
+    try:
+        result = generate_related_words(word.chinese, word.pinyin, word.thai_meaning)
+    except RuntimeError:
+        return word  # quota exceeded — คืน word ไม่มี related_words
+    # enrich word_id
+    for group_key in ("similar", "opposite", "collocations"):
+        for entry in result.get(group_key, []):
+            ch = entry.get("chinese", "")
+            if ch:
+                found = db.query(Word.id).filter(Word.chinese == ch).first()
+                if found:
+                    entry["word_id"] = found[0]
+    word.related_words = result
+    db.commit()
+    db.refresh(word)
+    return word
+
+
 @router.post("/{word_id}/report")
 def report_word(
     word_id: int,

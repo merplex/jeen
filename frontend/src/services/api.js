@@ -102,6 +102,12 @@ export const adminGenerateExamples = (id) =>
   api.post(`/admin/generate-examples/${id}`)
 export const adminGenerateRelated = (id) =>
   api.post(`/admin/generate-related/${id}`)
+export const autoGenerateRelated = (id) =>
+  api.post(`/words/${id}/auto-related`)
+export const adminRelatedStats = () =>
+  api.get('/admin/related-words-stats')
+export const adminRegenRelatedByCategory = (category, hskLevel, limit, offset) =>
+  api.post('/admin/regen-related-by-category', null, { params: { category, hsk_level: hskLevel, limit, offset } })
 export const adminRegenerateEnglish = (id) =>
   api.post(`/admin/regenerate-english/${id}`)
 export const adminExamplesStats = () =>
