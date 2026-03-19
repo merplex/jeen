@@ -37,7 +37,8 @@ function writeLS(data) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch { /* quota exceeded */ }
 }
 
-function isWordLocked(word, lockedIds) {
+function isWordLocked(word, lockedIds, allUnlocked) {
+  if (allUnlocked) return false
   return word.id <= LOCK_BELOW_ID || lockedIds.includes(word.id)
 }
 
@@ -48,6 +49,7 @@ export default function MassTranslation() {
   const [viewFilter, setViewFilter] = useState(() => readLS().viewFilter ?? 'all') // 'all' | 'edited' | 'unedited'
   const [edits, setEdits] = useState(() => readLS().edits ?? {})
   const [lockedIds, setLockedIds] = useState(() => readLS().lockedIds ?? [])
+  const [allUnlocked, setAllUnlocked] = useState(false)
   const [focusedId, setFocusedId] = useState(() => readLS().focusedId ?? null)
 
   const [confirmingAddDB, setConfirmingAddDB] = useState(false)
@@ -93,7 +95,7 @@ export default function MassTranslation() {
       list = list.filter(w => edits[w.id])
     } else if (viewFilter === 'unedited') {
       // เฉพาะคำที่แก้ได้ (ไม่ lock) และยังไม่ได้กรอก
-      list = list.filter(w => !isWordLocked(w, lockedIds) && !edits[w.id])
+      list = list.filter(w => !isWordLocked(w, lockedIds, allUnlocked) && !edits[w.id])
     }
     return list
   }, [words, searchQuery, viewFilter, edits, lockedIds])
@@ -223,22 +225,12 @@ export default function MassTranslation() {
           ))}
         </div>
 
-        {/* Stats + Add DB */}
+        {/* Stats */}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <span className="text-xs text-gray-500">
             แสดง {filteredWords.length} คำ · กรอกใหม่ {pendingCount} คำ
           </span>
-          <div className="flex items-center gap-2">
-            {lockedIds.length > 0 && (
-              <button
-                onClick={() => setLockedIds([])}
-                className="text-xs px-3 py-1 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200"
-              >
-                ปลดล็อค ({lockedIds.length})
-              </button>
-            )}
-            {saving && <span className="text-xs text-gray-500">กำลัง save...</span>}
-          </div>
+          {saving && <span className="text-xs text-gray-500">กำลัง save...</span>}
         </div>
 
         {saveResult && (
@@ -355,6 +347,25 @@ export default function MassTranslation() {
         </div>
       )}
     </div>
+
+      {/* Floating lock/unlock buttons */}
+      <div className="fixed top-4 left-4 z-50 flex flex-col gap-2">
+        {!allUnlocked ? (
+          <button
+            onClick={() => setAllUnlocked(true)}
+            className="px-4 py-3 bg-gray-700 text-white rounded-2xl shadow-xl text-sm font-medium"
+          >
+            ปลดล็อคทั้งหมด
+          </button>
+        ) : (
+          <button
+            onClick={() => { setAllUnlocked(false); setLockedIds([]) }}
+            className="px-4 py-3 bg-gray-400 text-white rounded-2xl shadow-xl text-sm font-medium"
+          >
+            ล็อคทั้งหมด
+          </button>
+        )}
+      </div>
 
       {/* Floating Add DB button */}
       {pendingCount > 0 && !saving && (
