@@ -98,7 +98,7 @@ export default function MassTranslation() {
       list = list.filter(w => !isWordLocked(w, lockedIds, allUnlocked) && !edits[w.id])
     }
     return list
-  }, [words, searchQuery, viewFilter, edits, lockedIds])
+  }, [words, searchQuery, viewFilter, edits, lockedIds, allUnlocked])
 
   const hasPendingEdit = useCallback((w) => {
     const edit = edits[w.id]
@@ -263,7 +263,7 @@ export default function MassTranslation() {
           ) : (
             filteredWords.map((word, idx) => {
               const wordEdit = edits[word.id]
-              const locked = isWordLocked(word, lockedIds)
+              const locked = isWordLocked(word, lockedIds, allUnlocked)
               const hasLocalEdit = hasPendingEdit(word)
               const isFocused = focusedId === word.id
 
