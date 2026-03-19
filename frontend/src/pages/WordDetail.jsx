@@ -475,7 +475,7 @@ export default function WordDetail() {
             : [
                 { key: 'similar', label: 'คำคล้าย' },
                 { key: 'opposite', label: 'คำตรงข้าม' },
-                { key: 'collocations', label: 'คำข้างเคียง' },
+                { key: 'collocations', label: 'ศัพท์แนะนำ' },
               ]
 
           const handleRelatedWordClick = async (item) => {
@@ -490,10 +490,9 @@ export default function WordDetail() {
           }
 
           return (
-            <div className="bg-white rounded-xl p-4 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-500">คำที่เกี่ยวข้อง</h3>
-                {user?.is_admin && (
+            <div className="bg-white rounded-xl px-4 pt-3 pb-4 shadow-sm">
+              {user?.is_admin && (
+                <div className="flex justify-end mb-2">
                   <button
                     onClick={generateRelated}
                     disabled={genRelatedLoading}
@@ -501,8 +500,8 @@ export default function WordDetail() {
                   >
                     {genRelatedLoading ? '⏳ กำลังสร้าง...' : rw ? '🔄 สร้างใหม่' : '✨ สร้างคำเกี่ยวข้อง'}
                   </button>
-                )}
-              </div>
+                </div>
+              )}
               {!rw ? (
                 <p className="text-xs text-gray-400 text-center py-2">ยังไม่มีข้อมูล — กด ✨ สร้างคำเกี่ยวข้อง</p>
               ) : (
@@ -512,7 +511,7 @@ export default function WordDetail() {
                     if (items.length === 0) return null
                     return (
                       <div key={key}>
-                        <div className="text-[10px] text-gray-400 font-medium mb-1.5 text-center">{label}</div>
+                        <div className="text-xs text-gray-500 font-semibold mb-1.5 text-center">{label}</div>
                         {/* กล่องเดียว มี 2 คำเคียงกัน แบ่งด้วยเส้นแนวตั้ง */}
                         <div className="flex bg-chinese-cream rounded-lg overflow-hidden">
                           {items.map((item, i) => {
