@@ -36,7 +36,7 @@ export default function BulkExamples() {
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [relatedStats, setRelatedStats] = useState(null)
   const [relatedRegenCat, setRelatedRegenCat] = useState('')
-  const [relatedRegenLimit, setRelatedRegenLimit] = useState(10)
+  const [relatedRegenLimit, setRelatedRegenLimit] = useState(50)
 
   const loadStats = async () => {
     const [ex, en] = await Promise.all([adminExamplesStats(), adminEnglishStats()])
@@ -565,7 +565,7 @@ export default function BulkExamples() {
                   disabled={running}
                   className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
                 >
-                  {[5, 10, 20, 30].map((n) => <option key={n} value={n}>{n} คำ/รอบ</option>)}
+                  {[50, 100, 200].map((n) => <option key={n} value={n}>{n} คำ/รอบ</option>)}
                 </select>
               </div>
               {!running ? (

@@ -465,7 +465,7 @@ def regen_related_by_category(
     from sqlalchemy import or_
     if not category and not hsk_level:
         raise HTTPException(status_code=400, detail="ต้องระบุ category หรือ hsk_level")
-    limit = min(max(limit, 1), 50)
+    limit = min(max(limit, 1), 200)
     offset = max(offset, 0)
 
     base_q = db.query(Word).filter(
