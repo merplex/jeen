@@ -737,6 +737,7 @@ def generate_related_words(chinese: str, pinyin: str, thai_meaning: str) -> dict
             '"collocations": [คำข้างเคียง คือ คำ 2 อักษรที่มักพบเห็นหรือใช้ร่วมในบริบทเดียวกับคำนี้บ่อยที่สุด 2 คำ แต่ละคำต้องมี 2 อักษรจีนเท่านั้น]}\n'
             'แต่ละ entry มีรูปแบบ: {"chinese": "XX", "pinyin": "xx xx", "thai": "..."}\n'
             f"ข้อบังคับ: ห้ามใส่ {chinese} เองในคำตอบเด็ดขาด "
+            "คำใน similar, opposite, collocations ต้องไม่ซ้ำกันเลยทั้ง 3 กลุ่ม (chinese field ต้องไม่ซ้ำกันข้ามกลุ่ม) "
             "พยายามหาคำให้ได้ทุกกลุ่ม ยอมรับคำที่ใกล้เคียงพอสมควรได้ "
             "ให้ตอบ array ว่าง [] เฉพาะกรณีที่ไม่มีคำจีน 2 อักษรใดในโลกที่เข้าข่ายได้เลยจริงๆ (หายากมาก)\n"
             "ตอบแค่ JSON เท่านั้น ไม่มีคำอธิบายเพิ่มเติม"
@@ -750,10 +751,17 @@ def generate_related_words(chinese: str, pinyin: str, thai_meaning: str) -> dict
             if raw.startswith("json"):
                 raw = raw[4:]
         result = json.loads(raw.strip())
-        # กรอง entry ที่ chinese ตรงกับคำหลักออก
+        # กรอง entry ที่ chinese ตรงกับคำหลักออก + deduplicate ข้าม group
+        seen: set[str] = {chinese}
         for key in ("similar", "opposite", "collocations"):
             if key in result:
-                result[key] = [e for e in result[key] if e.get("chinese") != chinese]
+                filtered = []
+                for e in result[key]:
+                    ch = e.get("chinese", "")
+                    if ch and ch not in seen:
+                        seen.add(ch)
+                        filtered.append(e)
+                result[key] = filtered
         return result
     except RuntimeError:
         raise
