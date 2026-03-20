@@ -222,7 +222,7 @@ export default function Profile() {
                       : 'bg-blue-500 text-white'
                   }`}
                 >
-                  {tier === 'learner' ? 'ใช้งานอยู่' : tier === 'superuser' ? 'Downgrade' : 'สมัคร'}
+                  {purchasing ? '⏳' : tier === 'learner' ? 'ใช้งานอยู่' : tier === 'superuser' ? 'Downgrade' : 'สมัคร'}
                 </button>
               </div>
               <div className="space-y-1.5 text-sm text-gray-600">
@@ -252,7 +252,7 @@ export default function Profile() {
                       : 'bg-yellow-500 text-white'
                   }`}
                 >
-                  {tier === 'superuser' ? 'ใช้งานอยู่' : 'สมัคร'}
+                  {purchasing ? '⏳' : tier === 'superuser' ? 'ใช้งานอยู่' : 'สมัคร'}
                 </button>
               </div>
               <div className="space-y-1.5 text-sm text-gray-600">
