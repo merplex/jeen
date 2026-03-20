@@ -1,5 +1,6 @@
 import re, json
 from datetime import date, datetime
+from ..models.usage_event import UsageEvent
 from fastapi import APIRouter, Depends, HTTPException, Body, UploadFile, File
 from fastapi.responses import Response
 from pypinyin.contrib.tone_convert import tone3_to_tone
@@ -9,6 +10,36 @@ from ..models.word import Word
 from ..models.activity_log import ActivityLog
 from ..models.word_report import WordReport
 from ..models.subscription import UserSubscription
+
+WORD_DETAIL_DAILY_LIMIT_FREE = 6
+
+
+def _get_user_tier(user_id: int, db: Session) -> str:
+    sub = (
+        db.query(UserSubscription)
+        .filter(UserSubscription.user_id == user_id, UserSubscription.status == "active")
+        .first()
+    )
+    if not sub:
+        return "free"
+    if sub.expires_at and sub.expires_at < datetime.utcnow():
+        return "free"
+    if sub.product_id and "super" in sub.product_id:
+        return "superuser"
+    return "learner"
+
+
+def _today_word_detail_count(user_id: int, db: Session) -> int:
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    return (
+        db.query(UsageEvent)
+        .filter(
+            UsageEvent.user_id == user_id,
+            UsageEvent.event_type == "word_detail_view",
+            UsageEvent.created_at >= today_start,
+        )
+        .count()
+    )
 from ..models.app_setting import AppSetting
 from ..models.word_image_cache import WordImageCache
 from ..schemas.word import WordOut, WordCreate, WordUpdate
@@ -175,11 +206,31 @@ def get_random_words(
 def get_word(
     word_id: int,
     db: Session = Depends(get_db),
-    _: object = Depends(require_user),
+    current_user: User = Depends(require_user),
 ):
+    # quota check for free users (6 word detail views/day)
+    if not current_user.is_admin:
+        tier = _get_user_tier(current_user.id, db)
+        if tier == "free":
+            count = _today_word_detail_count(current_user.id, db)
+            if count >= WORD_DETAIL_DAILY_LIMIT_FREE:
+                raise HTTPException(
+                    status_code=429,
+                    detail={"quota_type": "word_detail_daily", "user_tier": "free"},
+                )
+
     word = db.query(Word).filter(Word.id == word_id, Word.status == "verified").first()
     if not word:
         raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์")
+
+    # log view for free users
+    if not current_user.is_admin and _get_user_tier(current_user.id, db) == "free":
+        try:
+            db.add(UsageEvent(user_id=current_user.id, event_type="word_detail_view"))
+            db.commit()
+        except Exception:
+            db.rollback()
+
     return word
 
 

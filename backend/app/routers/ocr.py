@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 
 logger = logging.getLogger(__name__)
@@ -9,10 +10,51 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.word import Word
 from ..models.usage_event import UsageEvent
+from ..models.subscription import UserSubscription
 from ..auth import require_user
 from ..models.user import User
 
 router = APIRouter(prefix="/ocr", tags=["ocr"])
+
+OCR_MONTHLY_LIMITS = {"free": 6, "learner": 60, "superuser": 600}
+
+
+def _get_user_tier(user_id: int, db: Session) -> str:
+    sub = (
+        db.query(UserSubscription)
+        .filter(UserSubscription.user_id == user_id, UserSubscription.status == "active")
+        .first()
+    )
+    if not sub:
+        return "free"
+    if sub.expires_at and sub.expires_at < datetime.utcnow():
+        return "free"
+    if sub.product_id and "super" in sub.product_id:
+        return "superuser"
+    return "learner"
+
+
+def _month_ocr_count(user_id: int, db: Session) -> int:
+    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return (
+        db.query(UsageEvent)
+        .filter(
+            UsageEvent.user_id == user_id,
+            UsageEvent.event_type.in_(["ocr_scan", "ocr_scan_structured"]),
+            UsageEvent.created_at >= month_start,
+        )
+        .count()
+    )
+
+
+def _check_ocr_quota(user: User, db: Session):
+    if user.is_admin:
+        return
+    tier = _get_user_tier(user.id, db)
+    count = _month_ocr_count(user.id, db)
+    limit = OCR_MONTHLY_LIMITS.get(tier, 6)
+    if count >= limit:
+        raise HTTPException(status_code=429, detail={"quota_type": "ocr_monthly", "user_tier": tier})
 
 
 class ScanRequest(BaseModel):
@@ -192,6 +234,7 @@ def scan_image_structured(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_user),
 ):
+    _check_ocr_quota(current_user, db)
     try:
         image_bytes = base64.b64decode(body.image_base64)
     except Exception:
@@ -251,6 +294,7 @@ def scan_image(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_user),
 ):
+    _check_ocr_quota(current_user, db)
     try:
         image_bytes = base64.b64decode(body.image_base64)
     except Exception:

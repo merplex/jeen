@@ -10,26 +10,54 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.speaking import SpeakingRecord
 from ..models.subscription import UserSubscription
+from ..models.usage_event import UsageEvent
 from ..models.user import User
 from ..auth import require_user
 
 router = APIRouter(prefix="/speaking", tags=["speaking"])
 
-FREE_DAILY_LIMIT = 3       # ฝึกพูด (รวมฝึกซ้ำ) 3 ครั้ง/วัน
+MONTHLY_SPEAK_LIMITS = {"free": 3, "learner": 30, "superuser": 300}
 FREE_GEN_LIMIT = 1         # gen ประโยคใหม่ 1 ครั้ง/วัน
 
 
-def _has_subscription(user_id: int, db: Session) -> bool:
+def _get_user_tier(user_id: int, db: Session) -> str:
     sub = (
         db.query(UserSubscription)
         .filter(UserSubscription.user_id == user_id, UserSubscription.status == "active")
         .first()
     )
     if not sub:
-        return False
+        return "free"
     if sub.expires_at and sub.expires_at < datetime.utcnow():
-        return False
-    return True
+        return "free"
+    if sub.product_id and "super" in sub.product_id:
+        return "superuser"
+    return "learner"
+
+
+def _has_subscription(user_id: int, db: Session) -> bool:
+    return _get_user_tier(user_id, db) != "free"
+
+
+def _month_speak_count(user_id: int, db: Session) -> int:
+    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return (
+        db.query(UsageEvent)
+        .filter(
+            UsageEvent.user_id == user_id,
+            UsageEvent.event_type == "speaking_assess",
+            UsageEvent.created_at >= month_start,
+        )
+        .count()
+    )
+
+
+def _log_speak_event(db: Session, user_id: int):
+    try:
+        db.add(UsageEvent(user_id=user_id, event_type="speaking_assess"))
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 def _today_practice_count(user_id: int, db: Session) -> int:
@@ -185,22 +213,16 @@ async def assess_speaking(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_user),
 ):
-    is_premium = current_user.is_admin or _has_subscription(current_user.id, db)
-
-    # ตรวจโควต้า — ดึง record วันนี้ทั้งหมด แล้วรวม daily_assess_count
-    today_start = datetime.combine(date.today(), datetime.min.time())
-    today_records = (
-        db.query(SpeakingRecord)
-        .filter(SpeakingRecord.user_id == current_user.id, SpeakingRecord.practiced_at >= today_start)
-        .all()
-    )
-    today_assess = sum(r.daily_assess_count or 0 for r in today_records)
-
-    if not is_premium and today_assess >= FREE_DAILY_LIMIT:
-        raise HTTPException(
-            status_code=403,
-            detail=f"ใช้ฟรีได้ {FREE_DAILY_LIMIT} ครั้ง/วัน — อัปเกรดเพื่อไม่จำกัด",
-        )
+    # ตรวจโควต้ารายเดือน
+    if not current_user.is_admin:
+        tier = _get_user_tier(current_user.id, db)
+        month_count = _month_speak_count(current_user.id, db)
+        limit = MONTHLY_SPEAK_LIMITS.get(tier, 3)
+        if month_count >= limit:
+            raise HTTPException(
+                status_code=429,
+                detail={"quota_type": "speaking_monthly", "user_tier": tier},
+            )
 
     scores = await _assess_azure(body.audio_base64, body.example_chinese)
     is_mock = scores is None
@@ -282,7 +304,10 @@ async def assess_speaking(
             db.refresh(record)
             is_improved = True
 
-    return {**scores, "words": word_scores, "is_improved": is_improved, "today_assess": today_assess + 1, "mock": is_mock}
+    # log usage event
+    _log_speak_event(db, current_user.id)
+
+    return {**scores, "words": word_scores, "is_improved": is_improved, "mock": is_mock}
 
 
 @router.post("/generate-sentences")
@@ -402,21 +427,26 @@ def daily_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_user),
 ):
-    is_premium = current_user.is_admin or _has_subscription(current_user.id, db)
+    is_admin = current_user.is_admin
+    tier = "admin" if is_admin else _get_user_tier(current_user.id, db)
+    month_count = 0 if is_admin else _month_speak_count(current_user.id, db)
+    assess_limit = None if is_admin else MONTHLY_SPEAK_LIMITS.get(tier, 3)
+
     today_start = datetime.combine(date.today(), datetime.min.time())
     today_records = (
         db.query(SpeakingRecord)
         .filter(SpeakingRecord.user_id == current_user.id, SpeakingRecord.practiced_at >= today_start)
         .all()
     )
-    today_assess = sum(r.daily_assess_count or 0 for r in today_records)
     today_gen = sum(r.daily_gen_count or 0 for r in today_records)
+
     return {
-        "is_premium": is_premium,
-        "today_assess": today_assess,
+        "is_premium": tier != "free",
+        "user_tier": tier,
+        "today_assess": month_count,   # field name kept for frontend compat (now = month count)
         "today_gen": today_gen,
-        "assess_limit": None if is_premium else FREE_DAILY_LIMIT,
-        "gen_limit": None if is_premium else FREE_GEN_LIMIT,
-        "can_practice": is_premium or today_assess < FREE_DAILY_LIMIT,
-        "can_gen": is_premium or today_gen < FREE_GEN_LIMIT,
+        "assess_limit": assess_limit,
+        "gen_limit": None if is_admin else FREE_GEN_LIMIT,
+        "can_practice": is_admin or assess_limit is None or month_count < assess_limit,
+        "can_gen": is_admin or today_gen < FREE_GEN_LIMIT,
     }

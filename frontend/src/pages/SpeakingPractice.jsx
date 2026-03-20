@@ -4,6 +4,7 @@ import { assessSpeaking, getSpeakingDailyStatus, generateSpeakingSentences } fro
 import useAuthStore from '../stores/authStore'
 import TonedChinese from '../components/TonedChinese'
 import OfflineAlert from '../components/OfflineAlert'
+import QuotaLimitModal from '../components/QuotaLimitModal'
 
 function writeString(view, offset, str) {
   for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i))
@@ -72,6 +73,7 @@ export default function SpeakingPractice() {
   const [genLoading, setGenLoading] = useState(false)
   const [quotaMsg, setQuotaMsg] = useState('')
   const [showOfflineAlert, setShowOfflineAlert] = useState(false)
+  const [quotaModal, setQuotaModal] = useState(null) // null | { quotaType, userTier }
 
   const showQuotaMsg = (msg) => {
     setQuotaMsg(msg)
@@ -142,8 +144,14 @@ export default function SpeakingPractice() {
       setStatus('result')
       refreshDailyStatus()
     } catch (e) {
-      setErrorMsg(e.response?.data?.detail || 'เกิดข้อผิดพลาด')
-      setStatus('error')
+      if (e.response?.status === 429) {
+        const detail = e.response.data?.detail
+        setQuotaModal({ quotaType: detail?.quota_type, userTier: detail?.user_tier })
+        setStatus('idle')
+      } else {
+        setErrorMsg(e.response?.data?.detail || 'เกิดข้อผิดพลาด')
+        setStatus('error')
+      }
     }
   }
 
@@ -195,15 +203,19 @@ export default function SpeakingPractice() {
 
   return (
     <div className="min-h-screen bg-chinese-cream pb-24">
+      {quotaModal && (
+        <QuotaLimitModal
+          quotaType={quotaModal.quotaType}
+          userTier={quotaModal.userTier}
+          onClose={() => setQuotaModal(null)}
+        />
+      )}
       {showOfflineAlert && <OfflineAlert onClose={() => setShowOfflineAlert(false)} />}
       {/* Header */}
       <div className="bg-chinese-red px-4 pt-12 pb-4">
         <div className="flex items-center gap-3 mb-3">
           <button onClick={() => navigate(-1)} className="text-white text-2xl">←</button>
           <h1 className="text-white text-lg font-bold">ฝึกพูด</h1>
-          {assessLeft != null && (
-            <span className="ml-auto text-white/70 text-xs">เหลือ {assessLeft} ครั้งวันนี้</span>
-          )}
         </div>
 
         {/* ประโยคที่กำลังฝึก */}
@@ -260,7 +272,7 @@ export default function SpeakingPractice() {
           <div className="flex flex-col items-center gap-4">
             <p className="text-gray-500 text-sm text-center">
               {status === 'idle'
-                ? canPractice ? 'กดค้างเพื่ออัดเสียง' : 'ใช้ครบโควต้าวันนี้แล้ว (ฟรี 3 ครั้ง/วัน)'
+                ? canPractice ? 'กดค้างเพื่ออัดเสียง' : 'ใช้ครบโควต้าเดือนนี้แล้ว'
                 : 'กำลังอัดเสียง... ปล่อยเพื่อหยุด'}
             </p>
             <button
@@ -404,7 +416,7 @@ export default function SpeakingPractice() {
             )}
             <div className="flex gap-3">
               <button
-                onClick={canPractice ? retryPractice : () => showQuotaMsg('ฝึกพูดได้ 3 ครั้ง/วัน — มาใหม่พรุ่งนี้ หรืออัปเกรด')}
+                onClick={canPractice ? retryPractice : () => setQuotaModal({ quotaType: 'speaking_monthly', userTier: dailyStatus?.user_tier || 'free' })}
                 className={`flex-1 border rounded-xl py-3 text-sm transition-opacity ${
                   canPractice ? 'bg-white border-gray-200 text-gray-600' : 'bg-gray-50 border-gray-200 text-gray-400'
                 }`}

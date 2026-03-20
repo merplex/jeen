@@ -5,6 +5,7 @@ import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import SelectionPopup from '../components/SelectionPopup'
 import TonedChinese from '../components/TonedChinese'
+import QuotaLimitModal from '../components/QuotaLimitModal'
 
 const DECK_STYLE = {
   1: { active: 'bg-chinese-red border-chinese-red text-white', inactive: 'bg-transparent border-chinese-red text-chinese-red' },
@@ -42,6 +43,7 @@ export default function WordDetail() {
   const [imagePopupOpen, setImagePopupOpen] = useState(false)
   const [imageRefreshing, setImageRefreshing] = useState(false)
   const [imageUploading, setImageUploading] = useState(false)
+  const [quotaModal, setQuotaModal] = useState(null) // null | { quotaType, userTier }
 
   // redirect ถ้าไม่มี token
   useEffect(() => {
@@ -66,7 +68,14 @@ export default function WordDetail() {
           recordSearchHistory(r.data.chinese, Number(id), true).catch(() => {})
         }
       })
-      .catch(() => navigate('/'))
+      .catch((err) => {
+        if (err.response?.status === 429) {
+          const detail = err.response.data?.detail
+          setQuotaModal({ quotaType: detail?.quota_type, userTier: detail?.user_tier })
+        } else {
+          navigate('/')
+        }
+      })
     if (user) {
       getFlashcardDecks(id).then((r) => {
         setActiveDecks(new Set(r.data.decks))
@@ -283,7 +292,18 @@ export default function WordDetail() {
 
   if (!word) return (
     <div className="flex items-center justify-center min-h-screen bg-chinese-cream">
-      <div className="text-gray-400">กำลังโหลด...</div>
+      {quotaModal ? (
+        <>
+          <QuotaLimitModal
+            quotaType={quotaModal.quotaType}
+            userTier={quotaModal.userTier}
+            onClose={() => { setQuotaModal(null); navigate(-1) }}
+          />
+          <button onClick={() => navigate(-1)} className="text-gray-400 text-sm">← กลับ</button>
+        </>
+      ) : (
+        <div className="text-gray-400">กำลังโหลด...</div>
+      )}
     </div>
   )
 

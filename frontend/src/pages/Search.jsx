@@ -7,6 +7,7 @@ import WordImageGridCard from '../components/WordImageGridCard'
 import TonedChinese from '../components/TonedChinese'
 import HandwritingModal from '../components/HandwritingModal'
 import OfflineAlert from '../components/OfflineAlert'
+import QuotaLimitModal from '../components/QuotaLimitModal'
 import { SEARCH_CATEGORIES, getCategoryColor, loadFavCategories } from '../utils/categories'
 import useAuthStore from '../stores/authStore'
 
@@ -36,6 +37,7 @@ export default function Search() {
   })
   const [ocrResult, setOcrResult] = useState(null)  // { text, translation, words }
   const [ocrLoading, setOcrLoading] = useState(false)
+  const [quotaModal, setQuotaModal] = useState(null) // null | { quotaType, userTier }
   const [showOcrSheet, setShowOcrSheet] = useState(false)
   const [showHandwriting, setShowHandwriting] = useState(false)
   const [showOfflineAlert, setShowOfflineAlert] = useState(false)
@@ -194,7 +196,12 @@ export default function Search() {
       const r = await scanOcr({ image_base64: b64, mime_type: file.type || 'image/jpeg' })
       setOcrResult(r.data)
     } catch (err) {
-      setOcrResult({ error: err.response?.data?.detail || 'เกิดข้อผิดพลาด' })
+      if (err.response?.status === 429) {
+        const detail = err.response.data?.detail
+        setQuotaModal({ quotaType: detail?.quota_type, userTier: detail?.user_tier })
+      } else {
+        setOcrResult({ error: err.response?.data?.detail || 'เกิดข้อผิดพลาด' })
+      }
     }
     setOcrLoading(false)
   }
@@ -260,6 +267,13 @@ export default function Search() {
 
   return (
     <div className="min-h-screen bg-chinese-cream pb-24">
+      {quotaModal && (
+        <QuotaLimitModal
+          quotaType={quotaModal.quotaType}
+          userTier={quotaModal.userTier}
+          onClose={() => setQuotaModal(null)}
+        />
+      )}
       {/* Header */}
       <div className="bg-chinese-red px-4 pt-12 pb-6">
         <h1 className="font-chinese text-white text-2xl font-bold mb-4 text-center">

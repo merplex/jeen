@@ -160,7 +160,7 @@ export default function Profile() {
               )}
             </div>
           ) : (
-            <div className="text-gray-500 text-sm">Free — ใช้งานได้ทุกฟีเจอร์</div>
+            <div className="text-gray-500 text-sm">Free</div>
           )}
         </div>
 
