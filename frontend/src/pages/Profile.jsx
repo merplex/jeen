@@ -190,6 +190,19 @@ export default function Profile() {
             )}
             <div className="text-xs text-gray-400 text-center pt-1">เลือกแผนการใช้งาน</div>
 
+            {/* Free tier info */}
+            {tier === 'free' && (
+              <div className="bg-gray-50 rounded-2xl p-4 border-2 border-gray-200">
+                <div className="font-bold text-gray-600 text-base mb-3">แผนปัจจุบัน (Free)</div>
+                <div className="space-y-1.5 text-sm text-gray-500">
+                  <div className="flex items-center gap-2"><span className="text-gray-400">•</span> OCR กล้อง 6 ครั้ง/เดือน</div>
+                  <div className="flex items-center gap-2"><span className="text-gray-400">•</span> ฝึกพูด 3 ครั้ง/เดือน</div>
+                  <div className="flex items-center gap-2"><span className="text-gray-400">•</span> ค้นหาคำ 6 ครั้ง/วัน</div>
+                  <div className="flex items-center gap-2"><span className="text-gray-400">•</span> Flash Card Deck 1 เท่านั้น</div>
+                </div>
+              </div>
+            )}
+
             {/* Learner card */}
             <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${tier === 'learner' ? 'border-blue-200 opacity-60' : 'border-blue-100'}`}>
               <div className="flex items-center justify-between mb-3">
@@ -198,7 +211,7 @@ export default function Profile() {
                     {tier === 'superuser' ? 'Downgrade to Learner' : 'Upgrade to Learner'}
                     {tier === 'learner' && <span className="ml-2 text-xs font-normal text-blue-500">● แผนปัจจุบัน</span>}
                   </div>
-                  <div className="text-blue-600 font-semibold text-sm">฿69 / เดือน</div>
+                  <div className="text-blue-600 font-semibold text-sm">฿49 / เดือน</div>
                 </div>
                 <button
                   disabled={tier === 'learner' || purchasing}
