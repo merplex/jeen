@@ -222,7 +222,7 @@ export default function Profile() {
                       : 'bg-blue-500 text-white'
                   }`}
                 >
-                  {purchasing ? '⏳' : tier === 'learner' ? 'ใช้งานอยู่' : tier === 'superuser' ? 'Downgrade' : 'สมัคร'}
+                  {purchasing ? <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : tier === 'learner' ? 'ใช้งานอยู่' : tier === 'superuser' ? 'Downgrade' : 'สมัคร'}
                 </button>
               </div>
               <div className="space-y-1.5 text-sm text-gray-600">
@@ -252,7 +252,7 @@ export default function Profile() {
                       : 'bg-yellow-500 text-white'
                   }`}
                 >
-                  {purchasing ? '⏳' : tier === 'superuser' ? 'ใช้งานอยู่' : 'สมัคร'}
+                  {purchasing ? <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : tier === 'superuser' ? 'ใช้งานอยู่' : 'สมัคร'}
                 </button>
               </div>
               <div className="space-y-1.5 text-sm text-gray-600">
