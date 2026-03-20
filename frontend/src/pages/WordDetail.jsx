@@ -500,11 +500,10 @@ export default function WordDetail() {
 
           const handleRelatedWordClick = async (item) => {
             if (item.word_id) {
-              navigate(`/words/${item.word_id}`)
+              navigate(`/word/${item.word_id}`)
             } else if (user?.is_admin) {
-              // เพิ่มเข้า missed searches แล้วไปหน้า ค้นไม่พบ
               try { await reportMissedSearchDirect(item.chinese) } catch {}
-              navigate('/admin/missed')
+              // ไม่ navigate ไปไหน
             }
             // user ทั่วไป + ไม่มีใน DB → ไม่ทำอะไร
           }
