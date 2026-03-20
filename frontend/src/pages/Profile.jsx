@@ -318,13 +318,31 @@ export default function Profile() {
           ลบบัญชี
         </button>
 
-        <button
-          onClick={handleRestore}
-          disabled={purchasing}
-          className="w-full text-gray-400 text-xs py-2 disabled:opacity-50"
-        >
-          Restore Purchase
-        </button>
+        <div className="flex justify-center">
+          <button
+            onClick={handleRestore}
+            disabled={purchasing}
+            className="text-gray-400 text-xs px-4 py-1.5 rounded-lg border border-gray-200 disabled:opacity-50"
+          >
+            Restore Purchase
+          </button>
+        </div>
+
+        <div className="flex justify-center gap-4 pb-2">
+          <button
+            onClick={() => window.open('https://merplex.github.io/ct-scan-privacy/', '_system')}
+            className="text-gray-400 text-xs underline"
+          >
+            Privacy Policy
+          </button>
+          <span className="text-gray-300 text-xs">|</span>
+          <button
+            onClick={() => window.open('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/', '_system')}
+            className="text-gray-400 text-xs underline"
+          >
+            Terms of Use
+          </button>
+        </div>
       </div>
 
       {/* Delete confirm modal */}
