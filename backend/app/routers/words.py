@@ -265,7 +265,8 @@ def auto_generate_related(
         result = generate_related_words(word.chinese, word.pinyin, word.thai_meaning)
     except RuntimeError:
         return word  # quota exceeded — คืน word ไม่มี related_words
-    # enrich word_id
+    # enrich word_id; report missing ones
+    from ..services.search_service import _record_missed
     for group_key in ("similar", "opposite", "collocations"):
         for entry in result.get(group_key, []):
             ch = entry.get("chinese", "")
@@ -273,6 +274,8 @@ def auto_generate_related(
                 found = db.query(Word.id).filter(Word.chinese == ch).first()
                 if found:
                     entry["word_id"] = found[0]
+                else:
+                    _record_missed(db, ch, source="related")
     word.related_words = result
     db.commit()
     db.refresh(word)

@@ -12,3 +12,4 @@ class MissedSearch(Base):
     query = Column(String(200), unique=True, nullable=False)
     count = Column(Integer, default=1)
     last_searched_at = Column(DateTime, default=_utcnow)
+    source = Column(String(20), nullable=False, default="search")  # "search" | "related"

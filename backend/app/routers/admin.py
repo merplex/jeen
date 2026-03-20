@@ -416,7 +416,8 @@ def generate_related(
         result = generate_related_words(word.chinese, word.pinyin, word.thai_meaning)
     except RuntimeError as e:
         raise HTTPException(status_code=429, detail=str(e))
-    # Enrich each entry with word_id if found in DB
+    # Enrich each entry with word_id if found in DB; report missing ones
+    from ..services.search_service import _record_missed
     for group_key in ("similar", "opposite", "collocations"):
         for entry in result.get(group_key, []):
             ch = entry.get("chinese", "")
@@ -424,6 +425,8 @@ def generate_related(
                 found = db.query(Word.id).filter(Word.chinese == ch).first()
                 if found:
                     entry["word_id"] = found[0]
+                else:
+                    _record_missed(db, ch, source="related")
     word.related_words = result
     _log(db, "related_words_generated", word_id=word_id, chinese=word.chinese)
     db.commit()
@@ -485,6 +488,7 @@ def regen_related_by_category(
     for word in words:
         try:
             result = generate_related_words(word.chinese, word.pinyin, word.thai_meaning)
+            from ..services.search_service import _record_missed
             for group_key in ("similar", "opposite", "collocations"):
                 for entry in result.get(group_key, []):
                     ch = entry.get("chinese", "")
@@ -492,6 +496,8 @@ def regen_related_by_category(
                         found = db.query(Word.id).filter(Word.chinese == ch).first()
                         if found:
                             entry["word_id"] = found[0]
+                        else:
+                            _record_missed(db, ch, source="related")
             word.related_words = result
             done += 1
         except RuntimeError as e:

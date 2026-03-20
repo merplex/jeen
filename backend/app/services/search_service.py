@@ -433,13 +433,16 @@ def validate_and_record_missed(db: Session, query: str) -> bool:
     return False
 
 
-def _record_missed(db: Session, query: str):
+def _record_missed(db: Session, query: str, source: str = "search"):
     from datetime import datetime, timezone
     missed = db.query(MissedSearch).filter(MissedSearch.query == query).first()
     if missed:
         missed.count += 1
         missed.last_searched_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        # ถ้าถูก search จริงๆ แล้ว → upgrade source จาก related → search
+        if source == "search" and missed.source == "related":
+            missed.source = "search"
     else:
-        missed = MissedSearch(query=query, count=1)
+        missed = MissedSearch(query=query, count=1, source=source)
         db.add(missed)
     db.commit()

@@ -50,6 +50,36 @@ function detectLang(text) {
   return 'other'
 }
 
+function MissedItem({ item, onAdd, onDelete }) {
+  return (
+    <div className="bg-white rounded-xl px-4 py-3 shadow-sm flex justify-between items-center gap-2">
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-gray-800">{item.query}</div>
+        <div className="text-xs text-gray-400">
+          ล่าสุด: {thaiDateTime(item.last_searched_at)}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <div className="bg-chinese-red text-white text-sm font-bold px-3 py-1 rounded-full">
+          {item.count}
+        </div>
+        <button
+          onClick={() => onAdd(item)}
+          className="text-xs text-chinese-red border border-chinese-red/30 rounded-lg px-2 py-1 hover:bg-chinese-red/5"
+        >
+          + เพิ่ม
+        </button>
+        <button
+          onClick={() => onDelete(item.id)}
+          className="text-gray-300 hover:text-red-400 transition-colors text-lg leading-none"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function MissedSearches() {
   const navigate = useNavigate()
   const [items, setItems] = useState([])
@@ -117,6 +147,8 @@ export default function MissedSearches() {
     setReports((prev) => prev.filter((r) => r.id !== id))
   }
 
+  const searchItems = items.filter((x) => x.source !== 'related')
+  const relatedItems = items.filter((x) => x.source === 'related')
   const singlesCount = items.filter((x) => x.count <= 1).length
 
   return (
@@ -129,7 +161,7 @@ export default function MissedSearches() {
             tab === 'missed' ? 'bg-chinese-red text-white' : 'bg-white text-gray-600 border border-gray-200'
           }`}
         >
-          ค้นไม่พบ ({items.length})
+          ค้นไม่พบ ({searchItems.length} + {relatedItems.length})
         </button>
         <button
           onClick={() => setTab('reports')}
@@ -160,7 +192,7 @@ export default function MissedSearches() {
       {tab === 'missed' && (
         <>
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-gray-500">{items.length} คำที่ค้นแล้วไม่พบ</p>
+            <p className="text-sm text-gray-500">{items.length} คำที่ไม่พบใน DB</p>
             {singlesCount > 0 && (
               <button
                 onClick={handleClearSingles}
@@ -171,37 +203,35 @@ export default function MissedSearches() {
               </button>
             )}
           </div>
-          <div className="space-y-2">
-            {items.map((item) => (
-              <div key={item.id} className="bg-white rounded-xl px-4 py-3 shadow-sm flex justify-between items-center gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-gray-800">{item.query}</div>
-                  <div className="text-xs text-gray-400">
-                    ค้นหาล่าสุด: {thaiDateTime(item.last_searched_at)}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="bg-chinese-red text-white text-sm font-bold px-3 py-1 rounded-full">
-                    {item.count}
-                  </div>
-                  <button
-                    onClick={() => handleAddWord(item)}
-                    className="text-xs text-chinese-red border border-chinese-red/30 rounded-lg px-2 py-1 hover:bg-chinese-red/5"
-                  >
-                    + เพิ่ม
-                  </button>
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    className="text-gray-300 hover:text-red-400 transition-colors text-lg leading-none"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            ))}
-            {items.length === 0 && (
-              <div className="text-center text-gray-400 py-12">ยังไม่มีคำที่ค้นไม่พบ</div>
-            )}
+
+          {/* ส่วน 1: ค้นหาโดยตรง */}
+          <div className="mb-1">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+              ค้นหาโดยตรง ({searchItems.length})
+            </p>
+            <div className="space-y-2">
+              {searchItems.map((item) => (
+                <MissedItem key={item.id} item={item} onAdd={handleAddWord} onDelete={handleDelete} />
+              ))}
+              {searchItems.length === 0 && (
+                <div className="text-center text-gray-300 py-6 text-sm">ไม่มี</div>
+              )}
+            </div>
+          </div>
+
+          {/* ส่วน 2: จาก Related Words */}
+          <div className="mt-5">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+              จาก Related Words ({relatedItems.length})
+            </p>
+            <div className="space-y-2">
+              {relatedItems.map((item) => (
+                <MissedItem key={item.id} item={item} onAdd={handleAddWord} onDelete={handleDelete} />
+              ))}
+              {relatedItems.length === 0 && (
+                <div className="text-center text-gray-300 py-6 text-sm">ไม่มี</div>
+              )}
+            </div>
           </div>
         </>
       )}
