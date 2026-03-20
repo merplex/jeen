@@ -209,9 +209,10 @@ export default function Profile() {
                 <div>
                   <div className="font-bold text-gray-800 text-base">
                     {tier === 'superuser' ? 'Downgrade to Learner' : 'Upgrade to Learner'}
-                    {tier === 'learner' && <span className="ml-2 text-xs font-normal text-blue-500">● แผนปัจจุบัน</span>}
                   </div>
-                  <div className="text-blue-600 font-semibold text-sm">฿49 / เดือน</div>
+                  <div className="text-blue-600 font-semibold text-sm">
+                    ฿49 / เดือน{tier === 'learner' && <span className="ml-2 font-semibold text-blue-500">● แผนปัจจุบัน</span>}
+                  </div>
                 </div>
                 <button
                   disabled={tier === 'learner' || purchasing}
@@ -239,9 +240,10 @@ export default function Profile() {
                 <div>
                   <div className="font-bold text-gray-800 text-base">
                     Upgrade to Superuser
-                    {tier === 'superuser' && <span className="ml-2 text-xs font-normal text-yellow-500">● แผนปัจจุบัน</span>}
                   </div>
-                  <div className="text-yellow-600 font-semibold text-sm">฿99 / เดือน</div>
+                  <div className="text-yellow-600 font-semibold text-sm">
+                    ฿99 / เดือน{tier === 'superuser' && <span className="ml-2 font-semibold text-yellow-500">● แผนปัจจุบัน</span>}
+                  </div>
                 </div>
                 <button
                   disabled={tier === 'superuser' || purchasing}
