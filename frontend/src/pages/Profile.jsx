@@ -181,8 +181,8 @@ export default function Profile() {
                 </button>
               </div>
               <div className="space-y-1.5 text-sm text-gray-600">
-                <div className="flex items-center gap-2"><span className="text-blue-400">✓</span> OCR กล้อง 30 ครั้ง/เดือน</div>
-                <div className="flex items-center gap-2"><span className="text-blue-400">✓</span> ฝึกพูด 30 ครั้ง/เดือน</div>
+                <div className="flex items-center gap-2"><span className="text-blue-400">✓</span> OCR กล้อง 60 ครั้ง/เดือน (×10)</div>
+                <div className="flex items-center gap-2"><span className="text-blue-400">✓</span> ฝึกพูด 30 ครั้ง/เดือน (×10)</div>
                 <div className="flex items-center gap-2"><span className="text-blue-400">✓</span> ค้นหาคำไม่จำกัด</div>
                 <div className="flex items-center gap-2"><span className="text-blue-400">✓</span> ปลดล็อค Flash Card ทุก Deck</div>
               </div>
@@ -213,13 +213,13 @@ export default function Profile() {
               <div className="space-y-1.5 text-sm text-gray-600">
                 {tier === 'learner' ? (
                   <>
-                    <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> OCR กล้อง ×10 (300 ครั้ง/เดือน)</div>
-                    <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> ฝึกพูด ×10 (300 ครั้ง/เดือน)</div>
+                    <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> OCR กล้อง 600 ครั้ง/เดือน (×10)</div>
+                    <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> ฝึกพูด 300 ครั้ง/เดือน (×10)</div>
                   </>
                 ) : (
                   <>
-                    <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> OCR กล้อง ×100 (300 ครั้ง/เดือน)</div>
-                    <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> ฝึกพูด ×100 (300 ครั้ง/เดือน)</div>
+                    <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> OCR กล้อง 600 ครั้ง/เดือน (×100)</div>
+                    <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> ฝึกพูด 300 ครั้ง/เดือน (×100)</div>
                   </>
                 )}
                 <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> ค้นหาคำไม่จำกัด</div>
