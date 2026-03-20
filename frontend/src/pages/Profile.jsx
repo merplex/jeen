@@ -270,6 +270,13 @@ export default function Profile() {
         >
           ลบบัญชี
         </button>
+
+        <button
+          onClick={() => alert('Coming soon')}
+          className="w-full text-gray-400 text-xs py-2"
+        >
+          Restore Purchase
+        </button>
       </div>
 
       {/* Delete confirm modal */}
