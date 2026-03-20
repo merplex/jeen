@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import { deleteAccount, verifyPurchase } from '../services/api'
-import { initIAP, purchaseProduct, restorePurchases } from '../services/iap'
+import { purchaseProduct, restorePurchases, PRODUCT_IDS } from '../services/iap'
 import { CATEGORIES, getCategoryColor, loadFavCategories, saveFavCategories } from '../utils/categories'
 
 export default function Profile() {
@@ -34,19 +34,16 @@ export default function Profile() {
     if (user) fetchSub()
   }, [user])
 
-  useEffect(() => {
-    initIAP(async (data) => {
-      await verifyPurchase(data)
-      fetchSub()
-    })
-  }, [])
-
   const handlePurchase = async (tier) => {
     try {
       setPurchasing(true)
-      await purchaseProduct(tier)
+      const { productId, receipt } = await purchaseProduct(tier)
+      await verifyPurchase({ platform: 'apple', product_id: productId, purchase_token: receipt })
+      await fetchSub()
     } catch (err) {
-      alert(err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่')
+      if (err.message !== 'cancelled') {
+        alert(err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่')
+      }
     } finally {
       setPurchasing(false)
     }
@@ -55,7 +52,10 @@ export default function Profile() {
   const handleRestore = async () => {
     try {
       setPurchasing(true)
-      await restorePurchases()
+      const { receipt } = await restorePurchases()
+      if (receipt) {
+        await verifyPurchase({ platform: 'apple', product_id: '', purchase_token: receipt })
+      }
       await fetchSub()
     } catch {
       alert('ไม่สามารถ Restore Purchase ได้ กรุณาลองใหม่')
