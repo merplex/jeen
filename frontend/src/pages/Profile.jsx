@@ -222,7 +222,7 @@ export default function Profile() {
                       : 'bg-blue-500 text-white'
                   }`}
                 >
-                  {purchasing ? <span className="inline-block w-4 h-4 rounded-full animate-spin" style={{background:'conic-gradient(#fff 0deg 90deg,transparent 90deg 180deg,#fff 180deg 270deg,transparent 270deg 360deg)'}} /> : tier === 'learner' ? 'ใช้งานอยู่' : tier === 'superuser' ? 'Downgrade' : 'สมัคร'}
+                  {purchasing ? <span className="inline-flex items-center justify-center w-full h-full"><span className="w-4 h-4 rounded-full animate-spin" style={{background:'conic-gradient(#fff 0deg 90deg,transparent 90deg 180deg,#fff 180deg 270deg,transparent 270deg 360deg)'}} /></span> : tier === 'learner' ? 'ใช้งานอยู่' : tier === 'superuser' ? 'Downgrade' : 'สมัคร'}
                 </button>
               </div>
               <div className="space-y-1.5 text-sm text-gray-600">
@@ -252,7 +252,7 @@ export default function Profile() {
                       : 'bg-yellow-500 text-white'
                   }`}
                 >
-                  {purchasing ? <span className="inline-block w-4 h-4 rounded-full animate-spin" style={{background:'conic-gradient(#fff 0deg 90deg,transparent 90deg 180deg,#fff 180deg 270deg,transparent 270deg 360deg)'}} /> : tier === 'superuser' ? 'ใช้งานอยู่' : 'สมัคร'}
+                  {purchasing ? <span className="inline-flex items-center justify-center w-full h-full"><span className="w-4 h-4 rounded-full animate-spin" style={{background:'conic-gradient(#fff 0deg 90deg,transparent 90deg 180deg,#fff 180deg 270deg,transparent 270deg 360deg)'}} /></span> : tier === 'superuser' ? 'ใช้งานอยู่' : 'สมัคร'}
                 </button>
               </div>
               <div className="space-y-1.5 text-sm text-gray-600">
