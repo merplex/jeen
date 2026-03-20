@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
-import { deleteAccount } from '../services/api'
+import { deleteAccount, verifyPurchase } from '../services/api'
+import { initIAP, purchaseProduct, restorePurchases } from '../services/iap'
 import { CATEGORIES, getCategoryColor, loadFavCategories, saveFavCategories } from '../utils/categories'
 
 export default function Profile() {
@@ -11,6 +12,7 @@ export default function Profile() {
   const { subscription, fetch: fetchSub } = useSubscriptionStore()
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [purchasing, setPurchasing] = useState(false)
   // admin-only: preview tier toggle (local state, resets on refresh)
   const [adminPreviewTier, setAdminPreviewTier] = useState(null) // null | 'learner' | 'superuser'
   const [favCats, setFavCats] = useState(loadFavCategories)
@@ -31,6 +33,36 @@ export default function Profile() {
   useEffect(() => {
     if (user) fetchSub()
   }, [user])
+
+  useEffect(() => {
+    initIAP(async (data) => {
+      await verifyPurchase(data)
+      fetchSub()
+    })
+  }, [])
+
+  const handlePurchase = async (tier) => {
+    try {
+      setPurchasing(true)
+      await purchaseProduct(tier)
+    } catch (err) {
+      alert(err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่')
+    } finally {
+      setPurchasing(false)
+    }
+  }
+
+  const handleRestore = async () => {
+    try {
+      setPurchasing(true)
+      await restorePurchases()
+      await fetchSub()
+    } catch {
+      alert('ไม่สามารถ Restore Purchase ได้ กรุณาลองใหม่')
+    } finally {
+      setPurchasing(false)
+    }
+  }
 
   if (!user) { navigate('/login'); return null }
 
@@ -169,8 +201,8 @@ export default function Profile() {
                   <div className="text-blue-600 font-semibold text-sm">฿69 / เดือน</div>
                 </div>
                 <button
-                  disabled={tier === 'learner'}
-                  onClick={() => alert('Coming soon')}
+                  disabled={tier === 'learner' || purchasing}
+                  onClick={() => handlePurchase('learner')}
                   className={`text-sm font-medium px-4 py-2 rounded-xl ${
                     tier === 'learner'
                       ? 'bg-gray-200 text-gray-400 cursor-default'
@@ -199,8 +231,8 @@ export default function Profile() {
                   <div className="text-yellow-600 font-semibold text-sm">฿99 / เดือน</div>
                 </div>
                 <button
-                  disabled={tier === 'superuser'}
-                  onClick={() => alert('Coming soon')}
+                  disabled={tier === 'superuser' || purchasing}
+                  onClick={() => handlePurchase('superuser')}
                   className={`text-sm font-medium px-4 py-2 rounded-xl ${
                     tier === 'superuser'
                       ? 'bg-gray-200 text-gray-400 cursor-default'
@@ -272,8 +304,9 @@ export default function Profile() {
         </button>
 
         <button
-          onClick={() => alert('Coming soon')}
-          className="w-full text-gray-400 text-xs py-2"
+          onClick={handleRestore}
+          disabled={purchasing}
+          className="w-full text-gray-400 text-xs py-2 disabled:opacity-50"
         >
           Restore Purchase
         </button>

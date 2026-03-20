@@ -187,6 +187,7 @@ export const scanOcrStructured = (data) => api.post('/ocr/scan-structured', data
 
 // Subscription
 export const getSubscriptionStatus = () => api.get('/subscription/status')
+export const verifyPurchase = (data) => api.post('/subscription/verify', data)
 export const adminListSubscriptions = () => api.get('/admin/subscription/list')
 export const adminGrantSubscription = (data) => api.post('/admin/subscription/grant', data)
 export const adminCancelSubscription = (id) => api.patch(`/admin/subscription/${id}/cancel`)
