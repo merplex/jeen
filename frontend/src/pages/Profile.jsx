@@ -11,6 +11,8 @@ export default function Profile() {
   const { subscription, fetch: fetchSub } = useSubscriptionStore()
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // admin-only: preview tier toggle (local state, resets on refresh)
+  const [adminPreviewTier, setAdminPreviewTier] = useState(null) // null | 'learner' | 'superuser'
   const [favCats, setFavCats] = useState(loadFavCategories)
   const [categoryCounts] = useState(() => {
     try { return JSON.parse(localStorage.getItem('category_counts') || '{}') } catch { return {} }
@@ -47,13 +49,15 @@ export default function Profile() {
   }
 
   // plan comes from product_id set by admin — "learner" or "superuser" in the string
-  const tier = !subscription
+  const realTier = !subscription
     ? null
     : !subscription.active
     ? 'free'
     : subscription.plan?.toLowerCase().includes('super')
     ? 'superuser'
     : 'learner'
+  // admin can toggle tier preview locally (resets on refresh)
+  const tier = user?.is_admin && adminPreviewTier !== null ? adminPreviewTier : realTier
 
   const subBadge = () => {
     if (!subscription) return null
@@ -128,9 +132,30 @@ export default function Profile() {
           )}
         </div>
 
-        {/* Upgrade plans — show for free and learner users */}
-        {(tier === 'free' || tier === 'learner') && (
+        {/* Upgrade plans — show for free/learner users, or always for admin */}
+        {(tier === 'free' || tier === 'learner' || user?.is_admin) && (
           <div className="space-y-3">
+            {/* Admin tier preview toggle */}
+            {user?.is_admin && (
+              <div className="bg-gray-100 rounded-xl p-3">
+                <div className="text-xs text-gray-500 mb-2 font-medium">Admin Preview (local only)</div>
+                <div className="flex gap-2">
+                  {['free', 'learner', 'superuser'].map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setAdminPreviewTier(adminPreviewTier === t ? null : t)}
+                      className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors ${
+                        tier === t
+                          ? 'bg-gray-700 text-white'
+                          : 'bg-white text-gray-500 border border-gray-200'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="text-xs text-gray-400 text-center pt-1">เลือกแผนการใช้งาน</div>
 
             {/* Upgrade to Learner */}
