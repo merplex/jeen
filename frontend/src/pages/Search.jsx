@@ -66,7 +66,12 @@ export default function Search() {
   }, [])
 
   const refreshRandom = useCallback((cat) => {
-    getRandomWords(30, cat).then((r) => setRandomWords(r.data)).catch(() => {})
+    getRandomWords(30, cat).then((r) => setRandomWords(r.data)).catch((e) => {
+      const detail = e.response?.data?.detail
+      if (e.response?.status === 429 && detail) {
+        setQuotaModal({ quotaType: detail.quota_type, userTier: detail.user_tier })
+      }
+    })
   }, [])
 
   useEffect(() => { sessionStorage.setItem('search_query', query) }, [query])
@@ -123,17 +128,24 @@ export default function Search() {
     }
   }, [])
 
+  const handleSearchQuota429 = useCallback((e) => {
+    const detail = e.response?.data?.detail
+    if (e.response?.status === 429 && detail) {
+      setQuotaModal({ quotaType: detail.quota_type, userTier: detail.user_tier })
+    }
+  }, [])
+
   const scheduleHistory = useCallback((q, wordId, found) => {
     clearTimeout(historyTimerRef.current)
     historyTimerRef.current = setTimeout(() => {
-      recordSearchHistory(q, wordId, found).catch(() => {})
+      recordSearchHistory(q, wordId, found).catch(handleSearchQuota429)
     }, 3000)
-  }, [])
+  }, [handleSearchQuota429])
 
   const recordHistoryNow = useCallback((q, wordId, found) => {
     clearTimeout(historyTimerRef.current)
-    recordSearchHistory(q, wordId, found).catch(() => {})
-  }, [])
+    recordSearchHistory(q, wordId, found).catch(handleSearchQuota429)
+  }, [handleSearchQuota429])
 
   const doSearch = useCallback(async (q) => {
     currentQueryRef.current = q

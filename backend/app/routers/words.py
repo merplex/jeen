@@ -12,6 +12,7 @@ from ..models.word_report import WordReport
 from ..models.subscription import UserSubscription
 
 WORD_DETAIL_DAILY_LIMIT_FREE = 6
+SEARCH_DAILY_LIMIT_FREE = 10
 
 
 def _get_user_tier(user_id: int, db: Session) -> str:
@@ -36,6 +37,19 @@ def _today_word_detail_count(user_id: int, db: Session) -> int:
         .filter(
             UsageEvent.user_id == user_id,
             UsageEvent.event_type == "word_detail_view",
+            UsageEvent.created_at >= today_start,
+        )
+        .count()
+    )
+
+
+def _today_search_count(user_id: int, db: Session) -> int:
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    return (
+        db.query(UsageEvent)
+        .filter(
+            UsageEvent.user_id == user_id,
+            UsageEvent.event_type == "search_daily",
             UsageEvent.created_at >= today_start,
         )
         .count()
@@ -191,8 +205,14 @@ def get_random_words(
     limit: int = 30,
     category: str = None,
     db: Session = Depends(get_db),
-    _: object = Depends(require_user),
+    current_user: User = Depends(require_user),
 ):
+    if not current_user.is_admin:
+        tier = _get_user_tier(current_user.id, db)
+        if tier == "free":
+            count = _today_search_count(current_user.id, db)
+            if count >= SEARCH_DAILY_LIMIT_FREE:
+                raise HTTPException(status_code=429, detail={"quota_type": "search_daily", "user_tier": "free"})
     from sqlalchemy import func
     limit = min(max(limit, 1), 60)
     q = db.query(Word).filter(Word.status == "verified")

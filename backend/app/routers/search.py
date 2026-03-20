@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
+from datetime import date, datetime
 from ..database import get_db
 from ..services.search_service import search_words, validate_and_record_missed
 from ..services.translate_service import search_by_english
@@ -7,6 +8,8 @@ from ..schemas.search import SearchResult
 from ..auth import get_current_user, require_user
 from ..models.user import User
 from ..models.search_history import SearchHistory
+from ..models.usage_event import UsageEvent
+from ..routers.words import _get_user_tier, _today_search_count, SEARCH_DAILY_LIMIT_FREE
 from typing import Optional
 
 router = APIRouter(prefix="/search", tags=["search"])
@@ -31,6 +34,15 @@ def record_history(
 ):
     """บันทึกประวัติค้นหา — เรียกเฉพาะเมื่อ user หยุดพิมพ์ หรือกด Enter"""
     # ถ้ามี record เดิมที่ query เหมือนกัน ลบทิ้งก่อน (เพื่อเลื่อนมาเป็นล่าสุด)
+    if not current_user.is_admin:
+        tier = _get_user_tier(current_user.id, db)
+        if tier == "free":
+            count = _today_search_count(current_user.id, db)
+            if count >= SEARCH_DAILY_LIMIT_FREE:
+                raise HTTPException(status_code=429, detail={"quota_type": "search_daily", "user_tier": "free"})
+            db.add(UsageEvent(user_id=current_user.id, event_type="search_daily"))
+            db.commit()
+
     existing = (
         db.query(SearchHistory)
         .filter(SearchHistory.user_id == current_user.id, SearchHistory.query == q)

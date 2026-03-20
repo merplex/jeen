@@ -196,7 +196,8 @@ export default function SpeakingPractice() {
   )
 
   const canPractice = dailyStatus?.can_practice !== false
-  const canGen = dailyStatus?.can_gen !== false
+  const isFreeTier = dailyStatus?.user_tier === 'free'
+  const canGen = !isFreeTier && dailyStatus?.can_gen !== false
   const assessLeft = dailyStatus?.assess_limit != null
     ? dailyStatus.assess_limit - (dailyStatus.today_assess || 0)
     : null
@@ -255,7 +256,7 @@ export default function SpeakingPractice() {
         {/* ปุ่ม Gen ประโยคใหม่ */}
         <div className="w-full max-w-sm space-y-1.5">
           <button
-            onClick={canGen && !genLoading ? handleGenSentences : () => showQuotaMsg('สร้างประโยคใหม่ได้ 1 ครั้ง/วัน — มาใหม่พรุ่งนี้ หรืออัปเกรด')}
+            onClick={canGen && !genLoading ? handleGenSentences : () => isFreeTier ? setQuotaModal({ quotaType: 'speaking_monthly', userTier: 'free' }) : showQuotaMsg('สร้างประโยคใหม่ได้ 1 ครั้ง/วัน — มาใหม่พรุ่งนี้ หรืออัปเกรด')}
             className={`w-full border rounded-xl py-2.5 text-sm flex items-center justify-center gap-2 transition-opacity ${
               canGen && !genLoading ? 'border-gray-300 bg-white text-gray-600' : 'border-gray-200 bg-gray-50 text-gray-400'
             }`}
