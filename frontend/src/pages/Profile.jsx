@@ -46,6 +46,15 @@ export default function Profile() {
     setDeleting(false)
   }
 
+  // plan comes from product_id set by admin — "learner" or "superuser" in the string
+  const tier = !subscription
+    ? null
+    : !subscription.active
+    ? 'free'
+    : subscription.plan?.toLowerCase().includes('super')
+    ? 'superuser'
+    : 'learner'
+
   const subBadge = () => {
     if (!subscription) return null
     if (subscription.active) {
@@ -119,28 +128,36 @@ export default function Profile() {
           )}
         </div>
 
-        {/* Upgrade plans — show only for free users */}
-        {subscription && !subscription.active && (
+        {/* Upgrade plans — show for free and learner users */}
+        {(tier === 'free' || tier === 'learner') && (
           <div className="space-y-3">
             <div className="text-xs text-gray-400 text-center pt-1">เลือกแผนการใช้งาน</div>
 
             {/* Upgrade to Learner */}
-            <div className="bg-white rounded-2xl p-4 shadow-sm border-2 border-blue-100">
+            <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${tier === 'learner' ? 'border-blue-200 opacity-60' : 'border-blue-100'}`}>
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <div className="font-bold text-gray-800 text-base">Upgrade to Learner</div>
+                  <div className="font-bold text-gray-800 text-base">
+                    Upgrade to Learner
+                    {tier === 'learner' && <span className="ml-2 text-xs font-normal text-blue-500">● แผนปัจจุบัน</span>}
+                  </div>
                   <div className="text-blue-600 font-semibold text-sm">฿69 / เดือน</div>
                 </div>
                 <button
+                  disabled={tier === 'learner'}
                   onClick={() => alert('Coming soon')}
-                  className="bg-blue-500 text-white text-sm font-medium px-4 py-2 rounded-xl"
+                  className={`text-sm font-medium px-4 py-2 rounded-xl ${
+                    tier === 'learner'
+                      ? 'bg-gray-200 text-gray-400 cursor-default'
+                      : 'bg-blue-500 text-white'
+                  }`}
                 >
-                  สมัคร
+                  {tier === 'learner' ? 'ใช้งานอยู่' : 'สมัคร'}
                 </button>
               </div>
               <div className="space-y-1.5 text-sm text-gray-600">
-                <div className="flex items-center gap-2"><span className="text-blue-400">✓</span> OCR กล้อง ×10 (30 ครั้ง/เดือน)</div>
-                <div className="flex items-center gap-2"><span className="text-blue-400">✓</span> ฝึกพูด ×10 (30 ครั้ง/เดือน)</div>
+                <div className="flex items-center gap-2"><span className="text-blue-400">✓</span> OCR กล้อง 30 ครั้ง/เดือน</div>
+                <div className="flex items-center gap-2"><span className="text-blue-400">✓</span> ฝึกพูด 30 ครั้ง/เดือน</div>
                 <div className="flex items-center gap-2"><span className="text-blue-400">✓</span> ค้นหาคำไม่จำกัด</div>
                 <div className="flex items-center gap-2"><span className="text-blue-400">✓</span> ปลดล็อค Flash Card ทุก Deck</div>
               </div>
@@ -161,8 +178,17 @@ export default function Profile() {
                 </button>
               </div>
               <div className="space-y-1.5 text-sm text-gray-600">
-                <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> OCR กล้อง ×100 (300 ครั้ง/เดือน)</div>
-                <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> ฝึกพูด ×100 (300 ครั้ง/เดือน)</div>
+                {tier === 'learner' ? (
+                  <>
+                    <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> OCR กล้อง ×10 (300 ครั้ง/เดือน)</div>
+                    <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> ฝึกพูด ×10 (300 ครั้ง/เดือน)</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> OCR กล้อง ×100 (300 ครั้ง/เดือน)</div>
+                    <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> ฝึกพูด ×100 (300 ครั้ง/เดือน)</div>
+                  </>
+                )}
                 <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> ค้นหาคำไม่จำกัด</div>
                 <div className="flex items-center gap-2"><span className="text-yellow-500">✓</span> ปลดล็อค Flash Card ทุก Deck</div>
               </div>
