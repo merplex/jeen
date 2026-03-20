@@ -132,8 +132,8 @@ export default function Profile() {
           )}
         </div>
 
-        {/* Upgrade plans — show for free/learner users, or always for admin */}
-        {(tier === 'free' || tier === 'learner' || user?.is_admin) && (
+        {/* Upgrade plans — show for free/learner/superuser, or always for admin */}
+        {(tier === 'free' || tier === 'learner' || tier === 'superuser' || user?.is_admin) && (
           <div className="space-y-3">
             {/* Admin tier preview toggle */}
             {user?.is_admin && (
@@ -158,12 +158,12 @@ export default function Profile() {
             )}
             <div className="text-xs text-gray-400 text-center pt-1">เลือกแผนการใช้งาน</div>
 
-            {/* Upgrade to Learner */}
+            {/* Learner card */}
             <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${tier === 'learner' ? 'border-blue-200 opacity-60' : 'border-blue-100'}`}>
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <div className="font-bold text-gray-800 text-base">
-                    Upgrade to Learner
+                    {tier === 'superuser' ? 'Downgrade to Learner' : 'Upgrade to Learner'}
                     {tier === 'learner' && <span className="ml-2 text-xs font-normal text-blue-500">● แผนปัจจุบัน</span>}
                   </div>
                   <div className="text-blue-600 font-semibold text-sm">฿69 / เดือน</div>
@@ -177,7 +177,7 @@ export default function Profile() {
                       : 'bg-blue-500 text-white'
                   }`}
                 >
-                  {tier === 'learner' ? 'ใช้งานอยู่' : 'สมัคร'}
+                  {tier === 'learner' ? 'ใช้งานอยู่' : tier === 'superuser' ? 'Downgrade' : 'สมัคร'}
                 </button>
               </div>
               <div className="space-y-1.5 text-sm text-gray-600">
@@ -188,18 +188,26 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* Upgrade to Superuser */}
-            <div className="bg-white rounded-2xl p-4 shadow-sm border-2 border-yellow-200">
+            {/* Superuser card */}
+            <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${tier === 'superuser' ? 'border-yellow-300 opacity-60' : 'border-yellow-200'}`}>
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <div className="font-bold text-gray-800 text-base">Upgrade to Superuser</div>
+                  <div className="font-bold text-gray-800 text-base">
+                    Upgrade to Superuser
+                    {tier === 'superuser' && <span className="ml-2 text-xs font-normal text-yellow-500">● แผนปัจจุบัน</span>}
+                  </div>
                   <div className="text-yellow-600 font-semibold text-sm">฿99 / เดือน</div>
                 </div>
                 <button
+                  disabled={tier === 'superuser'}
                   onClick={() => alert('Coming soon')}
-                  className="bg-yellow-500 text-white text-sm font-medium px-4 py-2 rounded-xl"
+                  className={`text-sm font-medium px-4 py-2 rounded-xl ${
+                    tier === 'superuser'
+                      ? 'bg-gray-200 text-gray-400 cursor-default'
+                      : 'bg-yellow-500 text-white'
+                  }`}
                 >
-                  สมัคร
+                  {tier === 'superuser' ? 'ใช้งานอยู่' : 'สมัคร'}
                 </button>
               </div>
               <div className="space-y-1.5 text-sm text-gray-600">
