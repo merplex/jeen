@@ -62,8 +62,52 @@ class ScanRequest(BaseModel):
     mime_type: str = "image/jpeg"
 
 
+_paddle_reader = None
+
+
+def _get_paddle_reader():
+    global _paddle_reader
+    if _paddle_reader is None:
+        from paddleocr import PaddleOCR
+        _paddle_reader = PaddleOCR(use_angle_cls=True, lang='ch', use_gpu=False, show_log=False)
+    return _paddle_reader
+
+
+def _ocr_with_paddle(image_bytes: bytes) -> dict:
+    """ใช้ PaddleOCR อ่านข้อความจีนจากรูป พร้อม detect alignment จาก bounding box"""
+    try:
+        import numpy as np
+        import cv2
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img is None:
+            return {"lines": []}
+        reader = _get_paddle_reader()
+        result = reader.ocr(img, cls=True)
+        if not result or not result[0]:
+            return {"lines": []}
+        img_width = img.shape[1]
+        lines = []
+        for item in result[0]:
+            box, (text, confidence) = item
+            if confidence < 0.5:
+                continue
+            center_x = sum(p[0] for p in box) / 4
+            if center_x > img_width * 0.65:
+                align = "right"
+            elif center_x > img_width * 0.35:
+                align = "center"
+            else:
+                align = "left"
+            lines.append({"text": text, "align": align})
+        return {"lines": lines}
+    except Exception as e:
+        logger.error(f"[PaddleOCR] error: {e}")
+        return {"lines": []}
+
+
 def _ocr_and_translate(image_bytes: bytes, mime_type: str) -> dict:
-    """ส่งรูปให้ Gemini Vision อ่านข้อความจีนและแปลไทย"""
+    """Fallback: ส่งรูปให้ Gemini Vision อ่านข้อความจีนและแปลไทย (ใช้เมื่อ PaddleOCR ไม่มี)"""
     from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
     from google.genai import types as genai_types
 
@@ -99,7 +143,15 @@ def _find_words_in_text(text: str, db: Session) -> list:
 
 
 def _ocr_structured(image_bytes: bytes, mime_type: str) -> dict:
-    """ส่งรูปให้ Gemini Vision อ่านข้อความจีนแบบแยกบรรทัด/ส่วน พร้อมแปลไทย"""
+    """อ่านข้อความจีนแบบแยกบรรทัด ใช้ PaddleOCR หลัก, Gemini fallback"""
+    # ลอง PaddleOCR ก่อน
+    result = _ocr_with_paddle(image_bytes)
+    if result["lines"]:
+        logger.info(f"[OCR structured] PaddleOCR: {len(result['lines'])} lines")
+        return result
+
+    # Fallback: ใช้ Gemini ถ้า PaddleOCR ไม่ได้ผล
+    logger.info("[OCR structured] PaddleOCR empty, falling back to Gemini")
     from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
     from google.genai import types as genai_types
 
@@ -107,7 +159,6 @@ def _ocr_structured(image_bytes: bytes, mime_type: str) -> dict:
         return {"lines": []}
 
     image_part = genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
-
     prompt = (
         "อ่านภาพนี้ทั้งหมด แล้วแปลงเป็น JSON\n"
         "ตอบเป็น JSON เท่านั้น:\n"
@@ -130,7 +181,6 @@ def _ocr_structured(image_bytes: bytes, mime_type: str) -> dict:
         "   แสดงว่าเป็น header ชื่อกลุ่ม/หัวข้อสนทนา → ข้ามไม่ต้องใส่ใน lines\n"
         "6. ถ้าไม่มีอะไรเลยในรูป ตอบ: {\"lines\":[]}"
     )
-
     try:
         resp = _model.generate_content([prompt, image_part])
         raw = _strip_markdown(_get_text(resp))
@@ -141,10 +191,10 @@ def _ocr_structured(image_bytes: bytes, mime_type: str) -> dict:
             {"text": l.get("text", ""), "align": l.get("align", "left")}
             for l in lines if isinstance(l, dict) and l.get("text")
         ]
-        logger.info(f"[OCR structured] valid lines: {len(valid)}")
+        logger.info(f"[OCR structured] gemini fallback: {len(valid)} lines")
         return {"lines": valid}
     except Exception as e:
-        logger.error(f"[OCR structured] error: {e}")
+        logger.error(f"[OCR structured] gemini error: {e}")
         return {"lines": []}
 
 
