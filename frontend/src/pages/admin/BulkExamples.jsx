@@ -99,8 +99,10 @@ export default function BulkExamples() {
       if (allOptions.length > 0) {
         setRegenCat(allOptions[0])
         setEngRegenCat(allOptions[0])
-        setRelatedRegenCat(allOptions[0])
       }
+      const RELATED_CATS = ['ทั่วไป', 'ชีวิตประจำวัน', 'ธุรกิจ', 'กฏหมาย', 'สำนวน']
+      const firstRelated = r.data.categories.find(c => RELATED_CATS.includes(c.name))
+      if (firstRelated) setRelatedRegenCat(firstRelated.name)
     }).catch(() => {})
   }, [])
   useEffect(() => { loadSingleEngCount(singleEngCat) }, [singleEngCat])
@@ -538,7 +540,7 @@ export default function BulkExamples() {
 
             <div className="border-t border-gray-100 pt-3">
               <p className="text-xs text-gray-500 font-medium mb-1">Regen คำเกี่ยวข้อง ตามหมวด (overwrite)</p>
-              <p className="text-xs text-gray-400 mb-3">เขียนทับ related_words ของทุกคำในหมวด/ระดับ HSK ที่เลือก</p>
+              <p className="text-xs text-gray-400 mb-3">เขียนทับ related_words ของทุกคำในหมวดที่เลือก (เฉพาะ ทั่วไป/ชีวิตประจำวัน/ธุรกิจ/กฏหมาย/สำนวน)</p>
               <div className="flex gap-2 mb-3">
                 <select
                   value={relatedRegenCat}
@@ -547,14 +549,11 @@ export default function BulkExamples() {
                   className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
                 >
                   {categoryWordCounts ? (
-                    <>
-                      {categoryWordCounts.categories.map((c) => (
+                    categoryWordCounts.categories
+                      .filter((c) => ['ทั่วไป', 'ชีวิตประจำวัน', 'ธุรกิจ', 'กฏหมาย', 'สำนวน'].includes(c.name))
+                      .map((c) => (
                         <option key={c.name} value={c.name}>{c.name} ({c.count})</option>
-                      ))}
-                      {categoryWordCounts.hsk_levels.map((h) => (
-                        <option key={h.name} value={h.name}>{h.name} ({h.count})</option>
-                      ))}
-                    </>
+                      ))
                   ) : (
                     <option value="">กำลังโหลด...</option>
                   )}
