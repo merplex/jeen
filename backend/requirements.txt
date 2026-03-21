@@ -22,6 +22,7 @@ azure-cognitiveservices-speech==1.41.1
 Pillow==10.4.0
 jieba==0.42.1
 opencc-python-reimplemented==0.1.7
+numpy<2.0
 paddlepaddle==2.6.2
 paddleocr==2.9.1
 opencv-python-headless==4.10.0.84
