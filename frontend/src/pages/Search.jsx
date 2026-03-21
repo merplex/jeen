@@ -68,12 +68,20 @@ export default function Search() {
   }, [])
 
   const refreshRandom = useCallback((cat) => {
-    getRandomWords(30, cat).then((r) => setRandomWords(r.data)).catch((e) => {
-      const detail = e.response?.data?.detail
-      if (e.response?.status === 429 && detail) {
-        setQuotaModal({ quotaType: detail.quota_type, userTier: detail.user_tier })
-      }
-    })
+    getRandomWords(30, cat)
+      .then((r) => {
+        if (r.data.length === 0 && cat && cat !== 'ทั้งหมด') {
+          // category นี้ไม่มีคำ → fallback ทั้งหมด
+          return getRandomWords(30, null).then((r2) => setRandomWords(r2.data))
+        }
+        setRandomWords(r.data)
+      })
+      .catch((e) => {
+        const detail = e.response?.data?.detail
+        if (e.response?.status === 429 && detail) {
+          setQuotaModal({ quotaType: detail.quota_type, userTier: detail.user_tier })
+        }
+      })
   }, [])
 
   useEffect(() => { sessionStorage.setItem('search_query', query) }, [query])
@@ -88,9 +96,9 @@ export default function Search() {
     if (!token && !fetchingMe) navigate('/login', { replace: true })
   }, [token, fetchingMe, navigate])
 
-  // โหลดคำสุ่มตอนเปิดครั้งแรก
+  // โหลดคำสุ่มตอนเปิดครั้งแรก (ไม่สนใจ query — random แค่ hide ใน UI ถ้ามี result อยู่)
   useEffect(() => {
-    if (!token || query) return
+    if (!token) return
     refreshRandom(category)
   }, [token])
 
