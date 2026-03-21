@@ -118,11 +118,14 @@ export default function WordDetail() {
     }
   }, [user, word?.id])
 
-  // auto-generate related_words ถ้ายังไม่มี (เฉพาะคำ 2 หรือ 4+ อักษร)
+  const RELATED_CATEGORIES = ['ทั่วไป', 'ชีวิตประจำวัน', 'ธุรกิจ', 'กฏหมาย', 'สำนวน']
+
+  // auto-generate related_words ถ้ายังไม่มี (เฉพาะคำ 2 หรือ 4+ อักษร และ category ที่กำหนด)
   useEffect(() => {
     if (!word || !token) return
     const len = word.chinese.length
     if (word.related_words !== null || (len !== 2 && len < 4)) return
+    if (!RELATED_CATEGORIES.includes(word.category)) return
     autoGenerateRelated(word.id).then((r) => setWord(r.data)).catch(() => {})
   }, [word?.id])
 
@@ -553,8 +556,8 @@ export default function WordDetail() {
           })()}
         </div>
 
-        {/* Related Words — เฉพาะคำ 2 อักษร หรือสำนวน 4+ อักษร */}
-        {(word.chinese.length === 2 || word.chinese.length >= 4) && (word.related_words || user?.is_admin) && (() => {
+        {/* Related Words — เฉพาะคำ 2 หรือ 4+ อักษร และ category ที่กำหนด */}
+        {(word.chinese.length === 2 || word.chinese.length >= 4) && RELATED_CATEGORIES.includes(word.category) && (word.related_words || user?.is_admin) && (() => {
           const rw = word.related_words
           const isIdiom = word.chinese.length >= 4
           const groups = isIdiom
