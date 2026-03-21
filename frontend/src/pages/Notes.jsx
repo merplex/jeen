@@ -5,6 +5,7 @@ import useAuthStore from '../stores/authStore'
 import { thaiDateTime } from '../utils/time'
 import TonedChinese from '../components/TonedChinese'
 import db from '../services/offlineDb'
+import { startNotesSync } from '../services/notesSyncService'
 
 export default function Notes() {
   const navigate = useNavigate()
@@ -45,7 +46,13 @@ export default function Notes() {
   }
 
   useEffect(() => {
-    if (user) fetchNotes()
+    if (!user) return
+    if (!isOffline) {
+      // sync notes ลง IndexedDB ก่อน แล้วค่อยโหลด
+      startNotesSync(localStorage.getItem('token')).finally(() => fetchNotes())
+    } else {
+      fetchNotes()
+    }
   }, [user, isOffline])
 
   const handleSearch = (e) => {
