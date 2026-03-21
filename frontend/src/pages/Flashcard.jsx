@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getFlashcards, removeFlashcard } from '../services/api'
+import { removeFlashcard } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import TonedChinese from '../components/TonedChinese'
 import db from '../services/offlineDb'
@@ -27,7 +27,6 @@ export default function Flashcard() {
   useEffect(() => {
     if (!user) return
     loadLocalFlashcards().then(setCards)
-    getFlashcards().then((r) => setCards(r.data)).catch(() => {})
   }, [user])
 
   if (!user) return (
@@ -48,7 +47,9 @@ export default function Flashcard() {
   const next = () => { setIndex((i) => Math.min(cards.length - 1, i + 1)); setFlipped(false) }
 
   const removeCurrent = async () => {
-    await removeFlashcard(word.id)
+    // ลบ local ก่อน แล้ว push server
+    await db.flashcards.put({ id: `${word.id}_${card.deck}`, word_id: word.id, deck: card.deck, _pending: 1, _deleted: 1 })
+    removeFlashcard(word.id).catch(() => {}) // fire-and-forget
     const updated = cards.filter((_, i) => i !== index)
     setCards(updated)
     setIndex(Math.min(index, updated.length - 1))

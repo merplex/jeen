@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getHistory, deleteHistory, getFavorites, toggleFavorite, addFlashcard } from '../services/api'
+import { deleteHistory, toggleFavorite, addFlashcard } from '../services/api'
+import { toggleFavoriteOffline } from '../services/favoritesSyncService'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import { thaiDateTime } from '../utils/time'
@@ -43,39 +44,22 @@ export default function History() {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [addingDeck, setAddingDeck] = useState(null)
 
-  const [isOffline, setIsOffline] = useState(!navigator.onLine)
-
-  useEffect(() => {
-    const handleOnline = () => setIsOffline(false)
-    const handleOffline = () => setIsOffline(true)
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-    return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline) }
-  }, [])
-
+  // อ่านจาก local เสมอ — ข้อมูลขึ้นทันที ไม่ต้องรอ server
   useEffect(() => {
     if (!user) return
-    if (isOffline) {
-      getLocalHistory().then(setHistory)
-      loadLocalFavorites().then(setFavorites)
-    } else {
-      getHistory().then((r) => setHistory(r.data)).catch(() => getLocalHistory().then(setHistory))
-      getFavorites().then((r) => setFavorites(r.data)).catch(() => loadLocalFavorites().then(setFavorites))
-    }
-  }, [user, isOffline])
+    getLocalHistory().then(setHistory)
+    loadLocalFavorites().then(setFavorites)
+  }, [user])
 
   const remove = async (id) => {
-    if (isOffline) {
-      await deleteLocalHistory(id).catch(() => {})
-    } else {
-      await deleteHistory(id).catch(() => {})
-      await deleteLocalHistory(id).catch(() => {})
-    }
+    await deleteLocalHistory(id).catch(() => {})
+    deleteHistory(id).catch(() => {}) // fire-and-forget ขึ้น server
     setHistory((h) => h.filter((r) => r.id !== id))
   }
 
   const unfavorite = async (wordId) => {
-    await toggleFavorite(wordId)
+    await toggleFavoriteOffline(wordId) // local ก่อน
+    toggleFavorite(wordId).catch(() => {}) // fire-and-forget server
     setFavorites((f) => f.filter((r) => r.word_id !== wordId))
     setSelectedIds((s) => { const n = new Set(s); n.delete(wordId); return n })
   }

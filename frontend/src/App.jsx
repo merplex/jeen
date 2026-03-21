@@ -2,6 +2,9 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { Capacitor } from '@capacitor/core'
 import useAuthStore from './stores/authStore'
+import { startFlashcardSync } from './services/flashcardSyncService'
+import { startFavoritesSync } from './services/favoritesSyncService'
+import { startNotesSync } from './services/notesSyncService'
 import BottomNav from './components/BottomNav'
 import Search from './pages/Search'
 import WordDetail from './pages/WordDetail'
@@ -44,6 +47,14 @@ export default function App() {
 
   useEffect(() => {
     if (token) fetchMe()
+  }, [token])
+
+  // ดึง user data จาก server มา local ทุกครั้งที่เปิดแอป (ถ้า online)
+  useEffect(() => {
+    if (!token) return
+    startFlashcardSync(token).catch(() => {})
+    startFavoritesSync(token).catch(() => {})
+    startNotesSync(token).catch(() => {})
   }, [token])
 
   // Privacy policy accessible to everyone (web + native, no login needed)

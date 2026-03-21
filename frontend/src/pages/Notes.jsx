@@ -1,28 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getNotes, deleteNote } from '../services/api'
+import { deleteNote } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import { thaiDateTime } from '../utils/time'
 import TonedChinese from '../components/TonedChinese'
 import db from '../services/offlineDb'
-import { startNotesSync } from '../services/notesSyncService'
 
 export default function Notes() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const [notes, setNotes] = useState([])
   const [search, setSearch] = useState('')
-  const [isOffline, setIsOffline] = useState(!navigator.onLine)
 
-  useEffect(() => {
-    const on = () => setIsOffline(false)
-    const off = () => setIsOffline(true)
-    window.addEventListener('online', on)
-    window.addEventListener('offline', off)
-    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
-  }, [])
-
-  const fetchNotesOffline = async (q = '') => {
+  const loadNotes = async (q = '') => {
     const all = await db.notes.filter(n => !n._deleted).toArray()
     const wordIds = [...new Set(all.map(n => n.word_id))]
     const words = await db.words.where('id').anyOf(wordIds).toArray()
@@ -40,38 +30,25 @@ export default function Notes() {
     setNotes(result)
   }
 
-  const fetchNotes = (q = '') => {
-    if (isOffline) return fetchNotesOffline(q)
-    return getNotes(q).then((r) => setNotes(r.data)).catch(() => fetchNotesOffline(q))
-  }
-
+  // อ่านจาก local เสมอ — ข้อมูลขึ้นทันที ไม่ต้องรอ server
   useEffect(() => {
     if (!user) return
-    if (!isOffline) {
-      // sync notes ลง IndexedDB ก่อน แล้วค่อยโหลด
-      startNotesSync(localStorage.getItem('token')).finally(() => fetchNotes())
-    } else {
-      fetchNotes()
-    }
-  }, [user, isOffline])
+    loadNotes()
+  }, [user])
 
   const handleSearch = (e) => {
     const v = e.target.value
     setSearch(v)
-    fetchNotes(v)
+    loadNotes(v)
   }
 
   const remove = async (id) => {
-    if (isOffline) {
-      if (id < 0) {
-        await db.notes.delete(id)
-      } else {
-        await db.notes.update(id, { _deleted: 1, _pending: 1 })
-      }
-      setNotes((n) => n.filter((x) => x.id !== id))
-      return
+    if (id < 0) {
+      await db.notes.delete(id)
+    } else {
+      await db.notes.update(id, { _deleted: 1, _pending: 1 })
+      deleteNote(id).catch(() => {}) // fire-and-forget server
     }
-    await deleteNote(id)
     setNotes((n) => n.filter((x) => x.id !== id))
   }
 
