@@ -6,6 +6,19 @@ from ..models.word import Word
 from ..models.missed_search import MissedSearch
 from ..schemas.search import SearchResult, PerCharGroup
 
+try:
+    import opencc as _opencc
+    _trad_to_simp = _opencc.OpenCC('t2s').convert
+except Exception:
+    _trad_to_simp = lambda x: x  # fallback ถ้า library ไม่มี
+
+
+def _normalize_chinese(q: str) -> str:
+    """แปลง Traditional → Simplified ถ้ามีอักขระจีน"""
+    if any('\u4e00' <= c <= '\u9fff' for c in q):
+        return _trad_to_simp(q)
+    return q
+
 
 def _mark_multiple_readings(words: list) -> None:
     """Mark words whose chinese character appears more than once in the result set."""
@@ -214,7 +227,7 @@ def _search_per_char(db: Session, chars: list) -> list:
 # ---------------------------------------------------------------------------
 
 def search_words(db: Session, query: str) -> SearchResult:
-    q = query.strip()
+    q = _normalize_chinese(query.strip())
     if not q:
         return SearchResult(query=q, found=False)
 
@@ -424,6 +437,7 @@ def _search_english(db: Session, query: str) -> SearchResult:
 
 
 def validate_and_record_missed(db: Session, query: str) -> bool:
+    query = _normalize_chinese(query)
     # ถ้าเคย validate แล้ว (อยู่ใน DB) → update count ตรงๆ ไม่ต้อง call Gemini ซ้ำ
     if db.query(MissedSearch).filter(MissedSearch.query == query).first():
         _record_missed(db, query)
