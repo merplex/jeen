@@ -178,11 +178,15 @@ def _search_mixed(db: Session, q: str) -> SearchResult:
 def _search_per_char(db: Session, chars: list) -> list:
     """Search each char individually, return list of PerCharGroup."""
     groups = []
+    from sqlalchemy import or_
     seen_ids: set = set()
     for char in chars:
         prefix = (
             db.query(Word)
-            .filter(Word.status == 'verified', Word.chinese.like(f'{char}%'))
+            .filter(
+                Word.status == 'verified',
+                or_(Word.chinese.like(f'{char}%'), Word.chinese_traditional.like(f'{char}%')),
+            )
             .order_by(Word.char_count.asc())
             .limit(30)
             .all()
@@ -193,7 +197,7 @@ def _search_per_char(db: Session, chars: list) -> list:
             .filter(
                 Word.status == 'verified',
                 Word.id.notin_(prefix_ids | seen_ids),
-                Word.chinese.like(f'%{char}%'),
+                or_(Word.chinese.like(f'%{char}%'), Word.chinese_traditional.like(f'%{char}%')),
             )
             .order_by(Word.char_count.asc())
             .limit(30)
@@ -266,8 +270,9 @@ def search_words(db: Session, query: str) -> SearchResult:
 
     # Chinese or Thai — query column ตาม lang เท่านั้น (ไม่ OR ข้าม column เพื่อความเร็ว)
     if lang == 'chinese':
-        prefix_col = Word.chinese.like(f'{q}%')
-        inner_col = Word.chinese.like(f'%{q}%')
+        from sqlalchemy import or_
+        prefix_col = or_(Word.chinese.like(f'{q}%'), Word.chinese_traditional.like(f'{q}%'))
+        inner_col = or_(Word.chinese.like(f'%{q}%'), Word.chinese_traditional.like(f'%{q}%'))
     else:  # thai
         prefix_col = Word.thai_meaning.like(f'{q}%')
         inner_col = Word.thai_meaning.like(f'%{q}%')
@@ -426,6 +431,12 @@ def validate_and_record_missed(db: Session, query: str) -> bool:
     lang = detect_language(query)
     if lang != "chinese":
         return False  # validate เฉพาะจีน ภาษาอื่นไม่บันทึก
+    # ถ้าตัวเต็ม (traditional) match คำในดิก → ไม่ record missed (คำมีอยู่แล้ว แค่ search หาเจอแล้ว)
+    from sqlalchemy import or_
+    if db.query(Word.id).filter(
+        or_(Word.chinese == query, Word.chinese_traditional == query)
+    ).first():
+        return False
     from ..services.translate_service import validate_chinese_jieba
     if validate_chinese_jieba(query):
         _record_missed(db, query)

@@ -342,7 +342,9 @@ def auto_generate_related(
         for entry in result.get(group_key, []):
             ch = entry.get("chinese", "")
             if ch:
-                found = db.query(Word.id).filter(Word.chinese == ch).first()
+                found = db.query(Word.id).filter(
+                    (Word.chinese == ch) | (Word.chinese_traditional == ch)
+                ).first()
                 if found:
                     entry["word_id"] = found[0]
                 else:
