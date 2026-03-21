@@ -150,26 +150,17 @@ export default function WordDetail() {
 
   const toggleDeck = async (deck) => {
     if (!user) return navigate('/login')
-    if (navigator.onLine) {
-      try {
-        if (activeDecks.has(deck)) {
-          await removeFlashcard(id, deck)
-        } else {
-          await addFlashcard(id, deck)
-        }
-        // sync local หลัง API สำเร็จ
-        await startFlashcardSync(localStorage.getItem('token'))
-        setActiveDecks(await getLocalDecks(Number(id)))
-      } catch (e) {
-        alert(e.response?.data?.detail || 'ไม่สามารถเพิ่มได้')
-      }
+    // local-first: toggle local ทันที แล้ว push server ใน background
+    const added = await toggleDeckOffline(Number(id), deck)
+    setActiveDecks(prev => {
+      const s = new Set(prev)
+      added ? s.add(deck) : s.delete(deck)
+      return s
+    })
+    if (added) {
+      addFlashcard(id, deck).catch(() => {})
     } else {
-      const added = await toggleDeckOffline(Number(id), deck)
-      setActiveDecks(prev => {
-        const s = new Set(prev)
-        added ? s.add(deck) : s.delete(deck)
-        return s
-      })
+      removeFlashcard(id, deck).catch(() => {})
     }
   }
 

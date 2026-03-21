@@ -101,6 +101,7 @@ export default function SpeakingPractice() {
   }
 
   const startRecording = async () => {
+    if (!navigator.onLine) { setShowOfflineAlert(true); return }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       chunksRef.current = []
@@ -157,6 +158,7 @@ export default function SpeakingPractice() {
 
   const handleGenSentences = async () => {
     if (genLoading) return
+    if (!navigator.onLine) { setShowOfflineAlert(true); return }
     setGenLoading(true)
     try {
       const r = await generateSpeakingSentences({
