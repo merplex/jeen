@@ -5,6 +5,8 @@ import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import { thaiDateTime } from '../utils/time'
 import TonedChinese from '../components/TonedChinese'
+import { getLocalHistory, deleteLocalHistory } from '../services/offlineDb'
+import db from '../services/offlineDb'
 
 const DECK_COLORS = {
   1: 'border-chinese-red text-chinese-red',
@@ -23,11 +25,26 @@ export default function History() {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [addingDeck, setAddingDeck] = useState(null)
 
+  const [isOffline, setIsOffline] = useState(!navigator.onLine)
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false)
+    const handleOffline = () => setIsOffline(true)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline) }
+  }, [])
+
   useEffect(() => {
     if (!user) return
-    getHistory().then((r) => setHistory(r.data))
-    getFavorites().then((r) => setFavorites(r.data))
-  }, [user])
+    if (isOffline) {
+      getLocalHistory().then(setHistory)
+      db.favorites.filter(f => !f._deleted).toArray().then(setFavorites)
+    } else {
+      getHistory().then((r) => setHistory(r.data))
+      getFavorites().then((r) => setFavorites(r.data))
+    }
+  }, [user, isOffline])
 
   const remove = async (id) => {
     await deleteHistory(id)

@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminGenerateRelated, autoGenerateRelated, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, adminDeleteWord, getPublicSettings, getWordImage, refreshWordImage, uploadWordImage, getFavoriteStatus, toggleFavorite, reportMissedSearchDirect } from '../services/api'
 import db from '../services/offlineDb'
+import { startNotesSync, saveNoteOffline, getNoteOffline } from '../services/notesSyncService'
+import { startFlashcardSync, getLocalDecks, toggleDeckOffline } from '../services/flashcardSyncService'
+import { startFavoritesSync, isFavoritedLocal, toggleFavoriteOffline } from '../services/favoritesSyncService'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import SelectionPopup from '../components/SelectionPopup'
@@ -83,20 +86,36 @@ export default function WordDetail() {
         }
       })
     if (user) {
-      getFlashcardDecks(id).then((r) => {
-        setActiveDecks(new Set(r.data.decks))
+      const tok = localStorage.getItem('token')
+      // โหลด decks จาก local ก่อน แล้ว sync ถ้ามีเน็ต
+      getLocalDecks(Number(id)).then(decks => setActiveDecks(decks))
+      if (navigator.onLine) {
+        startFlashcardSync(tok).then(() => getLocalDecks(Number(id)).then(decks => setActiveDecks(decks)))
+      }
+      // โหลด note จาก local ก่อน (เร็ว + offline-safe)
+      getNoteOffline(Number(id)).then((local) => {
+        if (local && !local._deleted) { setNote(local); setNoteText(local.note_text) }
       })
-      getNotes().then((r) => {
-        const n = r.data.find((n) => n.word_id === Number(id))
-        if (n) { setNote(n); setNoteText(n.note_text) }
-      })
+      // sync กับ server ถ้ามีเน็ต
+      if (navigator.onLine) {
+        startNotesSync(localStorage.getItem('token')).then(() => {
+          getNoteOffline(Number(id)).then((local) => {
+            if (local && !local._deleted) { setNote(local); setNoteText(local.note_text) }
+            else { setNote(null); setNoteText('') }
+          })
+        })
+      }
     }
   }, [id, user])
 
-  // โหลด favorite status
+  // โหลด favorite status (local ก่อน แล้ว sync)
   useEffect(() => {
     if (!user || !word) return
-    getFavoriteStatus(word.id).then((r) => setFavorited(r.data.favorited)).catch(() => {})
+    const tok = localStorage.getItem('token')
+    isFavoritedLocal(word.id).then(v => setFavorited(v))
+    if (navigator.onLine) {
+      startFavoritesSync(tok).then(() => isFavoritedLocal(word.id).then(v => setFavorited(v)))
+    }
   }, [user, word?.id])
 
   // auto-generate related_words ถ้ายังไม่มี (เฉพาะคำ 2 หรือ 4+ อักษร)
@@ -128,27 +147,60 @@ export default function WordDetail() {
 
   const toggleDeck = async (deck) => {
     if (!user) return navigate('/login')
-    if (activeDecks.has(deck)) {
-      await removeFlashcard(id, deck)
-      setActiveDecks((prev) => { const s = new Set(prev); s.delete(deck); return s })
-    } else {
+    if (navigator.onLine) {
       try {
-        await addFlashcard(id, deck)
-        setActiveDecks((prev) => new Set([...prev, deck]))
+        if (activeDecks.has(deck)) {
+          await removeFlashcard(id, deck)
+        } else {
+          await addFlashcard(id, deck)
+        }
+        // sync local หลัง API สำเร็จ
+        await startFlashcardSync(localStorage.getItem('token'))
+        setActiveDecks(await getLocalDecks(Number(id)))
       } catch (e) {
         alert(e.response?.data?.detail || 'ไม่สามารถเพิ่มได้')
       }
+    } else {
+      const added = await toggleDeckOffline(Number(id), deck)
+      setActiveDecks(prev => {
+        const s = new Set(prev)
+        added ? s.add(deck) : s.delete(deck)
+        return s
+      })
     }
   }
 
   const saveNote = async () => {
     if (!noteText.trim()) return
-    if (note) {
-      const r = await updateNote(note.id, { note_text: noteText })
-      setNote(r.data)
+    if (navigator.onLine) {
+      try {
+        if (note && note.id > 0) {
+          const r = await updateNote(note.id, { note_text: noteText })
+          const updated = { ...r.data, _pending: 0, _deleted: 0 }
+          await db.notes.put(updated)
+          setNote(updated)
+        } else if (note && note.id < 0) {
+          // temp note → สร้างจริงบน server
+          const r = await createNote({ word_id: Number(id), note_text: noteText })
+          await db.notes.delete(note.id) // ลบ temp
+          const created = { ...r.data, _pending: 0, _deleted: 0 }
+          await db.notes.put(created)
+          setNote(created)
+        } else {
+          const r = await createNote({ word_id: Number(id), note_text: noteText })
+          const created = { ...r.data, _pending: 0, _deleted: 0 }
+          await db.notes.put(created)
+          setNote(created)
+        }
+      } catch {
+        // ถ้า API ล้มเหลว → บันทึก local pending แทน
+        const saved = await saveNoteOffline({ existingNote: note, wordId: Number(id), noteText })
+        setNote(saved)
+      }
     } else {
-      const r = await createNote({ word_id: Number(id), note_text: noteText })
-      setNote(r.data)
+      // offline → บันทึก local pending
+      const saved = await saveNoteOffline({ existingNote: note, wordId: Number(id), noteText })
+      setNote(saved)
     }
     setEditingNote(false)
   }
@@ -345,8 +397,20 @@ export default function WordDetail() {
             {user && (
               <button
                 onClick={async () => {
-                  const r = await toggleFavorite(word.id)
-                  setFavorited(r.data.favorited)
+                  if (navigator.onLine) {
+                    try {
+                      const r = await toggleFavorite(word.id)
+                      const tok = localStorage.getItem('token')
+                      await startFavoritesSync(tok)
+                      setFavorited(r.data.favorited)
+                    } catch {
+                      const newState = await toggleFavoriteOffline(word.id)
+                      setFavorited(newState)
+                    }
+                  } else {
+                    const newState = await toggleFavoriteOffline(word.id)
+                    setFavorited(newState)
+                  }
                 }}
                 title={favorited ? 'ลบจากคำโปรด' : 'เพิ่มในคำโปรด'}
                 className={`text-2xl leading-none flex items-center ${!favorited ? 'opacity-30' : ''}`}

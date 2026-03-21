@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords, scanOcr, getFavorites, getPublicSettings } from '../services/api'
-import { offlineSearch } from '../services/offlineDb'
+import { offlineSearch, recordLocalHistory } from '../services/offlineDb'
 import { startBackgroundSync, getSyncProgress } from '../services/syncService'
 import WordCard from '../components/WordCard'
 import MarqueeText from '../components/MarqueeText'
@@ -164,6 +164,9 @@ export default function Search() {
       let resultData
       if (!navigator.onLine && getSyncProgress().synced_at) {
         resultData = await offlineSearch(q.trim())
+        // บันทึก local history ทุก search ตอน offline (ไม่เช็ค found/not-found)
+        const firstWord = resultData.prefix_group?.[0] ?? resultData.inner_group?.[0] ?? null
+        recordLocalHistory({ query: q.trim(), result_word_id: firstWord?.id ?? null, result_word_pinyin: firstWord?.pinyin ?? null, found: resultData.found }).catch(() => {})
       } else {
         const res = await searchWords(q.trim())
         resultData = res.data
@@ -199,6 +202,9 @@ export default function Search() {
         enterPressedRef.current = false
         scheduleHistory(q.trim(), firstWordId, true)
       }
+      // บันทึก local history เสมอ (ทั้ง found และ not-found)
+      const fw = res.data.prefix_group?.[0] ?? res.data.inner_group?.[0] ?? null
+      recordLocalHistory({ query: q.trim(), result_word_id: fw?.id ?? null, result_word_pinyin: fw?.pinyin ?? null, found: !!res.data.found }).catch(() => {})
     } catch {
       if (q !== currentQueryRef.current) return
       // ถ้า network error + มี offline data → fallback
