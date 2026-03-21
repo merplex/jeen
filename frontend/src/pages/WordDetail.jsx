@@ -601,7 +601,7 @@ export default function WordDetail() {
                     return (
                       <div key={key} className="bg-white rounded-lg overflow-hidden">
                         {/* label อยู่ในกล่องเดียวกัน แบ่งด้วยเส้นแนวนอน */}
-                        <div className="text-xs text-gray-500 font-semibold py-1.5 text-center border-b border-chinese-cream">{label}</div>
+                        <div className="text-[10px] text-gray-500 font-semibold py-1.5 text-center border-b border-chinese-cream truncate px-1">{label}</div>
                         <div className="flex">
                           {items.map((item, i) => {
                             const inDb = !!item.word_id
