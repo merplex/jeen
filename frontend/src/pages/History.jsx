@@ -59,8 +59,8 @@ export default function History() {
       getLocalHistory().then(setHistory)
       loadLocalFavorites().then(setFavorites)
     } else {
-      getHistory().then((r) => setHistory(r.data))
-      getFavorites().then((r) => setFavorites(r.data))
+      getHistory().then((r) => setHistory(r.data)).catch(() => getLocalHistory().then(setHistory))
+      getFavorites().then((r) => setFavorites(r.data)).catch(() => loadLocalFavorites().then(setFavorites))
     }
   }, [user, isOffline])
 

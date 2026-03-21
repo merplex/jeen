@@ -26,7 +26,8 @@ export default function Flashcard() {
 
   useEffect(() => {
     if (!user) return
-    getFlashcards().then((r) => setCards(r.data)).catch(() => loadLocalFlashcards().then(setCards))
+    loadLocalFlashcards().then(setCards)
+    getFlashcards().then((r) => setCards(r.data)).catch(() => {})
   }, [user])
 
   if (!user) return (
