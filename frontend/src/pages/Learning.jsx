@@ -43,9 +43,16 @@ export default function Learning() {
   useEffect(() => {
     if (!user || tab !== 'speaking') return
     setSpeakingLoading(true)
+    // โหลด cache ก่อนเลย ไม่ต้องรอ API
+    const cached = localStorage.getItem('speaking_history_cache')
+    if (cached) setSpeakingHistory(JSON.parse(cached))
     Promise.all([getSpeakingHistory(), getSpeakingDailyStatus()])
-      .then(([h, s]) => { setSpeakingHistory(h.data); setDailyStatus(s.data) })
-      .catch(() => {})
+      .then(([h, s]) => {
+        setSpeakingHistory(h.data)
+        setDailyStatus(s.data)
+        localStorage.setItem('speaking_history_cache', JSON.stringify(h.data))
+      })
+      .catch(() => {}) // ถ้า offline → แสดง cache ที่โหลดไว้แล้ว
       .finally(() => setSpeakingLoading(false))
   }, [user, tab])
 

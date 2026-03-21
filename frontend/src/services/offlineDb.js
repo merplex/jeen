@@ -45,6 +45,13 @@ export default db
 const MAX_LOCAL_HISTORY = 100
 
 export async function recordLocalHistory({ query, result_word_id = null, result_word_pinyin = null, found = false }) {
+  // ลบรายการเดิมที่ซ้ำก่อน แล้วเพิ่มใหม่บนสุด
+  if (result_word_id) {
+    await db.search_history.where('result_word_id').equals(result_word_id).delete()
+  } else {
+    const existing = await db.search_history.filter(h => h.query === query && !h.result_word_id).toArray()
+    await db.search_history.bulkDelete(existing.map(h => h.id))
+  }
   await db.search_history.add({ query, result_word_id, result_word_pinyin, found, searched_at: new Date().toISOString() })
   const count = await db.search_history.count()
   if (count > MAX_LOCAL_HISTORY) {
