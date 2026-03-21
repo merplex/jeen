@@ -263,6 +263,7 @@ def _translate_chat_lines(chat_structure: list, all_words: list,
                            image_bytes: bytes = None, mime_type: str = None) -> str:
     """แปล chat structure เป็นไทย พร้อม format A:/B: timestamp"""
     from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
+    from google.genai import types as genai_types
 
     if not _has_api_key() or not chat_structure:
         return ""
@@ -271,27 +272,21 @@ def _translate_chat_lines(chat_structure: list, all_words: list,
     for item in chat_structure:
         t = item["type"]
         if t == "header":
-            lines.append(f"[หัวข้อ] {item['text']}")
+            lines.append(f"HEADER:{item['text']}")
         elif t == "date":
-            lines.append(f"[วัน/เวลา] {item['text']}")
+            lines.append(f"DATE:{item['text']}")
         elif t == "bubble":
             ts = item.get("time") or ""
-            if ts:
-                lines.append(f"[{item['speaker']}|{ts}] {item['text']}")
-            else:
-                lines.append(f"[{item['speaker']}] {item['text']}")
+            prefix = f"{item['speaker']}|{ts}" if ts else item['speaker']
+            lines.append(f"{prefix}:{item['text']}")
         elif t == "file":
             ts = item.get("time") or ""
-            if ts:
-                lines.append(f"[{item['speaker']}|{ts}] __FILE__")
-            else:
-                lines.append(f"[{item['speaker']}] __FILE__")
+            prefix = f"{item['speaker']}|{ts}" if ts else item['speaker']
+            lines.append(f"{prefix}:__FILE__")
         elif t == "missing_bubble":
             ts = item.get("time") or ""
-            if ts:
-                lines.append(f"[{item['speaker']}|{ts}] __STICKER__")
-            else:
-                lines.append(f"[{item['speaker']}] __STICKER__")
+            prefix = f"{item['speaker']}|{ts}" if ts else item['speaker']
+            lines.append(f"{prefix}:__STICKER__")
 
     vocab_hint = ""
     if all_words:
@@ -306,27 +301,30 @@ def _translate_chat_lines(chat_structure: list, all_words: list,
     chat_input = "\n".join(lines)
 
     prompt = (
-        "แปลบทสนทนาต่อไปนี้เป็นภาษาไทย\n"
-        "กฎบังคับ (ห้ามละเมิด):\n"
-        "- ผู้พูดถูกกำหนดแน่นอนแล้ว: A = ฝั่งขวา, B = ฝั่งซ้าย ห้ามสลับหรือเปลี่ยนแปลง\n"
-        "- ใช้เฉพาะ label ในวงเล็บ [A] [B] [A|เวลา] [B|เวลา] เท่านั้น ห้ามกำหนดผู้พูดเอง\n"
-        "format แต่ละรูปแบบ:\n"
-        "- [หัวข้อ] ชื่อ → แสดงแค่: บทสนทนา [ชื่อที่แปล/ทับศัพท์]  (ไม่มี A: B:)\n"
-        "- [วัน/เวลา] ข้อความ → แสดงแค่: ข้อความที่แปลเป็นไทย  (ไม่มี A: B:)\n"
-        "- [A|เวลา] ข้อความ → [tab]เวลา, A : ข้อความที่แปล\n"
-        "- [A] ข้อความ → [tab]A : ข้อความที่แปล\n"
-        "- [B|เวลา] ข้อความ → [tab]เวลา, B : ข้อความที่แปล\n"
-        "- [B] ข้อความ → [tab]B : ข้อความที่แปล\n"
-        "- __FILE__ → ส่งไฟล์\n"
-        "- __STICKER__ → ส่งรูป/สติ๊กเกอร์\n"
-        "- แปลข้อความจีนทั้งหมดเป็นไทย ห้ามมีอักษรจีนในคำตอบ ชื่อคน/สถานที่ทับศัพท์เป็นไทย\n"
+        "ด้านล่างคือบทสนทนาที่ PaddleOCR อ่านได้จากรูป ผู้พูดถูกระบุจากตำแหน่ง bubble แล้ว\n"
+        "งานของคุณ: แปลข้อความจีนเป็นภาษาไทย แล้ว format ผลลัพธ์ตามกฎด้านล่าง\n\n"
+        "กฎ format (บังคับ — ห้ามเปลี่ยนผู้พูด):\n"
+        "  HEADER:ข้อความ  →  บทสนทนา [ชื่อที่ทับศัพท์]  (ไม่ต้องใส่ A B)\n"
+        "  DATE:ข้อความ   →  แสดงวัน/เวลาแปลเป็นไทย  (ไม่ต้องใส่ A B)\n"
+        "  A:ข้อความ      →      A : คำแปล\n"
+        "  A|15:30:ข้อ    →      15:30, A : คำแปล\n"
+        "  B:ข้อความ      →      B : คำแปล\n"
+        "  B|15:30:ข้อ    →      15:30, B : คำแปล\n"
+        "  A:__FILE__     →      A : ส่งไฟล์\n"
+        "  B:__STICKER__  →      B : ส่งรูป/สติ๊กเกอร์\n\n"
+        "- A และ B ถูกกำหนดตายตัวจากตำแหน่งในรูป ห้ามเปลี่ยนแม้คิดว่าผิด\n"
+        "- ห้ามมีอักษรจีนในคำตอบ\n"
         "- ตอบผลลัพธ์เท่านั้น ไม่อธิบายเพิ่ม\n"
         f"{vocab_hint}\n\n"
         f"{chat_input}"
     )
 
     try:
-        resp = _model.generate_content(prompt)
+        if image_bytes and mime_type:
+            image_part = genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+            resp = _model.generate_content([prompt, image_part])
+        else:
+            resp = _model.generate_content(prompt)
         return _strip_markdown(_get_text(resp)).strip()
     except Exception as e:
         logger.error(f"[OCR chat translate] error: {e}")
