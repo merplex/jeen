@@ -3,6 +3,19 @@ import { useNavigate } from 'react-router-dom'
 import { getFlashcards, removeFlashcard } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import TonedChinese from '../components/TonedChinese'
+import db from '../services/offlineDb'
+
+async function loadLocalFlashcards() {
+  const localCards = await db.flashcards.filter(fc => !fc._deleted).toArray()
+  if (localCards.length === 0) return []
+  const wordIds = [...new Set(localCards.map(fc => fc.word_id))]
+  const words = await db.words.where('id').anyOf(wordIds).toArray()
+  const wordMap = Object.fromEntries(words.map(w => [w.id, w]))
+  return localCards
+    .filter(fc => wordMap[fc.word_id])
+    .map(fc => ({ word_id: fc.word_id, deck: fc.deck, added_at: fc.added_at, word: wordMap[fc.word_id] }))
+    .sort((a, b) => new Date(b.added_at) - new Date(a.added_at))
+}
 
 export default function Flashcard() {
   const navigate = useNavigate()
@@ -13,7 +26,7 @@ export default function Flashcard() {
 
   useEffect(() => {
     if (!user) return
-    getFlashcards().then((r) => setCards(r.data))
+    getFlashcards().then((r) => setCards(r.data)).catch(() => loadLocalFlashcards().then(setCards))
   }, [user])
 
   if (!user) return (

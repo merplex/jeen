@@ -8,6 +8,24 @@ import TonedChinese from '../components/TonedChinese'
 import { getLocalHistory, deleteLocalHistory } from '../services/offlineDb'
 import db from '../services/offlineDb'
 
+async function loadLocalFavorites() {
+  const localFavs = await db.favorites.filter(f => !f._deleted).toArray()
+  if (localFavs.length === 0) return []
+  const wordIds = localFavs.map(f => f.word_id)
+  const words = await db.words.where('id').anyOf(wordIds).toArray()
+  const wordMap = Object.fromEntries(words.map(w => [w.id, w]))
+  return localFavs
+    .filter(f => wordMap[f.word_id])
+    .map(f => ({
+      favorite_id: f.word_id,
+      word_id: f.word_id,
+      chinese: wordMap[f.word_id].chinese,
+      pinyin: wordMap[f.word_id].pinyin,
+      thai_meaning: wordMap[f.word_id].thai_meaning,
+      favorited_at: f.created_at,
+    }))
+}
+
 const DECK_COLORS = {
   1: 'border-chinese-red text-chinese-red',
   2: 'border-blue-500 text-blue-500',
@@ -39,7 +57,7 @@ export default function History() {
     if (!user) return
     if (isOffline) {
       getLocalHistory().then(setHistory)
-      db.favorites.filter(f => !f._deleted).toArray().then(setFavorites)
+      loadLocalFavorites().then(setFavorites)
     } else {
       getHistory().then((r) => setHistory(r.data))
       getFavorites().then((r) => setFavorites(r.data))

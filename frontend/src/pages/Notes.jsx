@@ -42,7 +42,7 @@ export default function Notes() {
 
   const fetchNotes = (q = '') => {
     if (isOffline) return fetchNotesOffline(q)
-    return getNotes(q).then((r) => setNotes(r.data))
+    return getNotes(q).then((r) => setNotes(r.data)).catch(() => fetchNotesOffline(q))
   }
 
   useEffect(() => {
