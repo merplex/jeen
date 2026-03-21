@@ -142,16 +142,18 @@ export default function Search() {
     }
   }, [])
 
-  const scheduleHistory = useCallback((q, wordId, found) => {
+  const scheduleHistory = useCallback((q, wordId, pinyin, found) => {
     clearTimeout(historyTimerRef.current)
     historyTimerRef.current = setTimeout(() => {
       recordSearchHistory(q, wordId, found).catch(handleSearchQuota429)
+      recordLocalHistory({ query: q, result_word_id: wordId ?? null, result_word_pinyin: pinyin ?? null, found }).catch(() => {})
     }, 3000)
   }, [handleSearchQuota429])
 
-  const recordHistoryNow = useCallback((q, wordId, found) => {
+  const recordHistoryNow = useCallback((q, wordId, pinyin, found) => {
     clearTimeout(historyTimerRef.current)
     recordSearchHistory(q, wordId, found).catch(handleSearchQuota429)
+    recordLocalHistory({ query: q, result_word_id: wordId ?? null, result_word_pinyin: pinyin ?? null, found }).catch(() => {})
   }, [handleSearchQuota429])
 
   const doSearch = useCallback(async (q) => {
@@ -164,9 +166,11 @@ export default function Search() {
       let resultData
       if (!navigator.onLine && getSyncProgress().synced_at) {
         resultData = await offlineSearch(q.trim())
-        // บันทึก local history ทุก search ตอน offline (ไม่เช็ค found/not-found)
         const firstWord = resultData.prefix_group?.[0] ?? resultData.inner_group?.[0] ?? null
-        recordLocalHistory({ query: q.trim(), result_word_id: firstWord?.id ?? null, result_word_pinyin: firstWord?.pinyin ?? null, found: resultData.found }).catch(() => {})
+        clearTimeout(historyTimerRef.current)
+        historyTimerRef.current = setTimeout(() => {
+          recordLocalHistory({ query: q.trim(), result_word_id: firstWord?.id ?? null, result_word_pinyin: firstWord?.pinyin ?? null, found: resultData.found }).catch(() => {})
+        }, 3000)
       } else {
         const res = await searchWords(q.trim())
         resultData = res.data
@@ -200,11 +204,9 @@ export default function Search() {
         scheduleMissedReport(q.trim())
       } else {
         enterPressedRef.current = false
-        scheduleHistory(q.trim(), firstWordId, true)
+        const fw = res.data.prefix_group?.[0] ?? res.data.inner_group?.[0] ?? null
+        scheduleHistory(q.trim(), firstWordId, fw?.pinyin ?? null, true)
       }
-      // บันทึก local history เสมอ (ทั้ง found และ not-found)
-      const fw = res.data.prefix_group?.[0] ?? res.data.inner_group?.[0] ?? null
-      recordLocalHistory({ query: q.trim(), result_word_id: fw?.id ?? null, result_word_pinyin: fw?.pinyin ?? null, found: !!res.data.found }).catch(() => {})
     } catch {
       if (q !== currentQueryRef.current) return
       // ถ้า network error + มี offline data → fallback
@@ -269,7 +271,8 @@ export default function Search() {
       if (!result.found || isPerChar) {
         reportMissedSearch(query.trim()).catch(() => {})
       } else {
-        recordHistoryNow(query.trim(), firstWordId, true)
+        const firstWordPinyin = result.prefix_group?.[0]?.pinyin ?? result.inner_group?.[0]?.pinyin ?? null
+        recordHistoryNow(query.trim(), firstWordId, firstWordPinyin, true)
       }
     } else {
       enterPressedRef.current = true
