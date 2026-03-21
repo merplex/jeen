@@ -118,17 +118,25 @@ def verify_purchase(
     if not result["valid"]:
         raise HTTPException(status_code=400, detail=f"ยืนยันการซื้อไม่ผ่าน: {result.get('reason', '')}")
 
-    sub = UserSubscription(
-        user_id=current_user.id,
-        platform=body.platform,
-        product_id=body.product_id,
-        purchase_type=body.purchase_type,
-        purchase_token=body.purchase_token,
-        status="active",
-        expires_at=result.get("expires_at"),
-    )
-    db.add(sub)
-    # one_time purchase = lifetime tier
+    sub = db.query(UserSubscription).filter(UserSubscription.user_id == current_user.id).first()
+    if sub:
+        sub.platform = body.platform
+        sub.product_id = body.product_id
+        sub.purchase_type = body.purchase_type
+        sub.purchase_token = body.purchase_token
+        sub.status = "active"
+        sub.expires_at = result.get("expires_at")
+    else:
+        sub = UserSubscription(
+            user_id=current_user.id,
+            platform=body.platform,
+            product_id=body.product_id,
+            purchase_type=body.purchase_type,
+            purchase_token=body.purchase_token,
+            status="active",
+            expires_at=result.get("expires_at"),
+        )
+        db.add(sub)
     if body.purchase_type == "one_time":
         current_user.tier = "lifetime"
     db.commit()
