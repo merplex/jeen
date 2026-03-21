@@ -5,6 +5,8 @@ import useAuthStore from '../stores/authStore'
 import TonedChinese from '../components/TonedChinese'
 import OfflineAlert from '../components/OfflineAlert'
 import QuotaLimitModal from '../components/QuotaLimitModal'
+import TtsSettingsAlert from '../components/TtsSettingsAlert'
+import { speakChinese } from '../utils/tts'
 
 function writeString(view, offset, str) {
   for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i))
@@ -73,6 +75,7 @@ export default function SpeakingPractice() {
   const [genLoading, setGenLoading] = useState(false)
   const [quotaMsg, setQuotaMsg] = useState('')
   const [showOfflineAlert, setShowOfflineAlert] = useState(false)
+  const [showTtsAlert, setShowTtsAlert] = useState(false)
   const [quotaModal, setQuotaModal] = useState(null) // null | { quotaType, userTier }
 
   const showQuotaMsg = (msg) => {
@@ -94,11 +97,7 @@ export default function SpeakingPractice() {
   const refreshDailyStatus = () =>
     getSpeakingDailyStatus().then((r) => setDailyStatus(r.data)).catch(() => {})
 
-  const speak = (text) => {
-    const u = new SpeechSynthesisUtterance(text || current.chinese)
-    u.lang = 'zh-CN'
-    speechSynthesis.speak(u)
-  }
+  const speak = (text) => speakChinese(text || current.chinese, { onNoVoice: () => setShowTtsAlert(true) })
 
   const startRecording = async () => {
     if (!navigator.onLine) { setShowOfflineAlert(true); return }
@@ -214,6 +213,7 @@ export default function SpeakingPractice() {
         />
       )}
       {showOfflineAlert && <OfflineAlert onClose={() => setShowOfflineAlert(false)} />}
+      {showTtsAlert && <TtsSettingsAlert onClose={() => setShowTtsAlert(false)} />}
       {/* Header */}
       <div className="bg-chinese-red px-4 pt-12 pb-4">
         <div className="flex items-center gap-3 mb-3">

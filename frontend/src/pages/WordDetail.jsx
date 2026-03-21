@@ -10,6 +10,8 @@ import useSubscriptionStore from '../stores/subscriptionStore'
 import SelectionPopup from '../components/SelectionPopup'
 import TonedChinese from '../components/TonedChinese'
 import QuotaLimitModal from '../components/QuotaLimitModal'
+import TtsSettingsAlert from '../components/TtsSettingsAlert'
+import { speakChinese } from '../utils/tts'
 
 const DECK_STYLE = {
   1: { active: 'bg-chinese-red border-chinese-red text-white', inactive: 'bg-transparent border-chinese-red text-chinese-red' },
@@ -49,6 +51,7 @@ export default function WordDetail() {
   const [imageRefreshing, setImageRefreshing] = useState(false)
   const [imageUploading, setImageUploading] = useState(false)
   const [quotaModal, setQuotaModal] = useState(null) // null | { quotaType, userTier }
+  const [showTtsAlert, setShowTtsAlert] = useState(false)
 
   // redirect ถ้าไม่มี token
   useEffect(() => {
@@ -318,11 +321,7 @@ export default function WordDetail() {
     e.target.value = ''
   }
 
-  const speak = (text) => {
-    const u = new SpeechSynthesisUtterance(text)
-    u.lang = 'zh-CN'
-    speechSynthesis.speak(u)
-  }
+  const speak = (text) => speakChinese(text, { onNoVoice: () => setShowTtsAlert(true) })
 
   const highlightInText = (text, keyword, className = '') => {
     if (!text || !keyword) return <span className={className}>{text}</span>
@@ -372,6 +371,7 @@ export default function WordDetail() {
 
   return (
     <div className="min-h-screen bg-chinese-cream pb-24">
+      {showTtsAlert && <TtsSettingsAlert onClose={() => setShowTtsAlert(false)} />}
       <SelectionPopup />
       {/* Header */}
       <div className="bg-chinese-red px-4 pt-12 pb-5">

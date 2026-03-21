@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { scanOcrStructured } from '../services/api'
 import useAuthStore from '../stores/authStore'
+import { speakChinese } from '../utils/tts'
+import TtsSettingsAlert from '../components/TtsSettingsAlert'
 
 export default function OcrLive() {
   const navigate = useNavigate()
@@ -15,6 +17,7 @@ export default function OcrLive() {
   const doScanRef = useRef(null)
 
   const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [showTtsAlert, setShowTtsAlert] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [lines, setLines] = useState([])
   const [translation, setTranslation] = useState('')
@@ -118,14 +121,11 @@ export default function OcrLive() {
     if (!cameraReady) return
   }, [cameraReady])
 
-  const speak = (text) => {
-    const u = new SpeechSynthesisUtterance(text)
-    u.lang = 'zh-CN'
-    speechSynthesis.speak(u)
-  }
+  const speak = (text) => speakChinese(text, { onNoVoice: () => setShowTtsAlert(true) })
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black overflow-hidden">
+      {showTtsAlert && <TtsSettingsAlert onClose={() => setShowTtsAlert(false)} />}
       {/* ===== Camera ===== */}
       <div className="relative flex-none" style={{ height: '42vh' }}>
         <video

@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import useAuthStore from '../stores/authStore'
 import TonedChinese from '../components/TonedChinese'
 import db from '../services/offlineDb'
+import { speakChinese } from '../utils/tts'
+import TtsSettingsAlert from '../components/TtsSettingsAlert'
 
 const DECK_COLORS = {
   1: 'bg-chinese-red',
@@ -19,6 +21,7 @@ export default function FlashcardPlay() {
   const [index, setIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [showTtsAlert, setShowTtsAlert] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -37,11 +40,7 @@ export default function FlashcardPlay() {
     load()
   }, [user, deckNum])
 
-  const speak = (text) => {
-    const u = new SpeechSynthesisUtterance(text)
-    u.lang = 'zh-CN'
-    speechSynthesis.speak(u)
-  }
+  const speak = (text) => speakChinese(text, { onNoVoice: () => setShowTtsAlert(true) })
 
   if (loading) return (
     <div className="min-h-screen bg-chinese-cream flex items-center justify-center">
@@ -55,6 +54,7 @@ export default function FlashcardPlay() {
 
   return (
     <div className="min-h-screen bg-chinese-cream pb-24">
+      {showTtsAlert && <TtsSettingsAlert onClose={() => setShowTtsAlert(false)} />}
       <div className={`${headerColor} px-4 pt-12 pb-4 flex items-center gap-3`}>
         <button onClick={() => navigate('/learning')} className="text-white text-2xl">←</button>
         <div>
