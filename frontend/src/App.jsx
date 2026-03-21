@@ -49,12 +49,17 @@ export default function App() {
     if (token) fetchMe()
   }, [token])
 
-  // ดึง user data จาก server มา local ทุกครั้งที่เปิดแอป (ถ้า online)
+  // ดึง user data จาก server มา local ทุกครั้งที่เปิดแอป + ตอน reconnect
   useEffect(() => {
     if (!token) return
-    startFlashcardSync(token).catch(() => {})
-    startFavoritesSync(token).catch(() => {})
-    startNotesSync(token).catch(() => {})
+    const sync = () => {
+      startFlashcardSync(token).catch(() => {})
+      startFavoritesSync(token).catch(() => {})
+      startNotesSync(token).catch(() => {})
+    }
+    sync()
+    window.addEventListener('online', sync)
+    return () => window.removeEventListener('online', sync)
   }, [token])
 
   // Privacy policy accessible to everyone (web + native, no login needed)

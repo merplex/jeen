@@ -290,15 +290,22 @@ export default function Search() {
     </div>
   ) : (
     <div className="space-y-2">
-      {words.map((w) => <WordCard key={w.id} word={w} starred={favoriteIds.has(w.id)} />)}
+      {words.map((w) => (
+        <WordCard
+          key={w.id}
+          word={w}
+          starred={favoriteIds.has(w.id)}
+          onNavigate={(w) => recordHistoryNow(query.trim(), w.id, w.pinyin ?? null, true)}
+        />
+      ))}
     </div>
   )
 
   const sortFav = (words) =>
     favoriteIds.size === 0 ? words : [...words].sort((a, b) => (favoriteIds.has(b.id) ? 1 : 0) - (favoriteIds.has(a.id) ? 1 : 0))
 
-  const prefix = result ? sortFav(filterByCategory(result.prefix_group)) : []
-  const inner = result ? sortFav(filterByCategory(result.inner_group)) : []
+  const prefix = result ? sortFav(filterByCategory(result.prefix_group)).slice(0, 30) : []
+  const inner = result ? sortFav(filterByCategory(result.inner_group)).slice(0, 30) : []
 
   // รอ fetchMe หรือยังไม่มี token → แสดง loading / null
   if (token && fetchingMe) return (

@@ -1,11 +1,11 @@
 import { useNavigate } from 'react-router-dom'
 import TonedChinese from './TonedChinese'
 
-export default function WordCard({ word, starred = false }) {
+export default function WordCard({ word, starred = false, onNavigate }) {
   const navigate = useNavigate()
   return (
     <button
-      onClick={() => navigate(`/word/${word.id}`)}
+      onClick={() => { onNavigate?.(word); navigate(`/word/${word.id}`) }}
       className="w-full text-left bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:border-chinese-red hover:shadow-md transition-all active:scale-95 overflow-visible"
     >
       <div className="flex items-start justify-between gap-2">
