@@ -460,7 +460,7 @@ export default function WordDetail() {
         )}
       </div>
 
-      <div className="px-4 py-6 space-y-4">
+      <div className="px-4 py-4 space-y-3">
         {/* Meanings */}
         <div className="bg-white rounded-xl p-4 shadow-sm">
           <div className="flex flex-wrap items-center gap-1.5 mb-3">
@@ -579,9 +579,9 @@ export default function WordDetail() {
           }
 
           return (
-            <div className="-mx-4 px-4 pt-3 pb-4">
+            <div className="py-1">
               {user?.is_admin && (
-                <div className="flex justify-end mb-2">
+                <div className="flex justify-end mb-1">
                   <button
                     onClick={generateRelated}
                     disabled={genRelatedLoading}
@@ -599,10 +599,10 @@ export default function WordDetail() {
                     const items = (rw[key] || []).slice(0, 2)
                     if (items.length === 0) return null
                     return (
-                      <div key={key}>
-                        <div className="text-xs text-gray-500 font-semibold mb-1.5 text-center">{label}</div>
-                        {/* กล่องเดียว มี 2 คำเคียงกัน แบ่งด้วยเส้นแนวตั้ง */}
-                        <div className="flex bg-white rounded-lg overflow-hidden">
+                      <div key={key} className="bg-white rounded-lg overflow-hidden">
+                        {/* label อยู่ในกล่องเดียวกัน แบ่งด้วยเส้นแนวนอน */}
+                        <div className="text-xs text-gray-500 font-semibold py-1.5 text-center border-b border-chinese-cream">{label}</div>
+                        <div className="flex">
                           {items.map((item, i) => {
                             const inDb = !!item.word_id
                             const clickable = inDb || user?.is_admin
