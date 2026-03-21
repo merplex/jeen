@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import HanziWriter from 'hanzi-writer'
-import { getFlashcards } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import TonedChinese from '../components/TonedChinese'
+import db from '../services/offlineDb'
 
 const DECK_COLORS = {
   1: { bg: 'bg-chinese-red', hex: '#cc2929', border: 'border-chinese-red', text: 'text-chinese-red' },
@@ -40,9 +40,19 @@ export default function WritingPractice() {
 
   useEffect(() => {
     if (!user) return
-    getFlashcards(deckNum)
-      .then((r) => setCards([...r.data].sort(() => Math.random() - 0.5)))
-      .finally(() => setLoading(false))
+    const load = async () => {
+      const localCards = await db.flashcards.filter(fc => !fc._deleted && fc.deck === deckNum).toArray()
+      if (localCards.length === 0) { setLoading(false); return }
+      const wordIds = localCards.map(fc => fc.word_id)
+      const words = await db.words.where('id').anyOf(wordIds).toArray()
+      const wordMap = Object.fromEntries(words.map(w => [w.id, w]))
+      const result = localCards
+        .filter(fc => wordMap[fc.word_id])
+        .map(fc => ({ id: `${fc.word_id}_${fc.deck}`, word_id: fc.word_id, deck: fc.deck, word: wordMap[fc.word_id] }))
+      setCards([...result].sort(() => Math.random() - 0.5))
+      setLoading(false)
+    }
+    load()
   }, [user, deckNum])
 
   const card = cards[cardIndex]
