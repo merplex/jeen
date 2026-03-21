@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminGenerateRelated, autoGenerateRelated, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, getPublicSettings, getWordImage, refreshWordImage, uploadWordImage, getFavoriteStatus, toggleFavorite, reportMissedSearchDirect } from '../services/api'
+import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminGenerateRelated, autoGenerateRelated, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, adminDeleteWord, getPublicSettings, getWordImage, refreshWordImage, uploadWordImage, getFavoriteStatus, toggleFavorite, reportMissedSearchDirect } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import SelectionPopup from '../components/SelectionPopup'
@@ -25,6 +25,7 @@ export default function WordDetail() {
   const [noteText, setNoteText] = useState('')
   const [editingNote, setEditingNote] = useState(false)
   const [editData, setEditData] = useState(null) // null = ไม่ได้ edit
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [editSaving, setEditSaving] = useState(false)
   const [genExLoading, setGenExLoading] = useState(false)
   const [genRelatedLoading, setGenRelatedLoading] = useState(false)
@@ -739,6 +740,46 @@ export default function WordDetail() {
               </div>
             ) : (
               <p className="text-xs text-gray-400">กดแก้ไขเพื่อแก้ไขคำศัพท์นี้</p>
+            )}
+          </div>
+        )}
+
+        {/* Admin Delete */}
+        {user?.is_admin && (
+          <div className="px-1">
+            {!deleteConfirm ? (
+              <button
+                onClick={() => setDeleteConfirm(true)}
+                className="w-full text-sm text-red-400 border border-red-200 rounded-xl py-2.5"
+              >
+                ลบคำศัพท์นี้
+              </button>
+            ) : (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                <p className="text-sm text-red-700 font-medium mb-3">ยืนยันลบ "{word.chinese}" ({word.thai_meaning.split('\n')[0]}) ?</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await adminDeleteWord(word.id)
+                        navigate(-1)
+                      } catch {
+                        alert('ลบไม่สำเร็จ')
+                        setDeleteConfirm(false)
+                      }
+                    }}
+                    className="flex-1 bg-red-500 text-white rounded-lg py-2 text-sm font-medium"
+                  >
+                    ลบเลย
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirm(false)}
+                    className="flex-1 border border-gray-200 rounded-lg py-2 text-sm"
+                  >
+                    ยกเลิก
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}

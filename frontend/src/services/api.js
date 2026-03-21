@@ -89,7 +89,6 @@ export const adminUploadWordImage = (wordId, file) => {
   const fd = new FormData(); fd.append('file', file)
   return api.post(`/words/${wordId}/image/upload`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
 }
-export const adminDeleteWord = (id) => api.delete(`/words/${id}`)
 export const adminGenerateDailyWords = (count, category = null, keyword = null) =>
   api.post('/admin/generate-daily-words', {
     count,
@@ -175,6 +174,7 @@ export const adminDeleteAllImageCache = (excludeCategories = []) =>
 export const reportWord = (wordId, message) => api.post(`/words/${wordId}/report`, { message })
 export const adminGetWordReports = () => api.get('/admin/word-reports')
 export const adminDeleteWordReport = (id) => api.delete(`/admin/word-reports/${id}`)
+export const adminDeleteWord = (id) => api.delete(`/words/${id}`)
 export const adminGetFlaggedUsers = () => api.get('/admin/flagged-users')
 export const adminUnflagUser = (userId) => api.post(`/admin/users/${userId}/unflag`)
 

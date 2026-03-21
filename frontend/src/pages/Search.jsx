@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords, scanOcr, getFavorites, getPublicSettings } from '../services/api'
+import { offlineSearch } from '../services/offlineDb'
+import { startBackgroundSync, getSyncProgress } from '../services/syncService'
 import WordCard from '../components/WordCard'
 import MarqueeText from '../components/MarqueeText'
 import WordImageGridCard from '../components/WordImageGridCard'
@@ -98,6 +100,11 @@ export default function Search() {
     getFavorites().then((r) => setFavoriteIds(new Set(r.data.map((f) => f.word_id)))).catch(() => {})
   }, [token])
 
+  // Background sync สำหรับ offline search
+  useEffect(() => {
+    startBackgroundSync().catch(() => {})
+  }, [])
+
   // โหลด public settings สำหรับ category grid config (อัพเดต cache ด้วย)
   useEffect(() => {
     getPublicSettings()
@@ -154,9 +161,16 @@ export default function Search() {
     if (!q.trim()) { setResult(null); return }
     setLoading(true)
     try {
-      const res = await searchWords(q.trim())
+      let resultData
+      if (!navigator.onLine && getSyncProgress().synced_at) {
+        resultData = await offlineSearch(q.trim())
+      } else {
+        const res = await searchWords(q.trim())
+        resultData = res.data
+      }
       if (q !== currentQueryRef.current) return
-      setResult(res.data)
+      setResult(resultData)
+      const res = { data: resultData }
       const perCharWords = res.data.per_char_groups?.flatMap(g => [...g.prefix_group, ...g.inner_group]) ?? []
       const firstWordId =
         res.data.prefix_group?.[0]?.id ??
@@ -187,6 +201,14 @@ export default function Search() {
       }
     } catch {
       if (q !== currentQueryRef.current) return
+      // ถ้า network error + มี offline data → fallback
+      if (getSyncProgress().synced_at) {
+        try {
+          const offlineResult = await offlineSearch(q.trim())
+          if (q === currentQueryRef.current) setResult(offlineResult)
+          return
+        } catch { /* ignore */ }
+      }
       setResult({ prefix_group: [], inner_group: [], found: false, query: q, total: 0 })
     } finally {
       if (q === currentQueryRef.current) setLoading(false)

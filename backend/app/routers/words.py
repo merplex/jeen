@@ -200,6 +200,42 @@ def get_public_settings(db: Session = Depends(get_db)):
     return result
 
 
+@router.get("/sync")
+def sync_words(
+    offset: int = 0,
+    limit: int = 500,
+    since: str = None,  # ISO datetime string สำหรับ delta sync
+    db: Session = Depends(get_db),
+):
+    """Offline sync — คืนคำศัพท์สำหรับเก็บใน IndexedDB"""
+    limit = min(limit, 500)  # cap 500 ต่อ request
+    q = db.query(
+        Word.id, Word.chinese, Word.chinese_traditional,
+        Word.pinyin, Word.pinyin_plain, Word.thai_meaning, Word.char_count,
+        Word.updated_at,
+    ).filter(Word.status == "verified")
+    if since:
+        from datetime import datetime
+        try:
+            since_dt = datetime.fromisoformat(since)
+            q = q.filter(Word.updated_at > since_dt)
+        except ValueError:
+            pass
+    total = q.count()
+    rows = q.order_by(Word.id).offset(offset).limit(limit).all()
+    words = [
+        {
+            "id": r.id, "chinese": r.chinese,
+            "chinese_traditional": r.chinese_traditional,
+            "pinyin": r.pinyin, "pinyin_plain": r.pinyin_plain,
+            "thai_meaning": r.thai_meaning, "char_count": r.char_count,
+            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+        }
+        for r in rows
+    ]
+    return {"words": words, "total": total, "offset": offset, "limit": limit}
+
+
 @router.get("/random")
 def get_random_words(
     limit: int = 30,
@@ -410,6 +446,15 @@ def delete_word(
     word = db.query(Word).filter(Word.id == word_id).first()
     if not word:
         raise HTTPException(status_code=404, detail="ไม่พบคำศัพท์")
+    # ลบ records ที่ไม่มี ondelete=CASCADE ก่อน
+    from ..models.search_history import SearchHistory
+    from ..models.speaking import SpeakingRecord
+    from ..models.user_note import UserNote
+    from ..models.flashcard import Flashcard
+    db.query(SearchHistory).filter(SearchHistory.result_word_id == word_id).delete()
+    db.query(SpeakingRecord).filter(SpeakingRecord.word_id == word_id).delete()
+    db.query(UserNote).filter(UserNote.word_id == word_id).delete()
+    db.query(Flashcard).filter(Flashcard.word_id == word_id).delete()
     db.delete(word)
     db.commit()
     return {"ok": True}
