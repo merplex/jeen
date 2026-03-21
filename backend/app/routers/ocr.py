@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+import re
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -74,36 +75,49 @@ def _get_paddle_reader():
 
 
 def _ocr_with_paddle(image_bytes: bytes) -> dict:
-    """ใช้ PaddleOCR อ่านข้อความจีนจากรูป พร้อม detect alignment จาก bounding box"""
+    """ใช้ PaddleOCR อ่านข้อความจีนจากรูป พร้อม detect alignment และ spatial info"""
     try:
         import numpy as np
         import cv2
         nparr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if img is None:
-            return {"lines": []}
+            return {"lines": [], "is_chat": False}
         reader = _get_paddle_reader()
         result = reader.ocr(img, cls=True)
         if not result or not result[0]:
-            return {"lines": []}
-        img_width = img.shape[1]
-        lines = []
+            return {"lines": [], "is_chat": False}
+        img_w = img.shape[1]
+        img_h = img.shape[0]
+        items = []
         for item in result[0]:
             box, (text, confidence) = item
             if confidence < 0.5:
                 continue
-            center_x = sum(p[0] for p in box) / 4
-            if center_x > img_width * 0.65:
+            xs = [p[0] for p in box]
+            ys = [p[1] for p in box]
+            cx = sum(xs) / 4
+            cy = sum(ys) / 4
+            if cx > img_w * 0.65:
                 align = "right"
-            elif center_x > img_width * 0.35:
+            elif cx > img_w * 0.35:
                 align = "center"
             else:
                 align = "left"
-            lines.append({"text": text, "align": align})
-        return {"lines": lines}
+            items.append({
+                "text": text,
+                "align": align,
+                "cx": cx / img_w,   # normalized 0–1
+                "cy": cy / img_h,   # normalized 0–1
+                "w": (max(xs) - min(xs)) / img_w,
+            })
+        items.sort(key=lambda x: x["cy"])
+        aligns = [it["align"] for it in items]
+        is_chat = "left" in aligns and "right" in aligns
+        return {"lines": items, "is_chat": is_chat}
     except Exception as e:
         logger.error(f"[PaddleOCR] error: {e}")
-        return {"lines": []}
+        return {"lines": [], "is_chat": False}
 
 
 def _ocr_and_translate(image_bytes: bytes, mime_type: str) -> dict:
@@ -142,13 +156,177 @@ def _find_words_in_text(text: str, db: Session) -> list:
     return found[:30]
 
 
+_TIME_RE = re.compile(r'^\d{1,2}:\d{2}$')
+_HEADER_SYMS = {'←', '→', '<', '>', '≡', '☰', '⋮', '⋯', '…'}
+_FILE_EXTS = {'excel', 'pdf', 'csv', 'sheet', 'word', 'doc', 'docx', 'xlsx', 'ppt', 'pptx', 'zip', 'rar'}
+
+
+def _is_time(text: str) -> bool:
+    return bool(_TIME_RE.match(text.strip()))
+
+
+def _has_header_sym(text: str) -> bool:
+    return any(s in text for s in _HEADER_SYMS) or '...' in text
+
+
+def _is_file_ext(text: str) -> bool:
+    t = text.lower()
+    return any(e in t for e in _FILE_EXTS)
+
+
+def _parse_chat_lines(items: list) -> list:
+    """แปลง PaddleOCR items (with spatial info) เป็น structured chat format"""
+    HEADER_Y = 0.15  # top 15% = header zone
+
+    header_zone = [it for it in items if it["cy"] < HEADER_Y]
+    content_zone = [it for it in items if it["cy"] >= HEADER_Y]
+
+    structured = []
+
+    # --- Header ---
+    has_nav = any(_has_header_sym(it["text"]) for it in header_zone)
+    if has_nav:
+        for it in header_zone:
+            t = it["text"].strip()
+            if it["align"] == "center" and not _has_header_sym(t) and not _is_time(t) and len(t) > 1:
+                structured.append({"type": "header", "text": t})
+                break
+
+    # --- Associate timestamps with bubbles ---
+    times = [it for it in content_zone if _is_time(it["text"].strip())]
+    bubbles = [it for it in content_zone if not _is_time(it["text"].strip())]
+
+    bubble_times = {}   # bubble_index → time string
+    used_time_idx = set()
+
+    for ti, ts in enumerate(times):
+        best_dist = 0.12  # max normalized y-distance
+        best_bi = -1
+        for bi, bub in enumerate(bubbles):
+            if bi in bubble_times:
+                continue
+            yd = abs(ts["cy"] - bub["cy"])
+            if yd < best_dist:
+                # B (left bubble): timestamp is to the RIGHT
+                # A (right bubble): timestamp is to the LEFT
+                if (bub["align"] == "left" and ts["cx"] > bub["cx"]) or \
+                   (bub["align"] == "right" and ts["cx"] < bub["cx"]):
+                    best_dist = yd
+                    best_bi = bi
+        if best_bi >= 0:
+            bubble_times[best_bi] = ts["text"].strip()
+            used_time_idx.add(ti)
+
+    # Orphaned timestamps → missing sticker/image bubble
+    orphans = [(ti, ts) for ti, ts in enumerate(times) if ti not in used_time_idx]
+
+    # Build content list sorted by cy
+    content_list = [(bub, bubble_times.get(bi)) for bi, bub in enumerate(bubbles)]
+    for _, ts in orphans:
+        content_list.append((ts, None))
+    content_list.sort(key=lambda x: x[0]["cy"])
+
+    for it, time_str in content_list:
+        text = it["text"].strip()
+
+        # Orphaned timestamp → missing bubble
+        if _is_time(text) and time_str is None:
+            speaker = "B" if it["cx"] > 0.5 else "A"
+            structured.append({"type": "missing_bubble", "speaker": speaker, "time": text})
+            continue
+
+        # Center → date/system divider
+        if it["align"] == "center":
+            structured.append({"type": "date", "text": text})
+            continue
+
+        speaker = "A" if it["align"] == "right" else "B"
+
+        if _is_file_ext(text):
+            structured.append({"type": "file", "speaker": speaker, "time": time_str})
+        else:
+            structured.append({"type": "bubble", "speaker": speaker, "text": text, "time": time_str})
+
+    return structured
+
+
+def _translate_chat_lines(chat_structure: list, all_words: list,
+                           image_bytes: bytes = None, mime_type: str = None) -> str:
+    """แปล chat structure เป็นไทย พร้อม format A:/B: timestamp"""
+    from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
+    from google.genai import types as genai_types
+
+    if not _has_api_key() or not chat_structure:
+        return ""
+
+    lines = []
+    for item in chat_structure:
+        t = item["type"]
+        if t == "header":
+            lines.append(f"[หัวข้อ] {item['text']}")
+        elif t == "date":
+            lines.append(f"[วัน/เวลา] {item['text']}")
+        elif t == "bubble":
+            ts = item.get("time") or ""
+            lines.append(f"[{item['speaker']}|{ts}] {item['text']}")
+        elif t == "file":
+            ts = item.get("time") or ""
+            lines.append(f"[{item['speaker']}|{ts}] __FILE__")
+        elif t == "missing_bubble":
+            ts = item.get("time") or ""
+            lines.append(f"[{item['speaker']}|{ts}] __STICKER__")
+
+    vocab_hint = ""
+    if all_words:
+        hints = ", ".join(
+            f"{w.chinese}={(w.thai_meaning or '').split(chr(10))[0]}"
+            for w in all_words[:20]
+            if (w.thai_meaning or '').strip()
+        )
+        if hints:
+            vocab_hint = f"\nคำศัพท์ช่วยแปล: {hints}"
+
+    chat_input = "\n".join(lines)
+
+    prompt = (
+        "แปลบทสนทนาต่อไปนี้เป็นภาษาไทย format ผลลัพธ์ตามกฎนี้:\n"
+        "- [หัวข้อ] ชื่อ → บทสนทนา กลุ่ม/บุคคล [ชื่อที่แปล/ทับศัพท์แล้ว]\n"
+        "- [วัน/เวลา] → แสดงวัน/เวลาเป็นไทย (ไม่ indent)\n"
+        "- [A|เวลา] ข้อความ → แสดง: [tab]เวลา, A : ข้อความที่แปล\n"
+        "- [A|] ข้อความ (ไม่มีเวลา) → แสดง: [tab]A : ข้อความที่แปล\n"
+        "- [B|เวลา] ข้อความ → แสดง: [tab]เวลา, B : ข้อความที่แปล\n"
+        "- [B|] ข้อความ (ไม่มีเวลา) → แสดง: [tab]B : ข้อความที่แปล\n"
+        "- __FILE__ → แสดงเป็น: ส่งไฟล์\n"
+        "- __STICKER__ → แสดงเป็น: ส่งรูป/สติ๊กเกอร์\n"
+        "- แปลข้อความจีนทั้งหมดเป็นไทย ห้ามมีอักษรจีนในคำตอบ ชื่อคน/สถานที่ทับศัพท์เป็นไทย\n"
+        "- ตอบผลลัพธ์เท่านั้น ไม่อธิบายเพิ่ม\n"
+        f"{vocab_hint}\n\n"
+        f"{chat_input}"
+    )
+
+    try:
+        if image_bytes and mime_type:
+            image_part = genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+            resp = _model.generate_content([prompt, image_part])
+        else:
+            resp = _model.generate_content(prompt)
+        return _strip_markdown(_get_text(resp)).strip()
+    except Exception as e:
+        logger.error(f"[OCR chat translate] error: {e}")
+        return ""
+
+
 def _ocr_structured(image_bytes: bytes, mime_type: str) -> dict:
     """อ่านข้อความจีนแบบแยกบรรทัด ใช้ PaddleOCR หลัก, Gemini fallback"""
     # ลอง PaddleOCR ก่อน
     result = _ocr_with_paddle(image_bytes)
     if result["lines"]:
-        logger.info(f"[OCR structured] PaddleOCR: {len(result['lines'])} lines")
-        return result
+        is_chat = result.get("is_chat", False)
+        logger.info(f"[OCR structured] PaddleOCR: {len(result['lines'])} lines, is_chat={is_chat}")
+        if is_chat:
+            chat_structure = _parse_chat_lines(result["lines"])
+            return {"lines": result["lines"], "is_chat": True, "chat_structure": chat_structure}
+        return {"lines": result["lines"], "is_chat": False}
 
     # Fallback: ใช้ Gemini ถ้า PaddleOCR ไม่ได้ผล
     logger.info("[OCR structured] PaddleOCR empty, falling back to Gemini")
@@ -293,6 +471,8 @@ def scan_image_structured(
     # Request 1: OCR แกะตัวอักษร (fallback to flat OCR ถ้า structured ได้ว่าง)
     result = _ocr_structured(image_bytes, body.mime_type)
     lines = result.get("lines", [])
+    is_chat = result.get("is_chat", False)
+    chat_structure = result.get("chat_structure")
     if not lines:
         flat = _ocr_and_translate(image_bytes, body.mime_type)
         if flat.get("text"):
@@ -306,11 +486,14 @@ def scan_image_structured(
     # Match DB
     words = _find_words_in_text(combined_text, db)
 
-    # Request 2: แปลแบบ structured per-line + vocab hints + image context
-    if combined_text:
-        full_translation = _translate_lines_with_vocab(lines, words, image_bytes, body.mime_type)
+    # Request 2: แปล — chat path ใช้ _translate_chat_lines, natural path ใช้ _translate_lines_with_vocab
+    if combined_text or chat_structure:
+        if chat_structure:
+            full_translation = _translate_chat_lines(chat_structure, words, image_bytes, body.mime_type)
+        else:
+            full_translation = _translate_lines_with_vocab(lines, words, image_bytes, body.mime_type)
         # Fallback: ถ้า call 2 fail ให้แปลตรงๆ จากข้อความที่อ่านได้
-        if not full_translation:
+        if not full_translation and combined_text:
             from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
             try:
                 resp = _model.generate_content(
@@ -325,6 +508,7 @@ def scan_image_structured(
 
     return {
         "lines": lines,
+        "is_chat": is_chat,
         "translation": full_translation,
         "words": [
             {
