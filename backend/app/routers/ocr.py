@@ -182,7 +182,7 @@ def _is_file_ext(text: str) -> bool:
 
 def _parse_chat_lines(items: list) -> list:
     """แปลง PaddleOCR items (with spatial info) เป็น structured chat format"""
-    STATUSBAR_Y = 0.08   # top 8% = phone status bar (time, battery, signal) — skip ทั้งหมด
+    STATUSBAR_Y = 0.10   # top 10% = phone status bar (time, battery, signal) — skip ทั้งหมด
     HEADER_Y = 0.18      # 8–18% = chat app header (ชื่อผู้ติดต่อ, ปุ่มย้อนกลับ) — ดึงแค่ชื่อ
 
     # skip_zone (< 8%): ไม่ประมวลผล
@@ -225,7 +225,9 @@ def _parse_chat_lines(items: list) -> list:
             used_time_idx.add(ti)
 
     # Orphaned timestamps → missing sticker/image bubble
-    orphans = [(ti, ts) for ti, ts in enumerate(times) if ti not in used_time_idx]
+    # ข้ามถ้า cy < 0.25 (น่าจะเป็น status bar หรือ header ที่หลุดมา)
+    orphans = [(ti, ts) for ti, ts in enumerate(times)
+               if ti not in used_time_idx and ts["cy"] >= 0.25]
 
     # Build content list sorted by cy
     content_list = [(bub, bubble_times.get(bi)) for bi, bub in enumerate(bubbles)]
@@ -261,7 +263,6 @@ def _translate_chat_lines(chat_structure: list, all_words: list,
                            image_bytes: bytes = None, mime_type: str = None) -> str:
     """แปล chat structure เป็นไทย พร้อม format A:/B: timestamp"""
     from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
-    from google.genai import types as genai_types
 
     if not _has_api_key() or not chat_structure:
         return ""
@@ -275,13 +276,22 @@ def _translate_chat_lines(chat_structure: list, all_words: list,
             lines.append(f"[วัน/เวลา] {item['text']}")
         elif t == "bubble":
             ts = item.get("time") or ""
-            lines.append(f"[{item['speaker']}|{ts}] {item['text']}")
+            if ts:
+                lines.append(f"[{item['speaker']}|{ts}] {item['text']}")
+            else:
+                lines.append(f"[{item['speaker']}] {item['text']}")
         elif t == "file":
             ts = item.get("time") or ""
-            lines.append(f"[{item['speaker']}|{ts}] __FILE__")
+            if ts:
+                lines.append(f"[{item['speaker']}|{ts}] __FILE__")
+            else:
+                lines.append(f"[{item['speaker']}] __FILE__")
         elif t == "missing_bubble":
             ts = item.get("time") or ""
-            lines.append(f"[{item['speaker']}|{ts}] __STICKER__")
+            if ts:
+                lines.append(f"[{item['speaker']}|{ts}] __STICKER__")
+            else:
+                lines.append(f"[{item['speaker']}] __STICKER__")
 
     vocab_hint = ""
     if all_words:
@@ -296,15 +306,19 @@ def _translate_chat_lines(chat_structure: list, all_words: list,
     chat_input = "\n".join(lines)
 
     prompt = (
-        "แปลบทสนทนาต่อไปนี้เป็นภาษาไทย format ผลลัพธ์ตามกฎนี้ (ห้ามเพิ่ม A: B: นอกจากที่กำหนด):\n"
-        "- [หัวข้อ] ชื่อ → แสดงแค่: บทสนทนา [ชื่อที่แปล/ทับศัพท์แล้ว]  (ไม่มี A: B:)\n"
+        "แปลบทสนทนาต่อไปนี้เป็นภาษาไทย\n"
+        "กฎบังคับ (ห้ามละเมิด):\n"
+        "- ผู้พูดถูกกำหนดแน่นอนแล้ว: A = ฝั่งขวา, B = ฝั่งซ้าย ห้ามสลับหรือเปลี่ยนแปลง\n"
+        "- ใช้เฉพาะ label ในวงเล็บ [A] [B] [A|เวลา] [B|เวลา] เท่านั้น ห้ามกำหนดผู้พูดเอง\n"
+        "format แต่ละรูปแบบ:\n"
+        "- [หัวข้อ] ชื่อ → แสดงแค่: บทสนทนา [ชื่อที่แปล/ทับศัพท์]  (ไม่มี A: B:)\n"
         "- [วัน/เวลา] ข้อความ → แสดงแค่: ข้อความที่แปลเป็นไทย  (ไม่มี A: B:)\n"
-        "- [A|เวลา] ข้อความ → แสดง: [tab]เวลา, A : ข้อความที่แปล\n"
-        "- [A|] ข้อความ (ไม่มีเวลา) → แสดง: [tab]A : ข้อความที่แปล\n"
-        "- [B|เวลา] ข้อความ → แสดง: [tab]เวลา, B : ข้อความที่แปล\n"
-        "- [B|] ข้อความ (ไม่มีเวลา) → แสดง: [tab]B : ข้อความที่แปล\n"
-        "- __FILE__ → แสดงเป็น: ส่งไฟล์\n"
-        "- __STICKER__ → แสดงเป็น: ส่งรูป/สติ๊กเกอร์\n"
+        "- [A|เวลา] ข้อความ → [tab]เวลา, A : ข้อความที่แปล\n"
+        "- [A] ข้อความ → [tab]A : ข้อความที่แปล\n"
+        "- [B|เวลา] ข้อความ → [tab]เวลา, B : ข้อความที่แปล\n"
+        "- [B] ข้อความ → [tab]B : ข้อความที่แปล\n"
+        "- __FILE__ → ส่งไฟล์\n"
+        "- __STICKER__ → ส่งรูป/สติ๊กเกอร์\n"
         "- แปลข้อความจีนทั้งหมดเป็นไทย ห้ามมีอักษรจีนในคำตอบ ชื่อคน/สถานที่ทับศัพท์เป็นไทย\n"
         "- ตอบผลลัพธ์เท่านั้น ไม่อธิบายเพิ่ม\n"
         f"{vocab_hint}\n\n"
@@ -312,11 +326,7 @@ def _translate_chat_lines(chat_structure: list, all_words: list,
     )
 
     try:
-        if image_bytes and mime_type:
-            image_part = genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
-            resp = _model.generate_content([prompt, image_part])
-        else:
-            resp = _model.generate_content(prompt)
+        resp = _model.generate_content(prompt)
         return _strip_markdown(_get_text(resp)).strip()
     except Exception as e:
         logger.error(f"[OCR chat translate] error: {e}")
