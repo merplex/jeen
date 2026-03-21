@@ -118,7 +118,7 @@ export default function WordDetail() {
     }
   }, [user, word?.id])
 
-  const RELATED_CATEGORIES = ['ทั่วไป', 'ชีวิตประจำวัน', 'ธุรกิจ', 'กฏหมาย', 'สำนวน']
+  const RELATED_CATEGORIES = ['ทั่วไป', 'ชีวิตประจำวัน', 'ธุรกิจ', 'กฎหมาย', 'สำนวน']
 
   // auto-generate related_words ถ้ายังไม่มี (เฉพาะคำ 2 หรือ 4+ อักษร และ category ที่กำหนด)
   useEffect(() => {
