@@ -246,7 +246,9 @@ export default function Search() {
       const r = await scanOcr({ image_base64: b64, mime_type: file.type || 'image/jpeg' })
       setOcrResult(r.data)
     } catch (err) {
-      if (err.response?.status === 429) {
+      if (!err.response) {
+        setShowOfflineAlert(true)
+      } else if (err.response?.status === 429) {
         const detail = err.response.data?.detail
         setQuotaModal({ quotaType: detail?.quota_type, userTier: detail?.user_tier })
       } else {
@@ -556,7 +558,7 @@ export default function Search() {
                 </div>
               </button>
               <button
-                onClick={() => { setShowOcrSheet(false); ocrCameraRef.current?.click() }}
+                onClick={() => { setShowOcrSheet(false); if (!navigator.onLine) { setShowOfflineAlert(true); return } ocrCameraRef.current?.click() }}
                 className="w-full flex items-center gap-4 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-4 active:scale-95 transition-transform"
               >
                 <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center shrink-0">
@@ -574,7 +576,7 @@ export default function Search() {
                 </div>
               </button>
               <button
-                onClick={() => { setShowOcrSheet(false); ocrInputRef.current?.click() }}
+                onClick={() => { setShowOcrSheet(false); if (!navigator.onLine) { setShowOfflineAlert(true); return } ocrInputRef.current?.click() }}
                 className="w-full flex items-center gap-4 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-4 active:scale-95 transition-transform"
               >
                 <div className="w-12 h-12 bg-gray-500 rounded-xl flex items-center justify-center shrink-0">

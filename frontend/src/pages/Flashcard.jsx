@@ -4,6 +4,7 @@ import { removeFlashcard } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import TonedChinese from '../components/TonedChinese'
 import db from '../services/offlineDb'
+import { startFlashcardSync } from '../services/flashcardSyncService'
 
 async function loadLocalFlashcards() {
   const localCards = await db.flashcards.filter(fc => !fc._deleted).toArray()
@@ -26,7 +27,12 @@ export default function Flashcard() {
 
   useEffect(() => {
     if (!user) return
-    loadLocalFlashcards().then(setCards)
+    const token = localStorage.getItem('token')
+    // sync จาก server ก่อน แล้วค่อย load local (ป้องกัน db ว่างตอนเปิดครั้งแรก)
+    startFlashcardSync(token)
+      .then(() => loadLocalFlashcards())
+      .then(setCards)
+      .catch(() => loadLocalFlashcards().then(setCards))
   }, [user])
 
   if (!user) return (
