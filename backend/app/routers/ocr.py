@@ -100,13 +100,14 @@ def _ocr_with_paddle(image_bytes: bytes) -> dict:
             x_max = max(xs) / img_w
             cx = sum(xs) / 4 / img_w
             cy = sum(ys) / 4 / img_h
-            # ใช้ขอบซ้าย/ขวาของ bounding box แทน cx เพื่อความแม่นยำ
-            if x_max > 0.72:
-                align = "right"
-            elif x_min < 0.28:
-                align = "left"
-            else:
+            # center ก่อน (cx อยู่ตรงกลาง) → date divider / system message
+            # ถ้าไม่ใช่ center ค่อยใช้ขอบซ้าย/ขวาแยก left/right
+            if 0.30 <= cx <= 0.70:
                 align = "center"
+            elif x_max > 0.72:
+                align = "right"
+            else:
+                align = "left"
             items.append({
                 "text": text,
                 "align": align,
@@ -190,14 +191,13 @@ def _parse_chat_lines(items: list) -> list:
 
     structured = []
 
-    # --- Header ---
-    has_nav = any(_has_header_sym(it["text"]) for it in header_zone)
-    if has_nav:
-        for it in header_zone:
-            t = it["text"].strip()
-            if it["align"] == "center" and not _has_header_sym(t) and not _is_time(t) and len(t) > 1:
-                structured.append({"type": "header", "text": t})
-                break
+    # --- Header (ชื่อคู่สนทนา/กลุ่ม) ---
+    # ดึง center item แรกใน header zone ที่ไม่ใช่ nav symbol และไม่ใช่เวลา
+    for it in header_zone:
+        t = it["text"].strip()
+        if it["align"] == "center" and not _has_header_sym(t) and not _is_time(t) and len(t) > 1:
+            structured.append({"type": "header", "text": t})
+            break
 
     # --- Associate timestamps with bubbles ---
     times = [it for it in content_zone if _is_time(it["text"].strip())]
@@ -296,9 +296,9 @@ def _translate_chat_lines(chat_structure: list, all_words: list,
     chat_input = "\n".join(lines)
 
     prompt = (
-        "แปลบทสนทนาต่อไปนี้เป็นภาษาไทย format ผลลัพธ์ตามกฎนี้:\n"
-        "- [หัวข้อ] ชื่อ → บทสนทนา กลุ่ม/บุคคล [ชื่อที่แปล/ทับศัพท์แล้ว]\n"
-        "- [วัน/เวลา] → แสดงวัน/เวลาเป็นไทย (ไม่ indent)\n"
+        "แปลบทสนทนาต่อไปนี้เป็นภาษาไทย format ผลลัพธ์ตามกฎนี้ (ห้ามเพิ่ม A: B: นอกจากที่กำหนด):\n"
+        "- [หัวข้อ] ชื่อ → แสดงแค่: บทสนทนา [ชื่อที่แปล/ทับศัพท์แล้ว]  (ไม่มี A: B:)\n"
+        "- [วัน/เวลา] ข้อความ → แสดงแค่: ข้อความที่แปลเป็นไทย  (ไม่มี A: B:)\n"
         "- [A|เวลา] ข้อความ → แสดง: [tab]เวลา, A : ข้อความที่แปล\n"
         "- [A|] ข้อความ (ไม่มีเวลา) → แสดง: [tab]A : ข้อความที่แปล\n"
         "- [B|เวลา] ข้อความ → แสดง: [tab]เวลา, B : ข้อความที่แปล\n"
