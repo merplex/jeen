@@ -579,7 +579,7 @@ export default function WordDetail() {
           }
 
           return (
-            <div className="bg-white rounded-xl px-4 pt-3 pb-4 shadow-sm">
+            <div className="-mx-4 px-4 pt-3 pb-4">
               {user?.is_admin && (
                 <div className="flex justify-end mb-2">
                   <button
@@ -602,13 +602,13 @@ export default function WordDetail() {
                       <div key={key}>
                         <div className="text-xs text-gray-500 font-semibold mb-1.5 text-center">{label}</div>
                         {/* กล่องเดียว มี 2 คำเคียงกัน แบ่งด้วยเส้นแนวตั้ง */}
-                        <div className="flex bg-chinese-cream rounded-lg overflow-hidden">
+                        <div className="flex bg-white rounded-lg overflow-hidden">
                           {items.map((item, i) => {
                             const inDb = !!item.word_id
                             const clickable = inDb || user?.is_admin
                             return (
                               <div key={i} className="flex-1 flex">
-                                {i > 0 && <div className="w-px bg-gray-300 flex-shrink-0" />}
+                                {i > 0 && <div className="w-px bg-chinese-cream flex-shrink-0" />}
                                 <button
                                   onClick={() => handleRelatedWordClick(item)}
                                   disabled={!clickable}
