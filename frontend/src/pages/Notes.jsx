@@ -4,18 +4,49 @@ import { getNotes, deleteNote } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import { thaiDateTime } from '../utils/time'
 import TonedChinese from '../components/TonedChinese'
+import db from '../services/offlineDb'
 
 export default function Notes() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const [notes, setNotes] = useState([])
   const [search, setSearch] = useState('')
+  const [isOffline, setIsOffline] = useState(!navigator.onLine)
 
-  const fetchNotes = (q = '') => getNotes(q).then((r) => setNotes(r.data))
+  useEffect(() => {
+    const on = () => setIsOffline(false)
+    const off = () => setIsOffline(true)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
+
+  const fetchNotesOffline = async (q = '') => {
+    const all = await db.notes.filter(n => !n._deleted).toArray()
+    const wordIds = [...new Set(all.map(n => n.word_id))]
+    const words = await db.words.where('id').anyOf(wordIds).toArray()
+    const wordMap = Object.fromEntries(words.map(w => [w.id, w]))
+    let result = all.map(n => ({ ...n, word: wordMap[n.word_id] ?? null }))
+    if (q) {
+      const lower = q.toLowerCase()
+      result = result.filter(n =>
+        n.note_text?.toLowerCase().includes(lower) ||
+        n.word?.chinese?.includes(q) ||
+        n.word?.pinyin?.toLowerCase().includes(lower)
+      )
+    }
+    result.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+    setNotes(result)
+  }
+
+  const fetchNotes = (q = '') => {
+    if (isOffline) return fetchNotesOffline(q)
+    return getNotes(q).then((r) => setNotes(r.data))
+  }
 
   useEffect(() => {
     if (user) fetchNotes()
-  }, [user])
+  }, [user, isOffline])
 
   const handleSearch = (e) => {
     const v = e.target.value
@@ -24,6 +55,15 @@ export default function Notes() {
   }
 
   const remove = async (id) => {
+    if (isOffline) {
+      if (id < 0) {
+        await db.notes.delete(id)
+      } else {
+        await db.notes.update(id, { _deleted: 1, _pending: 1 })
+      }
+      setNotes((n) => n.filter((x) => x.id !== id))
+      return
+    }
     await deleteNote(id)
     setNotes((n) => n.filter((x) => x.id !== id))
   }
