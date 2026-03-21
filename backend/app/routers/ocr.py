@@ -96,23 +96,28 @@ def _ocr_with_paddle(image_bytes: bytes) -> dict:
                 continue
             xs = [p[0] for p in box]
             ys = [p[1] for p in box]
-            cx = sum(xs) / 4
-            cy = sum(ys) / 4
-            if cx > img_w * 0.65:
+            x_min = min(xs) / img_w
+            x_max = max(xs) / img_w
+            cx = sum(xs) / 4 / img_w
+            cy = sum(ys) / 4 / img_h
+            # ใช้ขอบซ้าย/ขวาของ bounding box แทน cx เพื่อความแม่นยำ
+            if x_max > 0.72:
                 align = "right"
-            elif cx > img_w * 0.35:
-                align = "center"
-            else:
+            elif x_min < 0.28:
                 align = "left"
+            else:
+                align = "center"
             items.append({
                 "text": text,
                 "align": align,
-                "cx": cx / img_w,   # normalized 0–1
-                "cy": cy / img_h,   # normalized 0–1
-                "w": (max(xs) - min(xs)) / img_w,
+                "cx": cx,
+                "cy": cy,
+                "w": x_max - x_min,
             })
         items.sort(key=lambda x: x["cy"])
-        aligns = [it["align"] for it in items]
+        # is_chat: ตรวจเฉพาะ items ที่อยู่ใต้ status bar zone (cy >= 0.08)
+        content_items = [it for it in items if it["cy"] >= 0.08]
+        aligns = [it["align"] for it in content_items]
         is_chat = "left" in aligns and "right" in aligns
         return {"lines": items, "is_chat": is_chat}
     except Exception as e:
@@ -176,9 +181,11 @@ def _is_file_ext(text: str) -> bool:
 
 def _parse_chat_lines(items: list) -> list:
     """แปลง PaddleOCR items (with spatial info) เป็น structured chat format"""
-    HEADER_Y = 0.15  # top 15% = header zone
+    STATUSBAR_Y = 0.08   # top 8% = phone status bar (time, battery, signal) — skip ทั้งหมด
+    HEADER_Y = 0.18      # 8–18% = chat app header (ชื่อผู้ติดต่อ, ปุ่มย้อนกลับ) — ดึงแค่ชื่อ
 
-    header_zone = [it for it in items if it["cy"] < HEADER_Y]
+    # skip_zone (< 8%): ไม่ประมวลผล
+    header_zone = [it for it in items if STATUSBAR_Y <= it["cy"] < HEADER_Y]
     content_zone = [it for it in items if it["cy"] >= HEADER_Y]
 
     structured = []
