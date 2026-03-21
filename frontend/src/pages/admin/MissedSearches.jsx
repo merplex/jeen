@@ -154,10 +154,10 @@ export default function MissedSearches() {
   return (
     <div className="px-4 py-4">
       {/* Tabs */}
-      <div className="flex gap-2 mb-4 flex-wrap">
+      <div className="flex gap-2 mb-4 overflow-x-auto">
         <button
           onClick={() => setTab('missed')}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+          className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
             tab === 'missed' ? 'bg-chinese-red text-white' : 'bg-white text-gray-600 border border-gray-200'
           }`}
         >
@@ -165,7 +165,7 @@ export default function MissedSearches() {
         </button>
         <button
           onClick={() => setTab('reports')}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+          className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
             tab === 'reports' ? 'bg-yellow-400 text-white' : 'bg-white text-gray-600 border border-gray-200'
           }`}
         >
@@ -173,7 +173,7 @@ export default function MissedSearches() {
         </button>
         <button
           onClick={() => setTab('system')}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+          className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
             tab === 'system' ? 'bg-blue-500 text-white' : 'bg-white text-gray-600 border border-gray-200'
           }`}
         >
@@ -181,7 +181,7 @@ export default function MissedSearches() {
         </button>
         <button
           onClick={() => setTab('activity')}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+          className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
             tab === 'activity' ? 'bg-gray-700 text-white' : 'bg-white text-gray-600 border border-gray-200'
           }`}
         >
