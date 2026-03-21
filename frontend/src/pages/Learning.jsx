@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getFlashcards, getFlashcardStats, removeFlashcard, getSpeakingHistory, getSpeakingDailyStatus } from '../services/api'
+import { removeFlashcard, getSpeakingHistory, getSpeakingDailyStatus } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import TonedChinese from '../components/TonedChinese'
+import db from '../services/offlineDb'
 
 const DECK_COLORS = {
   1: { bg: 'bg-chinese-red', border: 'border-chinese-red', text: 'text-chinese-red', light: 'bg-red-50' },
@@ -30,7 +31,7 @@ export default function Learning() {
 
   useEffect(() => {
     if (!user) return
-    getFlashcardStats().then((r) => setStats(r.data)).catch(() => {})
+    loadStats()
     if (!subscription) fetchSub()
   }, [user])
 
@@ -48,19 +49,31 @@ export default function Learning() {
       .finally(() => setSpeakingLoading(false))
   }, [user, tab])
 
+  const loadStats = async () => {
+    const all = await db.flashcards.filter(fc => !fc._deleted).toArray()
+    const s = { '1': 0, '2': 0, '3': 0 }
+    all.forEach(fc => { if (s[String(fc.deck)] !== undefined) s[String(fc.deck)]++ })
+    setStats(s)
+  }
+
   const loadDeck = async (deck) => {
     setCardsLoading(true)
-    try {
-      const r = await getFlashcards(deck)
-      setCards(r.data)
-    } catch {
-      setCards([])
-    }
+    const localCards = await db.flashcards.filter(fc => !fc._deleted && fc.deck === deck).toArray()
+    if (localCards.length === 0) { setCards([]); setCardsLoading(false); return }
+    const wordIds = localCards.map(fc => fc.word_id)
+    const words = await db.words.where('id').anyOf(wordIds).toArray()
+    const wordMap = Object.fromEntries(words.map(w => [w.id, w]))
+    const result = localCards
+      .filter(fc => wordMap[fc.word_id])
+      .map(fc => ({ id: `${fc.word_id}_${fc.deck}`, word_id: fc.word_id, deck: fc.deck, word: wordMap[fc.word_id] }))
+      .sort((a, b) => new Date(b.added_at || 0) - new Date(a.added_at || 0))
+    setCards(result)
     setCardsLoading(false)
   }
 
   const handleRemove = async (wordId) => {
-    await removeFlashcard(wordId, selectedDeck)
+    await db.flashcards.put({ id: `${wordId}_${selectedDeck}`, word_id: wordId, deck: selectedDeck, _pending: 1, _deleted: 1 })
+    removeFlashcard(wordId, selectedDeck).catch(() => {})
     const updated = cards.filter((c) => c.word_id !== wordId)
     setCards(updated)
     setStats((prev) => ({ ...prev, [String(selectedDeck)]: Math.max(0, prev[String(selectedDeck)] - 1) }))
