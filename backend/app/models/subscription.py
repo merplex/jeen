@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
 from ..database import Base
 
@@ -15,7 +15,7 @@ class UserSubscription(Base):
     purchase_type = Column(String(20), default="subscription")  # "subscription" | "one_time"
 
     # Token จาก store (ใช้ verify กับ Google/Apple API)
-    purchase_token = Column(String(500))
+    purchase_token = Column(Text)
 
     # Status
     status = Column(String(20), nullable=False, default="active")
