@@ -286,12 +286,12 @@ export default function BulkExamples() {
   return (
     <div>
       {/* Sub-tabs */}
-      <div className="flex gap-2 px-4 pt-4 pb-2">
+      <div className="flex gap-2 px-4 pt-4 pb-2 overflow-x-auto">
         {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+            className={`flex-shrink-0 whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
               activeTab === tab
                 ? 'bg-chinese-red text-white border-chinese-red'
                 : 'bg-white text-gray-600 border-gray-200'
