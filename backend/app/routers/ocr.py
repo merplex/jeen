@@ -220,9 +220,8 @@ def _translate_lines_with_vocab(lines: list, all_words: list,
         return ""
 
     # Build per-line blocks with vocab hints
-    align_label = {"right": "ขวา", "left": "ซ้าย", "center": "กลาง"}
     blocks = []
-    for line in lines:
+    for i, line in enumerate(lines):
         text = line.get("text", "")
         if not text:
             continue
@@ -230,21 +229,20 @@ def _translate_lines_with_vocab(lines: list, all_words: list,
         line_words.sort(key=lambda w: len(w.chinese), reverse=True)
 
         align = line.get("align", "left")
-        label = align_label.get(align, "ซ้าย")
-        block = f"{label}: {text}"
+        block = f"[{i+1}|{align}] {text}"
         if line_words:
             hints = ", ".join(
                 f"{w.chinese}={(w.thai_meaning or '').split(chr(10))[0]}"
                 for w in line_words[:10]
                 if (w.thai_meaning or '').strip()
             )
-            block += f"  [คำศัพท์: {hints}]"
+            block += f"\n    คำศัพท์: {hints}"
         blocks.append(block)
 
     if not blocks:
         return ""
 
-    structured_input = "\n".join(blocks)
+    structured_input = "\n\n".join(blocks)
 
     # ถ้ามีทั้ง left และ right = บทสนทนาแน่นอน ไม่ต้องให้ Gemini เดา
     aligns = [l.get("align", "left") for l in lines if l.get("text")]
@@ -252,21 +250,19 @@ def _translate_lines_with_vocab(lines: list, all_words: list,
 
     if is_conversation:
         speaker_rule = (
-            "นี่คือบทสนทนา กฎบังคับ: ขวา=A: ซ้าย=B: (ห้ามสลับ ห้ามเปลี่ยน)\n"
+            "นี่คือบทสนทนา กฎบังคับ: right=A: left=B: (ห้ามสลับ ห้ามเปลี่ยน)\n"
             "ถ้าเห็นชื่อในภาพให้ใช้ชื่อนั้นแทน A หรือ B\n"
+            "บรรทัดที่เป็น [ส่งรูป/อีโมจิ] → แสดงเป็น 'ส่งรูป/อีโมจิ' พร้อม A: หรือ B: ตาม align\n"
         )
     else:
         speaker_rule = "แปลตรงๆ ไม่ต้องใส่ชื่อผู้พูด\n"
 
     prompt = (
-        "ดูรูปภาพนี้และแปลข้อความต่อไปนี้เป็นภาษาไทย\n"
+        "แปลข้อความต่อไปนี้เป็นภาษาไทย\n"
         f"{speaker_rule}"
-        "กฎบังคับ:\n"
-        "1. เรียงลำดับตาม input ห้ามสลับ ห้ามจัดลำดับใหม่\n"
-        "2. แปลทุกบรรทัดเป็นภาษาไทย ห้ามมีอักษรจีนในคำตอบแม้แต่ตัวเดียว ชื่อคน/สถานที่ให้ทับศัพท์เป็นไทย\n"
-        "3. ดูรูปด้วย: ถ้าเห็น bubble/สติ๊กเกอร์/รูปที่ไม่อยู่ใน lines ให้เพิ่มในตำแหน่งที่ถูกต้องด้วย เป็น 'A: ส่งรูป/สติ๊กเกอร์' หรือ 'B: ส่งรูป/สติ๊กเกอร์' ตาม align\n"
-        "4. ถ้าเห็น timestamp (เช่น 14:30, 09:15) แสดงว่า bubble ถัดไปมีแน่นอน ถ้าไม่มีใน lines ให้เติม 'A: ส่งรูป/สติ๊กเกอร์' หรือ 'B: ส่งรูป/สติ๊กเกอร์'\n"
-        "5. ตอบคำแปลภาษาไทยเท่านั้น ไม่ใส่ label ขวา/ซ้าย/กลาง ไม่อธิบายเพิ่ม\n\n"
+        "กฎเพิ่มเติม:\n"
+        "1. แต่ละ [หมายเลข|align] = 1 บรรทัดในคำแปล คั่นด้วย newline เรียงตามหมายเลข ห้ามสลับลำดับ\n"
+        "2. ตอบคำแปลภาษาไทยเท่านั้น ไม่ใส่ [หมายเลข|align] และไม่อธิบายเพิ่ม\n\n"
         f"{structured_input}"
     )
 
