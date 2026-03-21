@@ -753,14 +753,16 @@ def generate_related_words(chinese: str, pinyin: str, thai_meaning: str) -> dict
             if raw.startswith("json"):
                 raw = raw[4:]
         result = json.loads(raw.strip())
-        # กรอง entry ที่ chinese ตรงกับคำหลักออก + deduplicate ข้าม group
+        # กรอง entry ที่ chinese ตรงกับคำหลักออก + deduplicate ข้าม group + ต้องเป็นอักษรจีนเท่านั้น
+        import re as _re
+        _chinese_only = _re.compile(r'^[\u4e00-\u9fff]+$')
         seen: set[str] = {chinese}
         for key in ("similar", "opposite", "collocations"):
             if key in result:
                 filtered = []
                 for e in result[key]:
                     ch = e.get("chinese", "")
-                    if ch and ch not in seen:
+                    if ch and ch not in seen and _chinese_only.match(ch):
                         seen.add(ch)
                         filtered.append(e)
                 result[key] = filtered

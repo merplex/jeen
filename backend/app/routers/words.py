@@ -208,12 +208,10 @@ def sync_words(
     db: Session = Depends(get_db),
 ):
     """Offline sync — คืนคำศัพท์สำหรับเก็บใน IndexedDB"""
+    from sqlalchemy.orm import joinedload
+    from ..models.example import Example
     limit = min(limit, 500)  # cap 500 ต่อ request
-    q = db.query(
-        Word.id, Word.chinese, Word.chinese_traditional,
-        Word.pinyin, Word.pinyin_plain, Word.thai_meaning, Word.char_count,
-        Word.updated_at,
-    ).filter(Word.status == "verified")
+    q = db.query(Word).options(joinedload(Word.examples)).filter(Word.status == "verified")
     if since:
         from datetime import datetime
         try:
@@ -221,14 +219,29 @@ def sync_words(
             q = q.filter(Word.updated_at > since_dt)
         except ValueError:
             pass
-    total = q.count()
+    total = db.query(Word.id).filter(Word.status == "verified")
+    if since:
+        try:
+            total = total.filter(Word.updated_at > datetime.fromisoformat(since))
+        except (ValueError, UnboundLocalError):
+            pass
+    total = total.count()
     rows = q.order_by(Word.id).offset(offset).limit(limit).all()
     words = [
         {
             "id": r.id, "chinese": r.chinese,
             "chinese_traditional": r.chinese_traditional,
             "pinyin": r.pinyin, "pinyin_plain": r.pinyin_plain,
-            "thai_meaning": r.thai_meaning, "char_count": r.char_count,
+            "thai_meaning": r.thai_meaning, "english_meaning": r.english_meaning,
+            "char_count": r.char_count, "category": r.category,
+            "hsk_level": r.hsk_level, "image_url": r.image_url,
+            "related_words": r.related_words,
+            "examples": [
+                {"id": e.id, "chinese": e.chinese, "pinyin": e.pinyin,
+                 "thai": e.thai, "type": e.type, "meaning_line": e.meaning_line,
+                 "sort_order": e.sort_order}
+                for e in sorted(r.examples, key=lambda e: (e.sort_order or 0))
+            ],
             "updated_at": r.updated_at.isoformat() if r.updated_at else None,
         }
         for r in rows

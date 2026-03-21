@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { getWord, addFlashcard, removeFlashcard, getFlashcardDecks, getNotes, createNote, updateNote, adminUpdateWord, adminGenerateExamples, adminGenerateRelated, autoGenerateRelated, adminRegenerateEnglish, recordSearchHistory, reportWord, adminDeleteWordReport, adminDeleteWord, getPublicSettings, getWordImage, refreshWordImage, uploadWordImage, getFavoriteStatus, toggleFavorite, reportMissedSearchDirect } from '../services/api'
+import db from '../services/offlineDb'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import SelectionPopup from '../components/SelectionPopup'
@@ -69,10 +70,14 @@ export default function WordDetail() {
           recordSearchHistory(r.data.chinese, Number(id), true).catch(() => {})
         }
       })
-      .catch((err) => {
+      .catch(async (err) => {
         if (err.response?.status === 429) {
           const detail = err.response.data?.detail
           setQuotaModal({ quotaType: detail?.quota_type, userTier: detail?.user_tier })
+        } else if (!navigator.onLine || err.code === 'ERR_NETWORK') {
+          const local = await db.words.get(Number(id))
+          if (local) setWord(local)
+          else navigate('/')
         } else {
           navigate('/')
         }

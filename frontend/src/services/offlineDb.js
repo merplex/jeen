@@ -6,6 +6,10 @@ db.version(1).stores({
   words: 'id, chinese, chinese_traditional, pinyin_plain, char_count, updated_at',
 })
 
+db.version(2).stores({
+  words: 'id, chinese, chinese_traditional, pinyin_plain, char_count, hsk_level, updated_at',
+})
+
 export default db
 
 // ค้นหาแบบออฟไลน์ — คืน result object เหมือน backend
