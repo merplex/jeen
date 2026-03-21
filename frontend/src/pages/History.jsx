@@ -47,7 +47,12 @@ export default function History() {
   }, [user, isOffline])
 
   const remove = async (id) => {
-    await deleteHistory(id)
+    if (isOffline) {
+      await deleteLocalHistory(id).catch(() => {})
+    } else {
+      await deleteHistory(id).catch(() => {})
+      await deleteLocalHistory(id).catch(() => {})
+    }
     setHistory((h) => h.filter((r) => r.id !== id))
   }
 
