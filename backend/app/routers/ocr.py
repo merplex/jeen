@@ -118,6 +118,8 @@ def _ocr_with_paddle(image_bytes: bytes) -> dict:
                 "size": h,
             })
         items.sort(key=lambda x: x["cy"])
+        # ตัด status bar ออกเลย (top 6% = เวลา, แบต, สัญญาณ) — ทุก path
+        items = [it for it in items if it["cy"] >= 0.06]
         # is_chat: ตรวจเฉพาะ items ที่อยู่ใต้ status bar zone (cy >= 0.08)
         content_items = [it for it in items if it["cy"] >= 0.08]
         aligns = [it["align"] for it in content_items]
