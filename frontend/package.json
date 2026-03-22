@@ -16,6 +16,7 @@
     "@capacitor/cli": "^8.2.0",
     "@capacitor/core": "^8.2.0",
     "@capacitor/ios": "^8.2.0",
+    "@capacitor/network": "^8.0.1",
     "axios": "^1.7.2",
     "dexie": "^4.3.0",
     "hanzi-writer": "^3.7.3",

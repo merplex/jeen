@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import OfflineAlert from '../components/OfflineAlert'
 import { useNavigate } from 'react-router-dom'
 import { removeFlashcard, getSpeakingHistory, getSpeakingDailyStatus } from '../services/api'
 import useAuthStore from '../stores/authStore'
@@ -28,6 +29,7 @@ export default function Learning() {
   const [speakingHistory, setSpeakingHistory] = useState([])
   const [dailyStatus, setDailyStatus] = useState(null)
   const [speakingLoading, setSpeakingLoading] = useState(false)
+  const [showOfflineAlert, setShowOfflineAlert] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -101,6 +103,7 @@ export default function Learning() {
 
   return (
     <div className="min-h-screen bg-chinese-cream pb-24">
+      {showOfflineAlert && <OfflineAlert onClose={() => setShowOfflineAlert(false)} />}
       {/* Header */}
       <div className="bg-chinese-red px-4 pt-12 pb-4">
         <h1 className="text-white text-xl font-bold">เรียน</h1>
@@ -160,7 +163,10 @@ export default function Learning() {
           emptyText={`ยังไม่มีการ์ดในชุดที่ ${selectedDeck}`}
           emptyHint={`กดสี่เหลี่ยม ${selectedDeck} ในหน้าคำศัพท์เพื่อเพิ่ม`}
           startLabel="เริ่มเรียน"
-          onStart={(deck) => navigate(`/learning/write/${deck}`)}
+          onStart={(deck) => {
+            if (!navigator.onLine) { setShowOfflineAlert(true); return }
+            navigate(`/learning/write/${deck}`)
+          }}
         />
       )}
 
@@ -226,19 +232,22 @@ export default function Learning() {
                       <ScoreBar label="คล่อง" value={r.fluency_score} color="bg-green-400" />
                     </div>
                     <button
-                      onClick={() => navigate('/speaking/practice', {
-                        state: {
-                          wordId: r.word_id,
-                          wordChinese: r.word?.chinese,
-                          wordPinyin: r.word?.pinyin,
-                          wordThai: r.word?.thai_meaning,
-                          exampleId: r.example_id,
-                          chinese: r.example_chinese,
-                          pinyin: r.example_pinyin || '',
-                          thai: '',
-                          isGenerated: r.is_generated,
-                        }
-                      })}
+                      onClick={() => {
+                        if (!navigator.onLine) { setShowOfflineAlert(true); return }
+                        navigate('/speaking/practice', {
+                          state: {
+                            wordId: r.word_id,
+                            wordChinese: r.word?.chinese,
+                            wordPinyin: r.word?.pinyin,
+                            wordThai: r.word?.thai_meaning,
+                            exampleId: r.example_id,
+                            chinese: r.example_chinese,
+                            pinyin: r.example_pinyin || '',
+                            thai: '',
+                            isGenerated: r.is_generated,
+                          }
+                        })
+                      }}
                       className="w-full border border-gray-200 rounded-lg py-2 text-xs text-gray-500 active:bg-gray-50"
                     >
                       ฝึกซ้ำ / เปลี่ยนประโยค

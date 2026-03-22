@@ -9,6 +9,7 @@ import WordImageGridCard from '../components/WordImageGridCard'
 import TonedChinese from '../components/TonedChinese'
 import HandwritingModal from '../components/HandwritingModal'
 import OfflineAlert from '../components/OfflineAlert'
+import { isOnline } from '../utils/network'
 import QuotaLimitModal from '../components/QuotaLimitModal'
 import { SEARCH_CATEGORIES, getCategoryColor, loadFavCategories } from '../utils/categories'
 import useAuthStore from '../stores/authStore'
@@ -382,7 +383,7 @@ export default function Search() {
             )}
           </div>
           <button
-            onClick={() => navigator.onLine ? setShowOcrSheet(true) : setShowOfflineAlert(true)}
+            onClick={() => setShowOcrSheet(true)}
             disabled={ocrLoading}
             className="w-12 h-12 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center shadow-lg transition-colors disabled:opacity-50"
           >
@@ -543,7 +544,7 @@ export default function Search() {
             <p className="text-sm font-semibold text-gray-600 mb-3 text-center">เลือกโหมด OCR</p>
             <div className="space-y-3">
               <button
-                onClick={() => { setShowOcrSheet(false); if (!navigator.onLine) { setShowOfflineAlert(true); return; } navigate('/ocr/live') }}
+                onClick={() => { setShowOcrSheet(false); if (!isOnline()) { setShowOfflineAlert(true); return; } navigate('/ocr/live') }}
                 className="w-full flex items-center gap-4 bg-chinese-red/5 border border-chinese-red/20 rounded-2xl px-4 py-4 active:scale-95 transition-transform"
               >
                 <div className="w-12 h-12 bg-chinese-red rounded-xl flex items-center justify-center shrink-0">
@@ -558,7 +559,7 @@ export default function Search() {
                 </div>
               </button>
               <button
-                onClick={() => { setShowOcrSheet(false); if (!navigator.onLine) { setShowOfflineAlert(true); return } ocrCameraRef.current?.click() }}
+                onClick={() => { setShowOcrSheet(false); if (!isOnline()) { setShowOfflineAlert(true); return } ocrCameraRef.current?.click() }}
                 className="w-full flex items-center gap-4 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-4 active:scale-95 transition-transform"
               >
                 <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center shrink-0">
@@ -576,7 +577,7 @@ export default function Search() {
                 </div>
               </button>
               <button
-                onClick={() => { setShowOcrSheet(false); if (!navigator.onLine) { setShowOfflineAlert(true); return } ocrInputRef.current?.click() }}
+                onClick={() => { setShowOcrSheet(false); if (!isOnline()) { setShowOfflineAlert(true); return } ocrInputRef.current?.click() }}
                 className="w-full flex items-center gap-4 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-4 active:scale-95 transition-transform"
               >
                 <div className="w-12 h-12 bg-gray-500 rounded-xl flex items-center justify-center shrink-0">
