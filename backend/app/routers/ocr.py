@@ -188,7 +188,7 @@ def _is_file_ext(text: str) -> bool:
 
 def _parse_chat_lines(items: list) -> list:
     """แปลง PaddleOCR items (with spatial info) เป็น structured chat format"""
-    STATUSBAR_Y = 0.10   # fallback: ถ้าหา header ไม่เจอ ใช้ top 10% เป็น cutoff
+    STATUSBAR_Y = 0.06   # fallback: ถ้าหา header ไม่เจอ ใช้ top 6% เป็น cutoff (match cy filter)
 
     # คำนวณ median size จาก items ทั้งหมดก่อน เพื่อใช้ detect header
     all_sizes = sorted([it["size"] for it in items if it.get("size", 0) > 0])
@@ -200,7 +200,7 @@ def _parse_chat_lines(items: list) -> list:
     HEADER_Y = 0.18
     # header zone: ใช้ size เป็น primary signal (ชื่อ header มักใหญ่สุดในโซนนี้)
     # ไม่ require center align เพราะ long header text อาจถูก classify เป็น left/right
-    header_zone = [it for it in items if STATUSBAR_Y <= it["cy"] < HEADER_Y]
+    header_zone = [it for it in items if it["cy"] < HEADER_Y]
     header_candidates = [
         it for it in header_zone
         if not _has_header_sym(it["text"].strip()) and not _is_time(it["text"].strip()) and len(it["text"].strip()) > 1
@@ -365,7 +365,7 @@ def _ocr_structured(image_bytes: bytes, mime_type: str) -> dict:
         # Secondary check: ถ้า is_chat=False แต่มี header + bubble → ยังถือว่าเป็น chat
         # (เกิดเมื่อ right bubble สั้นโดน filter หรือ confidence ต่ำ)
         if not is_chat:
-            top_items = [l for l in lines if 0.08 <= l.get("cy", 1) < 0.22]
+            top_items = [l for l in lines if l.get("cy", 1) < 0.22]
             has_header = any(
                 len(l["text"].strip()) > 1 and not _has_header_sym(l["text"])
                 for l in top_items
