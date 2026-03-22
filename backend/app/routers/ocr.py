@@ -447,7 +447,7 @@ def _parse_chat_lines_line(items: list) -> list:
                 prev_speaker = None
             else:
                 # ไม่ใช่ date — ดู cy proximity กับ item ก่อนหน้า
-                if prev_speaker is not None and prev_cy is not None and (cy - prev_cy) < 0.08:
+                if prev_speaker is not None and prev_cy is not None and (cy - prev_cy) < 0.04:
                     speaker = prev_speaker
                     print(f"[line_cy_inherit] '{text}' cy={cy:.3f} prev_cy={prev_cy:.3f} gap={cy-prev_cy:.3f} → inherit {speaker}", flush=True)
                 else:
