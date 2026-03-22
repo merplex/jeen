@@ -108,12 +108,14 @@ def _ocr_with_paddle(image_bytes: bytes) -> dict:
                 align = "right"
             else:
                 align = "left"
+            h = (max(ys) - min(ys)) / img_h
             items.append({
                 "text": text,
                 "align": align,
                 "cx": cx,
                 "cy": cy,
                 "w": x_max - x_min,
+                "size": h,
             })
         items.sort(key=lambda x: x["cy"])
         # is_chat: ตรวจเฉพาะ items ที่อยู่ใต้ status bar zone (cy >= 0.08)
@@ -182,22 +184,37 @@ def _is_file_ext(text: str) -> bool:
 
 def _parse_chat_lines(items: list) -> list:
     """แปลง PaddleOCR items (with spatial info) เป็น structured chat format"""
-    STATUSBAR_Y = 0.10   # top 10% = phone status bar (time, battery, signal) — skip ทั้งหมด
-    HEADER_Y = 0.18      # 8–18% = chat app header (ชื่อผู้ติดต่อ, ปุ่มย้อนกลับ) — ดึงแค่ชื่อ
+    STATUSBAR_Y = 0.10   # fallback: ถ้าหา header ไม่เจอ ใช้ top 10% เป็น cutoff
 
-    # skip_zone (< 8%): ไม่ประมวลผล
+    # คำนวณ median size จาก items ทั้งหมดก่อน เพื่อใช้ detect header
+    all_sizes = sorted([it["size"] for it in items if it.get("size", 0) > 0])
+    median_size = all_sizes[len(all_sizes) // 2] if all_sizes else 0.04
+
+    # --- หา header item ก่อนเลย (zone-based หรือ size-based) ---
+    # จะใช้ตำแหน่งของ header เป็น cutoff — ทุกอย่างเหนือ header = status bar → skip
+    header_item = None
+    HEADER_Y = 0.18
     header_zone = [it for it in items if STATUSBAR_Y <= it["cy"] < HEADER_Y]
-    content_zone = [it for it in items if it["cy"] >= HEADER_Y]
-
-    structured = []
-
-    # --- Header (ชื่อคู่สนทนา/กลุ่ม) ---
-    # ดึง center item แรกใน header zone ที่ไม่ใช่ nav symbol และไม่ใช่เวลา
     for it in header_zone:
         t = it["text"].strip()
         if it["align"] == "center" and not _has_header_sym(t) and not _is_time(t) and len(t) > 1:
-            structured.append({"type": "header", "text": t})
+            header_item = it
             break
+    if header_item is None:
+        for it in items:
+            t = it["text"].strip()
+            if it.get("size", 0) > median_size * 1.4 and not _has_header_sym(t) and not _is_time(t) and len(t) > 1:
+                header_item = it
+                break
+
+    # cutoff_y = cy ของ header ถ้าเจอ, ไม่งั้นใช้ STATUSBAR_Y
+    cutoff_y = header_item["cy"] if header_item else STATUSBAR_Y
+    content_zone = [it for it in items if it["cy"] > cutoff_y]
+
+    structured = []
+
+    if header_item:
+        structured.append({"type": "header", "text": header_item["text"].strip()})
 
     # --- Associate timestamps with bubbles ---
     times = [it for it in content_zone if _is_time(it["text"].strip())]
@@ -304,7 +321,7 @@ def _translate_chat_lines(chat_structure: list, all_words: list,
         "ด้านล่างคือบทสนทนาที่ PaddleOCR อ่านได้จากรูป ผู้พูดถูกระบุจากตำแหน่ง bubble แล้ว\n"
         "งานของคุณ: แปลข้อความจีนเป็นภาษาไทย แล้ว format ผลลัพธ์ตามกฎด้านล่าง\n\n"
         "กฎ format (บังคับ — ห้ามเปลี่ยนผู้พูด):\n"
-        "  HEADER:ข้อความ  →  บทสนทนา [ชื่อที่ทับศัพท์]  (ไม่ต้องใส่ A B)\n"
+        "  HEADER:ข้อความ  →  บทสนทนากับ [ชื่อที่ทับศัพท์]  (ไม่ต้องใส่ A B)\n"
         "  DATE:ข้อความ   →  แสดงวัน/เวลาแปลเป็นไทย  (ไม่ต้องใส่ A B)\n"
         "  A:ข้อความ      →      A : คำแปล\n"
         "  A|15:30:ข้อ    →      15:30, A : คำแปล\n"
