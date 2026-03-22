@@ -100,14 +100,15 @@ def _ocr_with_paddle(image_bytes: bytes) -> dict:
             x_max = max(xs) / img_w
             cx = sum(xs) / 4 / img_w
             cy = sum(ys) / 4 / img_h
-            # center ก่อน (cx อยู่ตรงกลาง) → date divider / system message
-            # ถ้าไม่ใช่ center ค่อยใช้ขอบซ้าย/ขวาแยก left/right
-            if 0.30 <= cx <= 0.70:
-                align = "center"
+            # ใช้ x_min ระบุซ้าย (bubble เริ่มจากซ้าย หลัง avatar)
+            # ใช้ x_max ระบุขวา (bubble ชิดขวา)
+            # date/system: แคบและกลางจอ (ไม่เข้าเงื่อนไขทั้งสอง)
+            if x_min < 0.25:
+                align = "left"
             elif x_max > 0.72:
                 align = "right"
             else:
-                align = "left"
+                align = "center"
             h = (max(ys) - min(ys)) / img_h
             items.append({
                 "text": text,
