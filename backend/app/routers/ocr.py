@@ -194,14 +194,21 @@ def _is_file_ext(text: str) -> bool:
 def _detect_app_type(items: list) -> str:
     """detect LINE vs WeChat
     LINE-exclusive signal: 'Read HH:MM' หรือ 'Read' คนเดียว (PaddleOCR อาจอ่านแยก)
-    ใช้ w < 0.15 กรองไม่ให้ชนกับคำว่า "Read" ในบทสนทนา
+    ใช้ w < 0.3 กรองไม่ให้ชนกับคำว่า "Read" ในบทสนทนา
     """
     for it in items:
         t = it["text"].strip()
+        w = it.get("w", 1)
         if _READ_RE.match(t):
+            logger.info(f"[detect_app_type] LINE via Read+time: '{t}'")
             return "line"
-        if t.lower() == "read" and it.get("w", 1) < 0.15:
+        if t.lower() == "read" and w < 0.3:
+            logger.info(f"[detect_app_type] LINE via solo Read w={w:.3f}: '{t}'")
             return "line"
+    # log ทุก item ที่มีคำว่า read (ไม่ว่า w เท่าไร) เพื่อ debug
+    for it in items:
+        if "read" in it["text"].strip().lower():
+            logger.info(f"[detect_app_type] Read-like item skipped: '{it['text'].strip()}' w={it.get('w',1):.3f} cy={it.get('cy',0):.3f}")
     return "wechat"
 
 
