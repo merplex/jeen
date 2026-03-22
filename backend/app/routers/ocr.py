@@ -193,14 +193,24 @@ def _is_file_ext(text: str) -> bool:
 
 _THAI_MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน",
                 "กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"]
+_EN_MONTHS = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"]
+_EN_DAYS   = ["sun","mon","tue","wed","thu","fri","sat"]
 
 def _is_date_text(text: str) -> bool:
     """ตรวจว่าข้อความเป็น date/system divider จริงๆ ไม่ใช่ bubble ที่ OCR classify center ผิด"""
     t = text.strip()
+    tl = t.lower()
     if t.startswith("วัน"):
         return True
     for m in _THAI_MONTHS:
         if m in t:
+            return True
+    # English date patterns: "Sun, Mar 15", "Mon, Mar 16", "Mar 15" etc.
+    for m in _EN_MONTHS:
+        if m in tl:
+            return True
+    for d in _EN_DAYS:
+        if tl.startswith(d):
             return True
     if re.search(r'\d{1,2}[/\-]\d{1,2}', t):
         return True
