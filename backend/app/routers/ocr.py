@@ -169,12 +169,17 @@ def _find_words_in_text(text: str, db: Session) -> list:
 
 
 _TIME_RE = re.compile(r'^\d{1,2}:\d{2}$')
+_READ_RE = re.compile(r'^Read\s+\d{1,2}:\d{2}$', re.IGNORECASE)
 _HEADER_SYMS = {'←', '→', '<', '>', '≡', '☰', '⋮', '⋯', '…'}
 _FILE_EXTS = {'excel', 'pdf', 'csv', 'sheet', 'word', 'doc', 'docx', 'xlsx', 'ppt', 'pptx', 'zip', 'rar'}
 
 
 def _is_time(text: str) -> bool:
     return bool(_TIME_RE.match(text.strip()))
+
+
+def _is_read_receipt(text: str) -> bool:
+    return bool(_READ_RE.match(text.strip()))
 
 
 def _has_header_sym(text: str) -> bool:
@@ -184,6 +189,17 @@ def _has_header_sym(text: str) -> bool:
 def _is_file_ext(text: str) -> bool:
     t = text.lower()
     return any(e in t for e in _FILE_EXTS)
+
+
+def _detect_app_type(items: list) -> str:
+    """detect LINE vs WeChat
+    LINE-exclusive signal: 'Read HH:MM' read receipt
+    WeChat ก็มี < ซ้ายสุดในหัวเรื่องเหมือนกัน จึงไม่ใช้ < เป็น signal
+    """
+    for it in items:
+        if _is_read_receipt(it["text"].strip()):
+            return "line"
+    return "wechat"
 
 
 def _parse_chat_lines(items: list) -> list:
@@ -283,6 +299,97 @@ def _parse_chat_lines(items: list) -> list:
     return structured
 
 
+def _parse_chat_lines_line(items: list) -> list:
+    """แปลง PaddleOCR items เป็น structured chat format สำหรับ LINE
+    ความต่างจาก WeChat:
+    - กรอง 'Read HH:MM' ออก (read receipt)
+    - timestamp matching หลวมกว่า (อยู่ใต้ bubble แทนที่จะข้างๆ)
+    """
+    # กรอง Read receipts ออกก่อน
+    items = [it for it in items if not _is_read_receipt(it["text"].strip())]
+
+    STATUSBAR_Y = 0.06
+    all_sizes = sorted([it["size"] for it in items if it.get("size", 0) > 0])
+    median_size = all_sizes[len(all_sizes) // 2] if all_sizes else 0.04
+
+    HEADER_Y = 0.18
+    header_item = None
+    header_zone = [it for it in items if it["cy"] < HEADER_Y]
+    header_candidates = [
+        it for it in header_zone
+        if not _has_header_sym(it["text"].strip()) and not _is_time(it["text"].strip())
+        and not _is_read_receipt(it["text"].strip()) and len(it["text"].strip()) > 1
+    ]
+    if header_candidates:
+        header_item = max(header_candidates, key=lambda x: x.get("size", 0))
+    if header_item is None:
+        for it in items:
+            t = it["text"].strip()
+            if it.get("size", 0) > median_size * 1.4 and not _has_header_sym(t) and not _is_time(t) and len(t) > 1:
+                header_item = it
+                break
+
+    cutoff_y = header_item["cy"] if header_item else STATUSBAR_Y
+    content_zone = [it for it in items if it["cy"] > cutoff_y]
+
+    structured = []
+    if header_item:
+        structured.append({"type": "header", "text": header_item["text"].strip()})
+
+    times = [it for it in content_zone if _is_time(it["text"].strip())]
+    bubbles = [it for it in content_zone if not _is_time(it["text"].strip())]
+
+    bubble_times = {}
+    used_time_idx = set()
+
+    for ti, ts in enumerate(times):
+        best_dist = 0.15  # LINE timestamp อยู่ใต้ bubble → ยอม y-distance มากกว่า WeChat
+        best_bi = -1
+        for bi, bub in enumerate(bubbles):
+            if bi in bubble_times:
+                continue
+            yd = abs(ts["cy"] - bub["cy"])
+            if yd < best_dist:
+                # LINE: timestamp ขวาของ bubble ซ้าย หรือซ้ายของ bubble ขวา
+                # แต่ก็อาจอยู่ใต้ตรงๆ (ไม่ strict cx มากเหมือน WeChat)
+                if (bub["align"] == "left" and ts["cx"] >= bub["cx"] - 0.05) or \
+                   (bub["align"] == "right" and ts["cx"] <= bub["cx"] + 0.05):
+                    best_dist = yd
+                    best_bi = bi
+        if best_bi >= 0:
+            bubble_times[best_bi] = ts["text"].strip()
+            used_time_idx.add(ti)
+
+    orphans = [(ti, ts) for ti, ts in enumerate(times)
+               if ti not in used_time_idx and ts["cy"] >= 0.25]
+
+    content_list = [(bub, bubble_times.get(bi)) for bi, bub in enumerate(bubbles)]
+    for _, ts in orphans:
+        content_list.append((ts, None))
+    content_list.sort(key=lambda x: x[0]["cy"])
+
+    for it, time_str in content_list:
+        text = it["text"].strip()
+
+        if _is_time(text) and time_str is None:
+            speaker = "A" if it["cx"] > 0.5 else "B"
+            structured.append({"type": "missing_bubble", "speaker": speaker, "time": text})
+            continue
+
+        if it["align"] == "center":
+            structured.append({"type": "date", "text": text})
+            continue
+
+        speaker = "A" if it["align"] == "right" else "B"
+
+        if _is_file_ext(text):
+            structured.append({"type": "file", "speaker": speaker, "time": time_str})
+        else:
+            structured.append({"type": "bubble", "speaker": speaker, "text": text, "time": time_str})
+
+    return structured
+
+
 def _translate_chat_lines(chat_structure: list, all_words: list,
                            image_bytes: bytes = None, mime_type: str = None) -> str:
     """แปล chat structure เป็นไทย พร้อม format A:/B: timestamp"""
@@ -330,12 +437,14 @@ def _translate_chat_lines(chat_structure: list, all_words: list,
         "กฎ format (บังคับ — ห้ามเปลี่ยนผู้พูด):\n"
         "  HEADER:ข้อความ  →  บทสนทนากับ [ชื่อที่ทับศัพท์]  (ไม่ต้องใส่ A B)\n"
         "  DATE:ข้อความ   →  แสดงวัน/เวลาแปลเป็นไทย  (ไม่ต้องใส่ A B)\n"
-        "  A:ข้อความ      →      A : คำแปล\n"
-        "  A|15:30:ข้อ    →      15:30, A : คำแปล\n"
-        "  B:ข้อความ      →      B : คำแปล\n"
-        "  B|15:30:ข้อ    →      15:30, B : คำแปล\n"
-        "  A:__FILE__     →      A : ส่งไฟล์\n"
-        "  B:__STICKER__  →      B : ส่งรูป/สติ๊กเกอร์\n\n"
+        "  A:ข้อความ      →  A : คำแปล\n"
+        "  A|15:30:ข้อ    →  A : 15:30 : คำแปล\n"
+        "  B:ข้อความ      →  B : คำแปล\n"
+        "  B|15:30:ข้อ    →  B : 15:30 : คำแปล\n"
+        "  A:__FILE__     →  A : ส่งไฟล์\n"
+        "  A|15:30:__FILE__ →  A : 15:30 : ส่งไฟล์\n"
+        "  B:__STICKER__  →  B : ส่งรูป/สติ๊กเกอร์\n"
+        "  B|15:30:__STICKER__ →  B : 15:30 : ส่งรูป/สติ๊กเกอร์\n\n"
         "- A และ B ถูกกำหนดตายตัวจากตำแหน่งในรูป ห้ามเปลี่ยนแม้คิดว่าผิด\n"
         "- ห้ามมีอักษรจีนในคำตอบ\n"
         "- ตอบผลลัพธ์เท่านั้น ไม่อธิบายเพิ่ม\n"
@@ -374,10 +483,14 @@ def _ocr_structured(image_bytes: bytes, mime_type: str) -> dict:
             if has_header and has_bubble:
                 is_chat = True
                 logger.info("[OCR structured] is_chat promoted by header+bubble fallback")
-        logger.info(f"[OCR structured] PaddleOCR: {len(lines)} lines, is_chat={is_chat}")
+        app_type = _detect_app_type(lines)
+        logger.info(f"[OCR structured] PaddleOCR: {len(lines)} lines, is_chat={is_chat}, app={app_type}")
         if is_chat:
-            chat_structure = _parse_chat_lines(lines)
-            return {"lines": lines, "is_chat": True, "chat_structure": chat_structure}
+            if app_type == "line":
+                chat_structure = _parse_chat_lines_line(lines)
+            else:
+                chat_structure = _parse_chat_lines(lines)
+            return {"lines": lines, "is_chat": True, "chat_structure": chat_structure, "app_type": app_type}
         return {"lines": lines, "is_chat": False}
 
     # Fallback: ใช้ Gemini ถ้า PaddleOCR ไม่ได้ผล
