@@ -101,10 +101,10 @@ def _ocr_with_paddle(image_bytes: bytes) -> dict:
             x_max = max(xs) / img_w
             cx = sum(xs) / 4 / img_w
             cy = sum(ys) / 4 / img_h
-            # right: x_max ชิดขวา (bubble ฝั่งส่ง)
-            # left: cx อยู่ซีกซ้าย และไม่ชิดขวา (bubble ฝั่งรับ หลัง avatar)
-            # center: date divider / system message (กลางจอ, ไม่เข้าทั้งสอง)
-            if x_max > 0.70:
+            # right: x_max ชิดขวา AND cx อยู่ซีกขวา (bubble ฝั่งส่ง)
+            # left: cx อยู่ซีกซ้าย (bubble ฝั่งรับ หลัง avatar — รวมถึง long bubble ที่ x_max สูงแต่ cx ยังซ้าย)
+            # center: date divider / system message
+            if x_max > 0.70 and cx > 0.45:
                 align = "right"
             elif cx < 0.43:
                 align = "left"
