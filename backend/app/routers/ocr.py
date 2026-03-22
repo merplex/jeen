@@ -191,6 +191,25 @@ def _is_file_ext(text: str) -> bool:
     return any(e in t for e in _FILE_EXTS)
 
 
+_THAI_MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน",
+                "กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"]
+
+def _is_date_text(text: str) -> bool:
+    """ตรวจว่าข้อความเป็น date/system divider จริงๆ ไม่ใช่ bubble ที่ OCR classify center ผิด"""
+    t = text.strip()
+    if t.startswith("วัน"):
+        return True
+    for m in _THAI_MONTHS:
+        if m in t:
+            return True
+    if re.search(r'\d{1,2}[/\-]\d{1,2}', t):
+        return True
+    # Chinese date patterns
+    if re.search(r'\d{1,2}月\d{1,2}日', t):
+        return True
+    return False
+
+
 def _detect_app_type(items: list) -> str:
     """detect LINE vs WeChat
     LINE-exclusive signal: 'Read HH:MM' หรือ 'Read' คนเดียว (PaddleOCR อาจอ่านแยก)
@@ -294,9 +313,13 @@ def _parse_chat_lines(items: list) -> list:
             structured.append({"type": "missing_bubble", "speaker": speaker, "time": text})
             continue
 
-        # Center → date/system divider
+        # Center → date/system divider (validate before classifying)
         if it["align"] == "center":
-            structured.append({"type": "date", "text": text})
+            if _is_date_text(text):
+                structured.append({"type": "date", "text": text})
+            else:
+                speaker = "A" if it["cx"] > 0.5 else "B"
+                structured.append({"type": "bubble", "speaker": speaker, "text": text, "time": time_str})
             continue
 
         speaker = "A" if it["align"] == "right" else "B"
@@ -403,7 +426,11 @@ def _parse_chat_lines_line(items: list) -> list:
             continue
 
         if it["align"] == "center":
-            structured.append({"type": "date", "text": text})
+            if _is_date_text(text):
+                structured.append({"type": "date", "text": text})
+            else:
+                speaker = "A" if it["cx"] > 0.5 else "B"
+                structured.append({"type": "bubble", "speaker": speaker, "text": text, "time": time_str})
             continue
 
         speaker = "A" if it["align"] == "right" else "B"
