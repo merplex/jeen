@@ -308,12 +308,20 @@ def _parse_chat_lines_line(items: list) -> list:
     - กรอง 'Read HH:MM' ออก (read receipt)
     - timestamp matching หลวมกว่า (อยู่ใต้ bubble แทนที่จะข้างๆ)
     """
-    # กรอง Read receipts ออกก่อน ("Read HH:MM" หรือ "Read" คนเดียวที่ w เล็ก)
-    items = [
-        it for it in items
-        if not _is_read_receipt(it["text"].strip())
-        and not (it["text"].strip().lower() == "read" and it.get("w", 1) < 0.15)
-    ]
+    # กรอง LINE-specific noise ออก:
+    # - "Read HH:MM" หรือ "Read" คนเดียว (read receipt)
+    # - ตัวเลขล้วน 1-2 หลักใน header zone เช่น "31" (icon ปฏิทิน)
+    def _is_line_noise(it: dict) -> bool:
+        t = it["text"].strip()
+        if _is_read_receipt(t):
+            return True
+        if t.lower() == "read" and it.get("w", 1) < 0.3:
+            return True
+        if t.isdigit() and len(t) <= 2 and it.get("cy", 1) < 0.18:
+            return True
+        return False
+
+    items = [it for it in items if not _is_line_noise(it)]
 
     STATUSBAR_Y = 0.06
     all_sizes = sorted([it["size"] for it in items if it.get("size", 0) > 0])
@@ -325,14 +333,17 @@ def _parse_chat_lines_line(items: list) -> list:
     header_candidates = [
         it for it in header_zone
         if not _has_header_sym(it["text"].strip()) and not _is_time(it["text"].strip())
-        and not _is_read_receipt(it["text"].strip()) and len(it["text"].strip()) > 1
+        and not _is_read_receipt(it["text"].strip())
+        and not it["text"].strip().isdigit()   # ไม่เอาตัวเลขล้วน (icon)
+        and len(it["text"].strip()) > 1
     ]
     if header_candidates:
-        header_item = max(header_candidates, key=lambda x: x.get("size", 0))
+        # เลือก item ที่ยาวที่สุด (ชื่อ header มักยาวกว่า icon text)
+        header_item = max(header_candidates, key=lambda x: len(x["text"].strip()))
     if header_item is None:
         for it in items:
             t = it["text"].strip()
-            if it.get("size", 0) > median_size * 1.4 and not _has_header_sym(t) and not _is_time(t) and len(t) > 1:
+            if it.get("size", 0) > median_size * 1.4 and not _has_header_sym(t) and not _is_time(t) and not t.isdigit() and len(t) > 1:
                 header_item = it
                 break
 
@@ -367,8 +378,9 @@ def _parse_chat_lines_line(items: list) -> list:
             bubble_times[best_bi] = ts["text"].strip()
             used_time_idx.add(ti)
 
+    # LINE: orphan threshold ต่ำกว่า WeChat เพราะ content เริ่มจาก cy ~0.15
     orphans = [(ti, ts) for ti, ts in enumerate(times)
-               if ti not in used_time_idx and ts["cy"] >= 0.25]
+               if ti not in used_time_idx and ts["cy"] >= 0.15]
 
     content_list = [(bub, bubble_times.get(bi)) for bi, bub in enumerate(bubbles)]
     for _, ts in orphans:
