@@ -417,28 +417,46 @@ def _parse_chat_lines_line(items: list) -> list:
         content_list.append((ts, None))
     content_list.sort(key=lambda x: x[0]["cy"])
 
+    prev_cy = None
+    prev_speaker = None
     for it, time_str in content_list:
         text = it["text"].strip()
+        cy = it["cy"]
 
         if _is_time(text) and time_str is None:
             speaker = "A" if it["cx"] > 0.5 else "B"
             structured.append({"type": "missing_bubble", "speaker": speaker, "time": text})
+            prev_cy = cy
+            prev_speaker = speaker
             continue
 
         if it["align"] == "center":
             if _is_date_text(text):
                 structured.append({"type": "date", "text": text})
+                prev_cy = cy
+                prev_speaker = None
             else:
-                speaker = "A" if it["cx"] > 0.5 else "B"
+                # ไม่ใช่ date — ดู cy proximity กับ item ก่อนหน้า
+                if prev_speaker is not None and prev_cy is not None and (cy - prev_cy) < 0.08:
+                    speaker = prev_speaker
+                    logger.info(f"[line_cy_inherit] '{text}' cy={cy:.3f} prev_cy={prev_cy:.3f} gap={cy-prev_cy:.3f} → inherit {speaker}")
+                else:
+                    speaker = "A" if it["cx"] > 0.5 else "B"
+                    logger.info(f"[line_cy_inherit] '{text}' cy={cy:.3f} prev_cy={prev_cy} gap={(cy-prev_cy) if prev_cy else 'N/A'} → cx-based {speaker}")
                 structured.append({"type": "bubble", "speaker": speaker, "text": text, "time": time_str})
+                prev_cy = cy
+                prev_speaker = speaker
             continue
 
         speaker = "A" if it["align"] == "right" else "B"
+        logger.info(f"[line_item] '{text[:30]}' align={it['align']} cx={it['cx']:.3f} cy={cy:.3f} → {speaker}")
 
         if _is_file_ext(text):
             structured.append({"type": "file", "speaker": speaker, "time": time_str})
         else:
             structured.append({"type": "bubble", "speaker": speaker, "text": text, "time": time_str})
+        prev_cy = cy
+        prev_speaker = speaker
 
     return structured
 
