@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords, scanOcr, getFavorites, getPublicSettings } from '../services/api'
+import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords, scanOcrStructured, getFavorites, getPublicSettings } from '../services/api'
 import { offlineSearch, recordLocalHistory } from '../services/offlineDb'
 import { startBackgroundSync, getSyncProgress } from '../services/syncService'
 import WordCard from '../components/WordCard'
@@ -277,8 +277,10 @@ export default function Search() {
       let binary = ''
       for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
       const b64 = btoa(binary)
-      const r = await scanOcr({ image_base64: b64, mime_type: file.type || 'image/jpeg' })
-      setOcrResult(r.data)
+      const r = await scanOcrStructured({ image_base64: b64, mime_type: file.type || 'image/jpeg' })
+      const data = r.data
+      const combinedText = data.lines?.map(l => l.text).join('\n') || ''
+      setOcrResult({ ...data, text: combinedText })
     } catch (err) {
       if (!err.response) {
         setShowOfflineAlert(true)
