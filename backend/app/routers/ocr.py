@@ -100,13 +100,13 @@ def _ocr_with_paddle(image_bytes: bytes) -> dict:
             x_max = max(xs) / img_w
             cx = sum(xs) / 4 / img_w
             cy = sum(ys) / 4 / img_h
-            # ใช้ x_min ระบุซ้าย (bubble เริ่มจากซ้าย หลัง avatar)
-            # ใช้ x_max ระบุขวา (bubble ชิดขวา)
-            # date/system: แคบและกลางจอ (ไม่เข้าเงื่อนไขทั้งสอง)
-            if x_min < 0.25:
-                align = "left"
-            elif x_max > 0.72:
+            # right: x_max ชิดขวา (bubble ฝั่งส่ง)
+            # left: cx อยู่ซีกซ้าย และไม่ชิดขวา (bubble ฝั่งรับ หลัง avatar)
+            # center: date divider / system message (กลางจอ, ไม่เข้าทั้งสอง)
+            if x_max > 0.70:
                 align = "right"
+            elif cx < 0.43:
+                align = "left"
             else:
                 align = "center"
             h = (max(ys) - min(ys)) / img_h
@@ -197,12 +197,15 @@ def _parse_chat_lines(items: list) -> list:
     # จะใช้ตำแหน่งของ header เป็น cutoff — ทุกอย่างเหนือ header = status bar → skip
     header_item = None
     HEADER_Y = 0.18
+    # header zone: ใช้ size เป็น primary signal (ชื่อ header มักใหญ่สุดในโซนนี้)
+    # ไม่ require center align เพราะ long header text อาจถูก classify เป็น left/right
     header_zone = [it for it in items if STATUSBAR_Y <= it["cy"] < HEADER_Y]
-    for it in header_zone:
-        t = it["text"].strip()
-        if it["align"] == "center" and not _has_header_sym(t) and not _is_time(t) and len(t) > 1:
-            header_item = it
-            break
+    header_candidates = [
+        it for it in header_zone
+        if not _has_header_sym(it["text"].strip()) and not _is_time(it["text"].strip()) and len(it["text"].strip()) > 1
+    ]
+    if header_candidates:
+        header_item = max(header_candidates, key=lambda x: x.get("size", 0))
     if header_item is None:
         for it in items:
             t = it["text"].strip()
