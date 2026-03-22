@@ -193,11 +193,14 @@ def _is_file_ext(text: str) -> bool:
 
 def _detect_app_type(items: list) -> str:
     """detect LINE vs WeChat
-    LINE-exclusive signal: 'Read HH:MM' read receipt
-    WeChat ก็มี < ซ้ายสุดในหัวเรื่องเหมือนกัน จึงไม่ใช้ < เป็น signal
+    LINE-exclusive signal: 'Read HH:MM' หรือ 'Read' คนเดียว (PaddleOCR อาจอ่านแยก)
+    ใช้ w < 0.15 กรองไม่ให้ชนกับคำว่า "Read" ในบทสนทนา
     """
     for it in items:
-        if _is_read_receipt(it["text"].strip()):
+        t = it["text"].strip()
+        if _READ_RE.match(t):
+            return "line"
+        if t.lower() == "read" and it.get("w", 1) < 0.15:
             return "line"
     return "wechat"
 
@@ -305,8 +308,12 @@ def _parse_chat_lines_line(items: list) -> list:
     - กรอง 'Read HH:MM' ออก (read receipt)
     - timestamp matching หลวมกว่า (อยู่ใต้ bubble แทนที่จะข้างๆ)
     """
-    # กรอง Read receipts ออกก่อน
-    items = [it for it in items if not _is_read_receipt(it["text"].strip())]
+    # กรอง Read receipts ออกก่อน ("Read HH:MM" หรือ "Read" คนเดียวที่ w เล็ก)
+    items = [
+        it for it in items
+        if not _is_read_receipt(it["text"].strip())
+        and not (it["text"].strip().lower() == "read" and it.get("w", 1) < 0.15)
+    ]
 
     STATUSBAR_Y = 0.06
     all_sizes = sorted([it["size"] for it in items if it.get("size", 0) > 0])
@@ -638,6 +645,7 @@ def scan_image_structured(
     lines = result.get("lines", [])
     is_chat = result.get("is_chat", False)
     chat_structure = result.get("chat_structure")
+    app_type = result.get("app_type", "wechat")
     if not lines:
         flat = _ocr_and_translate(image_bytes, body.mime_type)
         if flat.get("text"):
@@ -674,6 +682,7 @@ def scan_image_structured(
     return {
         "lines": lines,
         "is_chat": is_chat,
+        "app_type": app_type,
         "translation": full_translation,
         "words": [
             {
