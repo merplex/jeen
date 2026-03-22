@@ -180,10 +180,10 @@ export default function Learning() {
               <div>
                 <p className="text-sm font-medium text-gray-700">
                   {dailyStatus.can_practice
-                    ? `เหลือ ${dailyStatus.assess_limit - dailyStatus.today_assess} ครั้งวันนี้`
-                    : 'ใช้ครบโควต้าวันนี้แล้ว'}
+                    ? `เหลือ ${dailyStatus.assess_limit - dailyStatus.today_assess} ครั้งเดือนนี้`
+                    : 'ใช้ครบโควต้าเดือนนี้แล้ว'}
                 </p>
-                <p className="text-xs text-gray-400">ฟรี {dailyStatus.assess_limit} ครั้ง/วัน · gen ประโยค {dailyStatus.gen_limit} ครั้ง/วัน</p>
+                <p className="text-xs text-gray-400">ทดลองใช้ฟรี {dailyStatus.assess_limit} ครั้ง/เดือน · สมัครเป็น Learner หรือ Superuser เพื่อการใช้งานมากขึ้น</p>
               </div>
             </div>
           )}

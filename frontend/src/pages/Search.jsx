@@ -18,6 +18,25 @@ function loadCatUsage() {
   try { return JSON.parse(localStorage.getItem('cat_usage') || '{}') } catch { return {} }
 }
 
+const currentMonth = () => new Date().toISOString().slice(0, 7) // "2026-03"
+
+function setSearchQuotaExceeded(tier) {
+  try { localStorage.setItem('search_quota_exceeded', JSON.stringify({ month: currentMonth(), tier })) } catch {}
+}
+
+function getSearchQuotaExceeded() {
+  try {
+    const v = JSON.parse(localStorage.getItem('search_quota_exceeded'))
+    if (v?.month === currentMonth()) return v
+    localStorage.removeItem('search_quota_exceeded') // ผ่านเดือนแล้ว → ลบทิ้ง
+  } catch {}
+  return null
+}
+
+function clearSearchQuotaExceeded() {
+  try { localStorage.removeItem('search_quota_exceeded') } catch {}
+}
+
 export default function Search() {
   const navigate = useNavigate()
   const { token, fetchingMe } = useAuthStore()
@@ -147,6 +166,7 @@ export default function Search() {
   const handleSearchQuota429 = useCallback((e) => {
     const detail = e.response?.data?.detail
     if (e.response?.status === 429 && detail) {
+      setSearchQuotaExceeded(detail.user_tier)
       setQuotaModal({ quotaType: detail.quota_type, userTier: detail.user_tier })
     }
   }, [])
@@ -174,6 +194,12 @@ export default function Search() {
     try {
       let resultData
       if (!navigator.onLine && getSyncProgress().synced_at) {
+        const exceeded = getSearchQuotaExceeded()
+        if (exceeded) {
+          setQuotaModal({ quotaType: 'search_daily', userTier: exceeded.tier })
+          setLoading(false)
+          return
+        }
         resultData = await offlineSearch(q.trim())
         const firstWord = resultData.prefix_group?.[0] ?? resultData.inner_group?.[0] ?? null
         clearTimeout(historyTimerRef.current)
@@ -183,6 +209,7 @@ export default function Search() {
       } else {
         const res = await searchWords(q.trim())
         resultData = res.data
+        clearSearchQuotaExceeded()
       }
       if (q !== currentQueryRef.current) return
       setResult(resultData)
@@ -216,8 +243,14 @@ export default function Search() {
         const fw = res.data.prefix_group?.[0] ?? res.data.inner_group?.[0] ?? null
         scheduleHistory(q.trim(), firstWordId, fw?.pinyin ?? null, true)
       }
-    } catch {
+    } catch (err) {
       if (q !== currentQueryRef.current) return
+      const detail = err.response?.data?.detail
+      if (err.response?.status === 429 && detail?.quota_type) {
+        setSearchQuotaExceeded(detail.user_tier)
+        setQuotaModal({ quotaType: detail.quota_type, userTier: detail.user_tier })
+        return
+      }
       // ถ้า network error + มี offline data → fallback
       if (getSyncProgress().synced_at) {
         try {

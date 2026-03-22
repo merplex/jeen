@@ -4,6 +4,7 @@ import { scanOcrStructured } from '../services/api'
 import useAuthStore from '../stores/authStore'
 import { speakChinese } from '../utils/tts'
 import TtsSettingsAlert from '../components/TtsSettingsAlert'
+import QuotaLimitModal from '../components/QuotaLimitModal'
 
 export default function OcrLive() {
   const navigate = useNavigate()
@@ -26,6 +27,7 @@ export default function OcrLive() {
   const [cameraReady, setCameraReady] = useState(false)
   const [cameraError, setCameraError] = useState(null)
   const [scanError, setScanError] = useState(null)
+  const [quotaModal, setQuotaModal] = useState(null)
 
   useEffect(() => {
     if (!token) { navigate('/login', { replace: true }); return }
@@ -108,7 +110,12 @@ export default function OcrLive() {
         return still ? prev : null
       })
     } catch (err) {
-      setScanError(err.response?.data?.detail || err.message || 'เกิดข้อผิดพลาด')
+      const detail = err.response?.data?.detail
+      if (err.response?.status === 429 && detail?.quota_type) {
+        setQuotaModal({ quotaType: detail.quota_type, userTier: detail.user_tier })
+      } else {
+        setScanError(typeof detail === 'string' ? detail : err.message || 'เกิดข้อผิดพลาด')
+      }
     }
     scanningRef.current = false
     setScanning(false)
@@ -126,6 +133,7 @@ export default function OcrLive() {
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black overflow-hidden">
       {showTtsAlert && <TtsSettingsAlert onClose={() => setShowTtsAlert(false)} />}
+      {quotaModal && <QuotaLimitModal quotaType={quotaModal.quotaType} userTier={quotaModal.userTier} onClose={() => setQuotaModal(null)} />}
       {/* ===== Camera ===== */}
       <div className="relative flex-none" style={{ height: '42vh' }}>
         <video
