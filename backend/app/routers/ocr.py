@@ -439,17 +439,17 @@ def _parse_chat_lines_line(items: list) -> list:
                 # ไม่ใช่ date — ดู cy proximity กับ item ก่อนหน้า
                 if prev_speaker is not None and prev_cy is not None and (cy - prev_cy) < 0.08:
                     speaker = prev_speaker
-                    logger.info(f"[line_cy_inherit] '{text}' cy={cy:.3f} prev_cy={prev_cy:.3f} gap={cy-prev_cy:.3f} → inherit {speaker}")
+                    print(f"[line_cy_inherit] '{text}' cy={cy:.3f} prev_cy={prev_cy:.3f} gap={cy-prev_cy:.3f} → inherit {speaker}", flush=True)
                 else:
                     speaker = "A" if it["cx"] > 0.5 else "B"
-                    logger.info(f"[line_cy_inherit] '{text}' cy={cy:.3f} prev_cy={prev_cy} gap={(cy-prev_cy) if prev_cy else 'N/A'} → cx-based {speaker}")
+                    print(f"[line_cy_inherit] '{text}' cy={cy:.3f} prev_cy={str(prev_cy)} gap={f'{cy-prev_cy:.3f}' if prev_cy else 'N/A'} → cx-based {speaker}", flush=True)
                 structured.append({"type": "bubble", "speaker": speaker, "text": text, "time": time_str})
                 prev_cy = cy
                 prev_speaker = speaker
             continue
 
         speaker = "A" if it["align"] == "right" else "B"
-        logger.info(f"[line_item] '{text[:30]}' align={it['align']} cx={it['cx']:.3f} cy={cy:.3f} → {speaker}")
+        print(f"[line_item] '{text[:30]}' align={it['align']} cx={it['cx']:.3f} cy={cy:.3f} → {speaker}", flush=True)
 
         if _is_file_ext(text):
             structured.append({"type": "file", "speaker": speaker, "time": time_str})
