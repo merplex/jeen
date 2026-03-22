@@ -92,7 +92,8 @@ def _ocr_with_paddle(image_bytes: bytes) -> dict:
         items = []
         for item in result[0]:
             box, (text, confidence) = item
-            if confidence < 0.5:
+            min_conf = 0.3 if len(text) <= 2 else 0.5
+            if confidence < min_conf:
                 continue
             xs = [p[0] for p in box]
             ys = [p[1] for p in box]
@@ -360,11 +361,24 @@ def _ocr_structured(image_bytes: bytes, mime_type: str) -> dict:
     result = _ocr_with_paddle(image_bytes)
     if result["lines"]:
         is_chat = result.get("is_chat", False)
-        logger.info(f"[OCR structured] PaddleOCR: {len(result['lines'])} lines, is_chat={is_chat}")
+        lines = result["lines"]
+        # Secondary check: ถ้า is_chat=False แต่มี header + bubble → ยังถือว่าเป็น chat
+        # (เกิดเมื่อ right bubble สั้นโดน filter หรือ confidence ต่ำ)
+        if not is_chat:
+            top_items = [l for l in lines if 0.08 <= l.get("cy", 1) < 0.22]
+            has_header = any(
+                len(l["text"].strip()) > 1 and not _has_header_sym(l["text"])
+                for l in top_items
+            )
+            has_bubble = any(l.get("align") in ("left", "right") for l in lines if l.get("cy", 0) > 0.20)
+            if has_header and has_bubble:
+                is_chat = True
+                logger.info("[OCR structured] is_chat promoted by header+bubble fallback")
+        logger.info(f"[OCR structured] PaddleOCR: {len(lines)} lines, is_chat={is_chat}")
         if is_chat:
-            chat_structure = _parse_chat_lines(result["lines"])
-            return {"lines": result["lines"], "is_chat": True, "chat_structure": chat_structure}
-        return {"lines": result["lines"], "is_chat": False}
+            chat_structure = _parse_chat_lines(lines)
+            return {"lines": lines, "is_chat": True, "chat_structure": chat_structure}
+        return {"lines": lines, "is_chat": False}
 
     # Fallback: ใช้ Gemini ถ้า PaddleOCR ไม่ได้ผล
     logger.info("[OCR structured] PaddleOCR empty, falling back to Gemini")
