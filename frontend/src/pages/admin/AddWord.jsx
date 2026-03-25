@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { adminCreateWord, adminDeleteMissed, adminUploadWordImage } from '../../services/api'
-import { CATEGORIES } from '../../utils/categories'
+import { adminCreateWord, adminDeleteMissed, adminUploadWordImage, adminCategoryWordCounts } from '../../services/api'
 
 export default function AddWord() {
   const navigate = useNavigate()
@@ -18,6 +17,7 @@ export default function AddWord() {
     english_meaning: '',
     category: '',
   })
+  const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
@@ -26,6 +26,12 @@ export default function AddWord() {
   const [imgSuccess, setImgSuccess] = useState(false)
   const [imgError, setImgError] = useState('')
   const fileRef = useRef()
+
+  useEffect(() => {
+    adminCategoryWordCounts().then((r) => {
+      setCategories((r.data.categories || []).map((c) => c.name))
+    }).catch(() => {})
+  }, [])
 
   // ถ้า URL params เปลี่ยน (navigate มาใหม่) ให้ reset form
   useEffect(() => {
@@ -135,7 +141,7 @@ export default function AddWord() {
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-chinese-red text-sm bg-white"
             >
               <option value="">-- เลือกหมวด --</option>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
 
