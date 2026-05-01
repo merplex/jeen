@@ -631,11 +631,10 @@ def _log_usage(db: Session, user_id: int | None, event_type: str):
 
 
 def _translate_lines_with_vocab(lines: list, all_words: list,
-                                image_bytes: bytes = None, mime_type: str = None) -> str:
+                                image_bytes: bytes = None, mime_type: str = None,
+                                plain: bool = False) -> str:
     """Request 2: ส่ง lines + per-line vocab hints + รูปต้นฉบับ ให้ Gemini แปล
-    - รักษา line breaks ตามต้นฉบับ
-    - ดู layout จากรูป: chat bubble / book dialogue / article
-    - ระบุผู้พูดถ้าเป็นบทสนทนา
+    plain=True → แปลตรงๆ ไม่ตรวจ conversation ไม่ใส่ชื่อผู้พูด (ใช้ใน translation ทั่วไป)
     """
     from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
     from google.genai import types as genai_types
@@ -668,9 +667,8 @@ def _translate_lines_with_vocab(lines: list, all_words: list,
 
     structured_input = "\n\n".join(blocks)
 
-    # ถ้ามีทั้ง left และ right = บทสนทนาแน่นอน ไม่ต้องให้ Gemini เดา
     aligns = [l.get("align", "left") for l in lines if l.get("text")]
-    is_conversation = "left" in aligns and "right" in aligns
+    is_conversation = not plain and "left" in aligns and "right" in aligns
 
     if is_conversation:
         speaker_rule = (
@@ -750,7 +748,7 @@ def scan_image_structured(
             chat_structure = _parse_chat_lines(lines)
 
     # แปลทั้ง 2 รูปแบบพร้อมกัน
-    translation_general = _translate_lines_with_vocab(lines, words, image_bytes, body.mime_type)
+    translation_general = _translate_lines_with_vocab(lines, words, image_bytes, body.mime_type, plain=True)
     translation_chat = _translate_chat_lines(chat_structure, words, image_bytes, body.mime_type) if chat_structure else ""
 
     # Fallback ถ้า general fail
