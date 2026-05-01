@@ -642,11 +642,14 @@ def _translate_lines_with_vocab(lines: list, all_words: list,
     if not _has_api_key() or not lines:
         return ""
 
-    # Build per-line blocks with vocab hints
+    def _has_chinese(t: str) -> bool:
+        return any('一' <= c <= '鿿' for c in t)
+
+    # Build per-line blocks with vocab hints — เฉพาะ lines ที่มีตัวจีนอย่างน้อย 1 ตัว
     blocks = []
     for i, line in enumerate(lines):
         text = line.get("text", "")
-        if not text:
+        if not text or not _has_chinese(text):
             continue
         line_words = [w for w in all_words if w.chinese and w.chinese in text]
         line_words.sort(key=lambda w: len(w.chinese), reverse=True)
@@ -682,6 +685,7 @@ def _translate_lines_with_vocab(lines: list, all_words: list,
     if plain:
         prompt = (
             "แปลข้อความต่อไปนี้เป็นภาษาไทย ไม่ต้องใส่ชื่อผู้พูด\n"
+            "บรรทัดที่ขึ้นต้นด้วย 'คำศัพท์:' คือ hint สำหรับคุณเท่านั้น ห้ามใส่ในคำตอบ\n"
             "กฎ:\n"
             "1. บรรทัดที่ต่อเนื่องกันในย่อหน้าเดียวกัน ให้รวมเป็นย่อหน้าเดียว (ไม่ต้องแยกตาม [หมายเลข])\n"
             "2. ระหว่างย่อหน้าใหม่ เว้น 1 บรรทัดว่าง\n"
@@ -695,6 +699,7 @@ def _translate_lines_with_vocab(lines: list, all_words: list,
         prompt = (
             "แปลข้อความต่อไปนี้เป็นภาษาไทย\n"
             f"{speaker_rule}"
+            "บรรทัดที่ขึ้นต้นด้วย 'คำศัพท์:' คือ hint สำหรับคุณเท่านั้น ห้ามใส่ในคำตอบ\n"
             "กฎเพิ่มเติม:\n"
             "1. แต่ละ [หมายเลข|align] = 1 บรรทัดในคำแปล คั่นด้วย newline เรียงตามหมายเลข ห้ามสลับลำดับ\n"
             "2. ตอบคำแปลภาษาไทยเท่านั้น ไม่ใส่ [หมายเลข|align] และไม่อธิบายเพิ่ม\n"
