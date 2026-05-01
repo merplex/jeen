@@ -101,13 +101,13 @@ def _ocr_with_paddle(image_bytes: bytes) -> dict:
             x_max = max(xs) / img_w
             cx = sum(xs) / 4 / img_w
             cy = sum(ys) / 4 / img_h
-            # left: x_min น้อย = bubble เริ่มจากซ้าย (หลัง avatar) — ครอบคลุมทั้ง short และ long left bubble
-            # right: ไม่ได้เริ่มจากซ้าย + x_max ชิดขวา
+            # right: x_max ชิดขวา (เช็คก่อน — long bubble อาจมี x_min < 0.25 ด้วย)
+            # left: เริ่มจากซ้าย (หลัง avatar) และไม่ได้ชิดขวา
             # center: date divider / system message
-            if x_min < 0.25:
-                align = "left"
-            elif x_max > 0.70:
+            if x_max > 0.70:
                 align = "right"
+            elif x_min < 0.25:
+                align = "left"
             else:
                 align = "center"
             h = (max(ys) - min(ys)) / img_h
@@ -333,6 +333,12 @@ def _parse_chat_lines(items: list) -> list:
             continue
 
         speaker = "A" if it["align"] == "right" else "B"
+
+        # Skip WeChat group chat sender name labels (ชื่อผู้ส่งที่แสดงเหนือ bubble ใน group chat)
+        # เงื่อนไข: ฝั่ง B, ไม่มี timestamp matched, ไม่มีอักษรจีน, ข้อความแคบ
+        if (speaker == "B" and time_str is None and it["w"] < 0.35
+                and not re.search(r'[一-鿿㐀-䶿]', text)):
+            continue
 
         if _is_file_ext(text):
             structured.append({"type": "file", "speaker": speaker, "time": time_str})
@@ -630,6 +636,50 @@ def _log_usage(db: Session, user_id: int | None, event_type: str):
         db.rollback()
 
 
+def _translate_chat_via_vision(image_bytes: bytes, mime_type: str, all_words: list) -> str:
+    """ส่งรูปทั้งใบให้ Gemini Vision วิเคราะห์บทสนทนาและแปลโดยตรง
+    วิธีนี้ Gemini มองเห็น bubble สี ตำแหน่ง ชื่อผู้ส่ง → แยกผู้พูดถูกต้องเสมอ
+    """
+    from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
+    from google.genai import types as genai_types
+
+    if not _has_api_key():
+        return ""
+
+    vocab_hint = ""
+    if all_words:
+        pairs = "; ".join(f"{w.chinese}={w.thai_meaning}" for w in all_words[:20])
+        vocab_hint = f"\nคำศัพท์ที่ควรแปลตรงตามนี้: {pairs}"
+
+    prompt = (
+        "รูปนี้คือ screenshot บทสนทนาจากแอปแชท (WeChat หรือ LINE)\n"
+        "งานของคุณ: แปลข้อความจีนทุกอันเป็นภาษาไทย พร้อมระบุผู้พูด\n\n"
+        "กฎระบุผู้พูด:\n"
+        "- bubble ฝั่งขวา (สีเขียว/เข้ม) = A\n"
+        "- bubble ฝั่งซ้าย (สีขาว/อ่อน) = B\n"
+        "- ถ้าเห็นชื่อผู้ส่งเหนือ bubble ให้ใช้ชื่อนั้นแทน B เช่น B (Rosita)\n\n"
+        "format ที่ต้องการ (แต่ละ message = 1 บรรทัด):\n"
+        "บทสนทนากับ [ชื่อหน้าจอถ้ามี]\n"
+        "A : [คำแปล]\n"
+        "B : [คำแปล]\n"
+        "B (Rosita) : [คำแปล]\n\n"
+        "กฎเพิ่มเติม:\n"
+        "- ข้ามข้อความที่เป็นแค่วัน/เวลากลาง เช่น 'Yesterday 13:51'\n"
+        "- ถ้าเห็นรูป/สติ๊กเกอร์แทนข้อความ → เขียน '[ส่งรูป]'\n"
+        "- ห้ามมีอักษรจีนในคำตอบ\n"
+        "- ตอบผลลัพธ์เท่านั้น ไม่อธิบายเพิ่ม"
+        f"{vocab_hint}"
+    )
+
+    try:
+        image_part = genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+        resp = _model.generate_content([prompt, image_part])
+        return _strip_markdown(_get_text(resp)).strip()
+    except Exception as e:
+        logger.error(f"[chat vision] error: {e}")
+        return ""
+
+
 def _translate_lines_with_vocab(lines: list, all_words: list,
                                 image_bytes: bytes = None, mime_type: str = None,
                                 plain: bool = False) -> str:
@@ -767,7 +817,8 @@ def scan_image_structured(
 
     # แปลทั้ง 2 รูปแบบพร้อมกัน
     translation_general = _translate_lines_with_vocab(lines, words, image_bytes, body.mime_type, plain=True)
-    translation_chat = _translate_chat_lines(chat_structure, words, image_bytes, body.mime_type) if chat_structure else ""
+    # translation_chat: ส่งรูปทั้งใบให้ Gemini Vision โดยตรง — เห็น bubble สี/ตำแหน่งจริง แยก A/B ถูกต้องเสมอ
+    translation_chat = _translate_chat_via_vision(image_bytes, body.mime_type, words)
 
     # Fallback ถ้า general fail
     if not translation_general and combined_text:
