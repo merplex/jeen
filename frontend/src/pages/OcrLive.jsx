@@ -28,6 +28,8 @@ export default function OcrLive() {
   const [cameraError, setCameraError] = useState(null)
   const [scanError, setScanError] = useState(null)
   const [quotaModal, setQuotaModal] = useState(null)
+  const [translateMode, setTranslateMode] = useState('general')
+  const [translationChat, setTranslationChat] = useState('')
 
   useEffect(() => {
     if (!token) { navigate('/login', { replace: true }); return }
@@ -103,6 +105,7 @@ export default function OcrLive() {
       const r = await scanOcrStructured({ image_base64: b64, mime_type: 'image/jpeg' })
       setLines(r.data.lines || [])
       setTranslation(r.data.translation || '')
+      setTranslationChat(r.data.translation_chat || '')
       setWords(r.data.words || [])
       setSelectedWord((prev) => {
         if (!prev) return null
@@ -207,6 +210,21 @@ export default function OcrLive() {
       {/* ===== Results ===== */}
       <div className="flex-1 overflow-y-auto bg-chinese-cream">
 
+        {/* Translation mode toggle */}
+        <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+          <span className="text-xs text-gray-400">โหมดแปล</span>
+          <div className="flex rounded-full border border-gray-200 overflow-hidden text-xs ml-1">
+            <button
+              onClick={() => setTranslateMode('general')}
+              className={`px-3 py-1.5 transition-colors ${translateMode === 'general' ? 'bg-chinese-red text-white' : 'bg-white text-gray-500'}`}
+            >ทั่วไป</button>
+            <button
+              onClick={() => setTranslateMode('chat')}
+              className={`px-3 py-1.5 transition-colors ${translateMode === 'chat' ? 'bg-chinese-red text-white' : 'bg-white text-gray-500'}`}
+            >สนทนา</button>
+          </div>
+        </div>
+
         {/* Scan error */}
         {scanError && (
           <div className="px-4 pt-3">
@@ -230,16 +248,19 @@ export default function OcrLive() {
           <div className="px-4 pt-3 pb-1">
             <p className="text-xs text-gray-400 mb-2 font-medium">คำแปล AI</p>
             <div className="bg-white rounded-xl px-3 py-3 shadow-sm space-y-2">
-              {/* Thai translation first — preserves line breaks */}
-              {translation && (
-                <div>
-                  {translation.split('\n').map((t, i) => (
-                    t.trim()
-                      ? <p key={i} className="text-sm text-gray-700 leading-snug">{t}</p>
-                      : <div key={i} className="h-2" />
-                  ))}
-                </div>
-              )}
+              {/* แสดงตาม mode ที่เลือก */}
+              {(() => {
+                const displayed = translateMode === 'chat' ? translationChat : translation
+                return displayed ? (
+                  <div>
+                    {displayed.split('\n').map((t, i) => (
+                      t.trim()
+                        ? <p key={i} className="text-sm text-gray-700 leading-snug">{t}</p>
+                        : <div key={i} className="h-2" />
+                    ))}
+                  </div>
+                ) : null
+              })()}
               {/* Chinese reference below */}
               {lines.length > 0 && (
                 <div className="border-t border-gray-100 pt-2">

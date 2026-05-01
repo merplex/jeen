@@ -735,31 +735,41 @@ def scan_image_structured(
     # Match DB
     words = _find_words_in_text(combined_text, db)
 
-    # Request 2: แปล — chat path ใช้ _translate_chat_lines, natural path ใช้ _translate_lines_with_vocab
-    if combined_text or chat_structure:
-        if chat_structure:
-            full_translation = _translate_chat_lines(chat_structure, words, image_bytes, body.mime_type)
+    if not combined_text and not chat_structure:
+        return {
+            "lines": lines, "is_chat": is_chat, "app_type": app_type,
+            "translation": "", "translation_chat": "",
+            "words": [],
+        }
+
+    # สร้าง chat_structure เสมอ (ถ้ายังไม่มี) เพื่อใช้ใน translation_chat
+    if not chat_structure and lines:
+        if app_type == "line":
+            chat_structure = _parse_chat_lines_line(lines)
         else:
-            full_translation = _translate_lines_with_vocab(lines, words, image_bytes, body.mime_type)
-        # Fallback: ถ้า call 2 fail ให้แปลตรงๆ จากข้อความที่อ่านได้
-        if not full_translation and combined_text:
-            from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
-            try:
-                resp = _model.generate_content(
-                    f"แปลข้อความจีนนี้เป็นภาษาไทย ตอบคำแปลเท่านั้น ไม่ต้องอธิบาย:\n{combined_text}"
-                )
-                full_translation = _strip_markdown(_get_text(resp)).strip()
-            except Exception as e:
-                logger.error(f"[OCR fallback translate] error: {e}")
-                full_translation = ""
-    else:
-        full_translation = ""
+            chat_structure = _parse_chat_lines(lines)
+
+    # แปลทั้ง 2 รูปแบบพร้อมกัน
+    translation_general = _translate_lines_with_vocab(lines, words, image_bytes, body.mime_type)
+    translation_chat = _translate_chat_lines(chat_structure, words, image_bytes, body.mime_type) if chat_structure else ""
+
+    # Fallback ถ้า general fail
+    if not translation_general and combined_text:
+        from ..services.translate_service import _model, _has_api_key, _strip_markdown, _get_text
+        try:
+            resp = _model.generate_content(
+                f"แปลข้อความจีนนี้เป็นภาษาไทย ตอบคำแปลเท่านั้น ไม่ต้องอธิบาย:\n{combined_text}"
+            )
+            translation_general = _strip_markdown(_get_text(resp)).strip()
+        except Exception as e:
+            logger.error(f"[OCR fallback translate] error: {e}")
 
     return {
         "lines": lines,
         "is_chat": is_chat,
         "app_type": app_type,
-        "translation": full_translation,
+        "translation": translation_general,
+        "translation_chat": translation_chat,
         "words": [
             {
                 "id": w.id,

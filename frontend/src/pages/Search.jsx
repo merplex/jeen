@@ -59,6 +59,7 @@ export default function Search() {
   })
   const [ocrResult, setOcrResult] = useState(null)  // { text, translation, words }
   const [ocrLoading, setOcrLoading] = useState(false)
+  const [ocrMode, setOcrMode] = useState('general')
   const [quotaModal, setQuotaModal] = useState(null) // null | { quotaType, userTier }
   const [showOcrSheet, setShowOcrSheet] = useState(false)
   const [showHandwriting, setShowHandwriting] = useState(false)
@@ -466,7 +467,21 @@ export default function Search() {
         <div className="mx-4 mt-3 bg-white rounded-2xl shadow-lg overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <span className="text-sm font-medium text-gray-700">ผลการสแกน OCR</span>
-            <button onClick={() => setOcrResult(null)} className="text-gray-400 text-xl">×</button>
+            <div className="flex items-center gap-2">
+              {ocrResult.text && (
+                <div className="flex rounded-full border border-gray-200 overflow-hidden text-xs">
+                  <button
+                    onClick={() => setOcrMode('general')}
+                    className={`px-2.5 py-1 transition-colors ${ocrMode === 'general' ? 'bg-chinese-red text-white' : 'text-gray-500'}`}
+                  >ทั่วไป</button>
+                  <button
+                    onClick={() => setOcrMode('chat')}
+                    className={`px-2.5 py-1 transition-colors ${ocrMode === 'chat' ? 'bg-chinese-red text-white' : 'text-gray-500'}`}
+                  >สนทนา</button>
+                </div>
+              )}
+              <button onClick={() => setOcrResult(null)} className="text-gray-400 text-xl leading-none">×</button>
+            </div>
           </div>
           {ocrResult.error ? (
             <p className="px-4 py-3 text-sm text-red-500">{ocrResult.error}</p>
@@ -474,16 +489,19 @@ export default function Search() {
             <p className="px-4 py-3 text-sm text-gray-400">ไม่พบข้อความภาษาจีนในรูป</p>
           ) : (
             <div className="px-4 py-3 space-y-3">
-              {/* Thai translation first */}
-              {ocrResult.translation && (
-                <div>
-                  {ocrResult.translation.split('\n').map((t, i) => (
-                    t.trim()
-                      ? <p key={i} className="text-sm text-gray-700 leading-snug">{t}</p>
-                      : <div key={i} className="h-2" />
-                  ))}
-                </div>
-              )}
+              {/* แสดงตาม mode */}
+              {(() => {
+                const displayed = ocrMode === 'chat' ? ocrResult.translation_chat : ocrResult.translation
+                return displayed ? (
+                  <div>
+                    {displayed.split('\n').map((t, i) => (
+                      t.trim()
+                        ? <p key={i} className="text-sm text-gray-700 leading-snug">{t}</p>
+                        : <div key={i} className="h-2" />
+                    ))}
+                  </div>
+                ) : null
+              })()}
               {/* Chinese reference below */}
               {ocrResult.text && (
                 <div className="border-t border-gray-100 pt-2">
