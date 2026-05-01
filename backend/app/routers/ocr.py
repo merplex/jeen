@@ -818,7 +818,8 @@ def scan_image_structured(
     # แปลทั้ง 2 รูปแบบพร้อมกัน
     translation_general = _translate_lines_with_vocab(lines, words, image_bytes, body.mime_type, plain=True)
     # translation_chat: ส่งรูปทั้งใบให้ Gemini Vision โดยตรง — เห็น bubble สี/ตำแหน่งจริง แยก A/B ถูกต้องเสมอ
-    translation_chat = _translate_chat_via_vision(image_bytes, body.mime_type, words)
+    # เรียกเฉพาะเมื่อเป็น chat จริงๆ (is_chat=True หรือมี chat_structure)
+    translation_chat = _translate_chat_via_vision(image_bytes, body.mime_type, words) if (is_chat or chat_structure) else ""
 
     # Fallback ถ้า general fail
     if not translation_general and combined_text:

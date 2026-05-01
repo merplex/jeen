@@ -57,7 +57,7 @@ MODEL_NAME = "gemini-2.5-flash-lite"
 
 class _RateLimitedModel:
     """ครอบ Gemini client เพื่อ rate limit ทุก call อัตโนมัติ"""
-    def generate_content(self, prompt: str):
+    def generate_content(self, prompt):
         _rate_limiter.acquire()
         return _client.models.generate_content(model=MODEL_NAME, contents=prompt)
 
