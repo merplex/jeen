@@ -27,11 +27,24 @@ def _migrate_columns():
             conn.execute(text("ALTER TABLE word_image_cache ADD COLUMN last_accessed_at timestamp DEFAULT now()"))
 
 
+def _warmup_paddle():
+    """โหลด PaddleOCR models ตอน startup เพื่อไม่ให้ user คนแรกต้องรอ download"""
+    import logging
+    try:
+        from .routers.ocr import _get_paddle_reader
+        _get_paddle_reader()
+        logging.getLogger(__name__).info("[startup] PaddleOCR warmed up")
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"[startup] PaddleOCR warmup failed: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     _migrate_columns()
     scheduler = start_scheduler()
+    import asyncio, concurrent.futures
+    asyncio.get_event_loop().run_in_executor(concurrent.futures.ThreadPoolExecutor(max_workers=1), _warmup_paddle)
     yield
     scheduler.shutdown(wait=False)
 
