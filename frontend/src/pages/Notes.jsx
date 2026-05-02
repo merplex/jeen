@@ -120,6 +120,10 @@ export default function Notes() {
             <p className="text-xs text-gray-400 font-medium px-1">บันทึกจาก OCR ({ocrNotes.length})</p>
             {ocrNotes.map((note) => {
               const expanded = expandedOcrIds.has(note.id)
+              let parsedLines = []
+              let parsedWords = []
+              try { parsedLines = note.lines_json ? JSON.parse(note.lines_json) : [] } catch {}
+              try { parsedWords = note.words_json ? JSON.parse(note.words_json) : [] } catch {}
               return (
                 <div key={note.id} className="relative bg-white rounded-xl shadow-sm border-l-4 border-chinese-red/30 overflow-hidden">
                   <button onClick={() => toggleOcrExpand(note.id)} className="w-full text-left p-4 pr-8">
@@ -131,9 +135,38 @@ export default function Notes() {
                             <span className="text-xs text-chinese-red/70 border border-chinese-red/30 rounded-full px-2 py-0.5">สนทนา</span>
                           )}
                         </div>
+                        {/* คำแปลไทย */}
                         <p className={`text-sm text-gray-700 whitespace-pre-wrap leading-snug ${expanded ? '' : 'line-clamp-3'}`}>
                           {note.translation_text}
                         </p>
+                        {expanded && (
+                          <>
+                            {/* ข้อความจีนต้นฉบับ */}
+                            {parsedLines.length > 0 && (
+                              <div className="mt-3 border-t border-gray-100 pt-2 space-y-0.5">
+                                {parsedLines.map((l, i) => (
+                                  <p key={i} className="font-chinese text-sm text-gray-400 leading-snug">{l.text}</p>
+                                ))}
+                              </div>
+                            )}
+                            {/* คำศัพท์ใน DB */}
+                            {parsedWords.length > 0 && (
+                              <div className="mt-3 border-t border-gray-100 pt-2 space-y-1.5">
+                                {parsedWords.map((w, i) => (
+                                  <button
+                                    key={i}
+                                    onClick={(e) => { e.stopPropagation(); navigate(`/word/${w.id}`) }}
+                                    className="w-full text-left flex items-center gap-2"
+                                  >
+                                    <span className="font-chinese text-base text-chinese-red w-10 shrink-0">{w.chinese}</span>
+                                    <span className="text-xs text-gray-400">{w.pinyin}</span>
+                                    <span className="text-xs text-gray-600 ml-auto line-clamp-1 text-right max-w-[50%]">{w.thai_meaning}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
                       <span className="text-gray-300 text-xs shrink-0 mt-0.5">{expanded ? '▲' : '▼'}</span>
                     </div>

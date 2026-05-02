@@ -29,6 +29,7 @@ async function pushPending(token) {
           body: JSON.stringify({
             translation_text: local.translation_text,
             translation_mode: local.translation_mode,
+            lines_json: local.lines_json,
             words_json: local.words_json,
           }),
         })
@@ -77,13 +78,14 @@ export async function startOcrNotesSync(token) {
   }
 }
 
-export async function saveOcrNoteOffline({ translationText, translationMode, wordsJson }) {
+export async function saveOcrNoteOffline({ translationText, translationMode, linesJson, wordsJson }) {
   const now = new Date().toISOString()
   const tempId = -Date.now()
   const note = {
     id: tempId,
     translation_text: translationText,
     translation_mode: translationMode,
+    lines_json: linesJson,
     words_json: wordsJson,
     created_at: now,
     updated_at: now,

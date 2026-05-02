@@ -13,6 +13,7 @@ class OcrNote(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     translation_text = Column(Text, nullable=False)
     translation_mode = Column(String(16), nullable=False, default="general")
+    lines_json = Column(Text, nullable=True)  # JSON array of raw OCR lines [{text:"..."}]
     words_json = Column(Text, nullable=True)  # JSON array of {id,chinese,pinyin,thai_meaning}
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)

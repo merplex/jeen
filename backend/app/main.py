@@ -25,6 +25,12 @@ def _migrate_columns():
             conn.execute(text("ALTER TABLE word_image_cache ADD COLUMN image_source varchar(32)"))
         if "last_accessed_at" not in existing:
             conn.execute(text("ALTER TABLE word_image_cache ADD COLUMN last_accessed_at timestamp DEFAULT now()"))
+    # ocr_notes: เพิ่ม lines_json ถ้ายังไม่มี
+    if inspector.has_table("ocr_notes"):
+        ocr_cols = {c["name"] for c in inspector.get_columns("ocr_notes")}
+        with engine.begin() as conn:
+            if "lines_json" not in ocr_cols:
+                conn.execute(text("ALTER TABLE ocr_notes ADD COLUMN lines_json text"))
 
 
 def _warmup_paddle():
