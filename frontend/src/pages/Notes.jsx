@@ -83,6 +83,13 @@ export default function Notes() {
     setOcrNotes((n) => n.filter((x) => x.id !== id))
   }
 
+  const [expandedOcrIds, setExpandedOcrIds] = useState(new Set())
+  const toggleOcrExpand = (id) => setExpandedOcrIds(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
+
   if (!user) return (
     <div className="min-h-screen bg-chinese-cream flex items-center justify-center pb-24">
       <div className="text-center">
@@ -112,39 +119,29 @@ export default function Notes() {
           <>
             <p className="text-xs text-gray-400 font-medium px-1">บันทึกจาก OCR ({ocrNotes.length})</p>
             {ocrNotes.map((note) => {
-              let parsedWords = []
-              try { parsedWords = note.words_json ? JSON.parse(note.words_json) : [] } catch {}
+              const expanded = expandedOcrIds.has(note.id)
               return (
-                <div key={note.id} className="bg-white rounded-xl p-4 shadow-sm border-l-4 border-chinese-red/30">
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs text-white bg-chinese-red/70 rounded-full px-2 py-0.5">
-                          {note.translation_mode === 'chat' ? 'สนทนา' : 'ทั่วไป'}
-                        </span>
-                        <span className="text-xs text-gray-300">{thaiDateTime(note.updated_at)}</span>
-                      </div>
-                      <p className="text-sm text-gray-700 line-clamp-4 whitespace-pre-wrap leading-snug">
-                        {note.translation_text}
-                      </p>
-                      {parsedWords.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {parsedWords.map((w, i) => (
-                            <button
-                              key={i}
-                              onClick={() => navigate(`/word/${w.id}`)}
-                              className="font-chinese text-xs text-chinese-red bg-chinese-red/10 rounded-lg px-2 py-0.5"
-                            >
-                              {w.chinese}
-                            </button>
-                          ))}
+                <div key={note.id} className="relative bg-white rounded-xl shadow-sm border-l-4 border-chinese-red/30 overflow-hidden">
+                  <button onClick={() => toggleOcrExpand(note.id)} className="w-full text-left p-4 pr-8">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-xs text-gray-300">{thaiDateTime(note.updated_at)}</span>
+                          {note.translation_mode === 'chat' && (
+                            <span className="text-xs text-chinese-red/70 border border-chinese-red/30 rounded-full px-2 py-0.5">สนทนา</span>
+                          )}
                         </div>
-                      )}
+                        <p className={`text-sm text-gray-700 whitespace-pre-wrap leading-snug ${expanded ? '' : 'line-clamp-3'}`}>
+                          {note.translation_text}
+                        </p>
+                      </div>
+                      <span className="text-gray-300 text-xs shrink-0 mt-0.5">{expanded ? '▲' : '▼'}</span>
                     </div>
-                    <button onClick={() => removeOcrNote(note.id)} className="text-gray-300 hover:text-red-400 text-xl shrink-0">
-                      ×
-                    </button>
-                  </div>
+                  </button>
+                  <button
+                    onClick={() => removeOcrNote(note.id)}
+                    className="absolute top-3 right-3 text-gray-300 hover:text-red-400 text-xl leading-none"
+                  >×</button>
                 </div>
               )
             })}
