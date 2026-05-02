@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import Base, engine
-from .routers import search, words, users, flashcard, admin, notes, auth, subscription, speaking, ocr, handwriting
+from .routers import search, words, users, flashcard, admin, notes, auth, subscription, speaking, ocr, handwriting, ocr_notes
 from .scheduler import start_scheduler
 
 def _migrate_columns():
@@ -84,6 +84,7 @@ app.include_router(subscription.router)
 app.include_router(speaking.router)
 app.include_router(ocr.router)
 app.include_router(handwriting.router)
+app.include_router(ocr_notes.router)
 
 
 @app.get("/")

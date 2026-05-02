@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../stores/authStore'
 import useSubscriptionStore from '../stores/subscriptionStore'
 import { deleteAccount, verifyPurchase } from '../services/api'
-import { purchaseProduct, restorePurchases, PRODUCT_IDS } from '../services/iap'
+import { purchaseProduct, restorePurchases, getStorePlatform, PRODUCT_IDS } from '../services/iap'
 import { CATEGORIES, getCategoryColor, loadFavCategories, saveFavCategories } from '../utils/categories'
 
 export default function Profile() {
@@ -38,7 +38,7 @@ export default function Profile() {
     try {
       setPurchasing(true)
       const { productId, receipt } = await purchaseProduct(tier)
-      await verifyPurchase({ platform: 'apple', product_id: productId, purchase_token: receipt })
+      await verifyPurchase({ platform: getStorePlatform(), product_id: productId, purchase_token: receipt })
       await fetchSub()
     } catch (err) {
       if (err.message !== 'cancelled') {
@@ -52,9 +52,9 @@ export default function Profile() {
   const handleRestore = async () => {
     try {
       setPurchasing(true)
-      const { receipt } = await restorePurchases()
+      const { receipt, productId } = await restorePurchases()
       if (receipt) {
-        await verifyPurchase({ platform: 'apple', product_id: '', purchase_token: receipt })
+        await verifyPurchase({ platform: getStorePlatform(), product_id: productId || '', purchase_token: receipt })
       }
       await fetchSub()
     } catch {

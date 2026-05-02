@@ -1,6 +1,6 @@
 import { registerPlugin, Capacitor } from '@capacitor/core'
 
-// ลงทะเบียน native plugin ที่เขียนเป็น Swift
+// iOS → IAPPlugin.swift, Android → IAPPlugin.java (ลงทะเบียนชื่อเดียวกัน)
 const IAPPlugin = registerPlugin('IAP')
 
 const PRODUCT_IDS = {
@@ -8,10 +8,14 @@ const PRODUCT_IDS = {
   superuser: 'com.jeen.dictionary.superuser_monthly',
 }
 
+// 'apple' | 'google'
+export function getStorePlatform() {
+  return Capacitor.getPlatform() === 'android' ? 'google' : 'apple'
+}
+
 export async function purchaseProduct(tier) {
   if (!Capacitor.isNativePlatform()) throw new Error('IAP ไม่พร้อมใช้งาน')
   const productId = PRODUCT_IDS[tier]
-  // IAPPlugin.purchase คืน { productId, receipt } จาก Swift
   return IAPPlugin.purchase({ productId })
 }
 

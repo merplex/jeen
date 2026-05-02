@@ -5,6 +5,7 @@ import useAuthStore from './stores/authStore'
 import { startFlashcardSync } from './services/flashcardSyncService'
 import { startFavoritesSync } from './services/favoritesSyncService'
 import { startNotesSync } from './services/notesSyncService'
+import { startOcrNotesSync } from './services/ocrNotesSyncService'
 import BottomNav from './components/BottomNav'
 import Search from './pages/Search'
 import WordDetail from './pages/WordDetail'
@@ -56,6 +57,7 @@ export default function App() {
       startFlashcardSync(token).catch(() => {})
       startFavoritesSync(token).catch(() => {})
       startNotesSync(token).catch(() => {})
+      startOcrNotesSync(token).catch(() => {})
     }
     sync()
     window.addEventListener('online', sync)

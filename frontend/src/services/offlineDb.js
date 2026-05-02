@@ -39,6 +39,17 @@ db.version(5).stores({
   search_history: '++id, searched_at',
 })
 
+// version 6: เพิ่ม ocr_notes — บันทึกผลแปล OCR + คำศัพท์ที่พบ
+// id: server id (>0) หรือ temp id (<0) สำหรับโน้ตที่สร้างตอน offline
+db.version(6).stores({
+  words: 'id, chinese, chinese_traditional, pinyin_plain, char_count, hsk_level, updated_at',
+  notes: 'id, word_id, updated_at, _pending',
+  flashcards: 'id, word_id, deck, _pending',
+  favorites: 'word_id, _pending',
+  search_history: '++id, searched_at',
+  ocr_notes: 'id, updated_at, _pending',
+})
+
 export default db
 
 // ค้นหาแบบออฟไลน์ — คืน result object เหมือน backend

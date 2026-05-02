@@ -5,6 +5,7 @@ import useAuthStore from '../stores/authStore'
 import { speakChinese } from '../utils/tts'
 import TtsSettingsAlert from '../components/TtsSettingsAlert'
 import QuotaLimitModal from '../components/QuotaLimitModal'
+import { saveOcrNoteOffline, startOcrNotesSync } from '../services/ocrNotesSyncService'
 
 export default function OcrLive() {
   const navigate = useNavigate()
@@ -30,6 +31,7 @@ export default function OcrLive() {
   const [quotaModal, setQuotaModal] = useState(null)
   const [translateMode, setTranslateMode] = useState('general')
   const [translationChat, setTranslationChat] = useState('')
+  const [noteSaved, setNoteSaved] = useState(false)
 
   useEffect(() => {
     if (!token) { navigate('/login', { replace: true }); return }
@@ -107,6 +109,7 @@ export default function OcrLive() {
       setTranslation(r.data.translation || '')
       setTranslationChat(r.data.translation_chat || '')
       setWords(r.data.words || [])
+      setNoteSaved(false)
       setSelectedWord((prev) => {
         if (!prev) return null
         const still = r.data.words?.find((w) => w.id === prev.id)
@@ -132,6 +135,17 @@ export default function OcrLive() {
   }, [cameraReady])
 
   const speak = (text) => speakChinese(text, { onNoVoice: () => setShowTtsAlert(true) })
+
+  const handleSaveNote = async () => {
+    const text = translateMode === 'chat' ? translationChat : translation
+    if (!text) return
+    const wordsJson = words.length > 0
+      ? JSON.stringify(words.map(w => ({ id: w.id, chinese: w.chinese, pinyin: w.pinyin, thai_meaning: w.thai_meaning })))
+      : null
+    await saveOcrNoteOffline({ translationText: text, translationMode: translateMode, wordsJson })
+    setNoteSaved(true)
+    startOcrNotesSync(token)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black overflow-hidden">
@@ -272,6 +286,23 @@ export default function OcrLive() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Save to note button */}
+        {isOnline && (translation || translationChat) && (
+          <div className="px-4 pb-1">
+            <button
+              onClick={handleSaveNote}
+              disabled={noteSaved}
+              className={`w-full rounded-xl py-2.5 text-sm font-medium transition-colors ${
+                noteSaved
+                  ? 'bg-green-100 text-green-600'
+                  : 'bg-chinese-red/10 text-chinese-red active:bg-chinese-red/20'
+              }`}
+            >
+              {noteSaved ? 'บันทึกแล้ว' : 'บันทึกไปโน้ต'}
+            </button>
           </div>
         )}
 

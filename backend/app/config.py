@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     LINE_CALLBACK_URL: str = "http://localhost:8000/auth/line/callback"
     ADMIN_SECRET: str = ""
     RESEND_API_KEY: str = ""
-    EMAIL_FROM: str = "onboarding@resend.dev"
+    EMAIL_FROM: str = "noreply@neverjod.com"
 
     # Image APIs
     SPOONACULAR_API_KEY: str = ""

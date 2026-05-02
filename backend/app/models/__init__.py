@@ -12,3 +12,4 @@ from .app_setting import AppSetting
 from .word_image_cache import WordImageCache
 from .user_favorite import UserFavorite
 from .usage_event import UsageEvent
+from .ocr_note import OcrNote
