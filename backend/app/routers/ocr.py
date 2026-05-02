@@ -808,8 +808,10 @@ def scan_image_structured(
             "words": [],
         }
 
-    # สร้าง chat_structure เสมอ (ถ้ายังไม่มี) เพื่อใช้ใน translation_chat
-    if not chat_structure and lines:
+    # สร้าง chat_structure เฉพาะเมื่อ lines มี spatial info (cy) จาก PaddleOCR
+    # flat fallback lines มีแค่ {text, translation} ไม่มี cy → ข้าม
+    has_spatial = lines and lines[0].get("cy") is not None
+    if not chat_structure and has_spatial:
         if app_type == "line":
             chat_structure = _parse_chat_lines_line(lines)
         else:

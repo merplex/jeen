@@ -34,14 +34,28 @@ def _migrate_columns():
 
 
 def _warmup_paddle():
-    """โหลด PaddleOCR models ตอน startup เพื่อไม่ให้ user คนแรกต้องรอ download"""
-    import logging
+    """โหลด PaddleOCR models ตอน startup — ลบ cache เสียก่อนถ้า load ไม่ได้"""
+    import logging, shutil, pathlib
+    from .routers import ocr as ocr_mod
+    logger = logging.getLogger(__name__)
+    paddle_cache = pathlib.Path("/root/.paddleocr")
+
+    def _try_load():
+        ocr_mod._paddle_reader = None
+        ocr_mod._get_paddle_reader()
+
     try:
-        from .routers.ocr import _get_paddle_reader
-        _get_paddle_reader()
-        logging.getLogger(__name__).info("[startup] PaddleOCR warmed up")
+        _try_load()
+        logger.info("[startup] PaddleOCR warmed up")
     except Exception as e:
-        logging.getLogger(__name__).warning(f"[startup] PaddleOCR warmup failed: {e}")
+        logger.warning(f"[startup] PaddleOCR warmup failed (clearing cache): {e}")
+        try:
+            if paddle_cache.exists():
+                shutil.rmtree(paddle_cache)
+            _try_load()
+            logger.info("[startup] PaddleOCR warmed up after cache clear")
+        except Exception as e2:
+            logger.warning(f"[startup] PaddleOCR warmup failed after cache clear: {e2}")
 
 
 @asynccontextmanager
