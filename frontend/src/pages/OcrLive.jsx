@@ -290,7 +290,7 @@ export default function OcrLive() {
         )}
 
         {/* Save to note button */}
-        {isOnline && (translation || translationChat) && (
+        {(translation || translationChat) && (
           <div className="px-4 pb-1">
             <button
               onClick={handleSaveNote}

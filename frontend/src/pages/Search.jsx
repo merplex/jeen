@@ -11,6 +11,7 @@ import HandwritingModal from '../components/HandwritingModal'
 import OfflineAlert from '../components/OfflineAlert'
 import { isOnline } from '../utils/network'
 import QuotaLimitModal from '../components/QuotaLimitModal'
+import { saveOcrNoteOffline, startOcrNotesSync } from '../services/ocrNotesSyncService'
 import { SEARCH_CATEGORIES, getCategoryColor, loadFavCategories } from '../utils/categories'
 import useAuthStore from '../stores/authStore'
 
@@ -60,6 +61,7 @@ export default function Search() {
   const [ocrResult, setOcrResult] = useState(null)  // { text, translation, words }
   const [ocrLoading, setOcrLoading] = useState(false)
   const [ocrMode, setOcrMode] = useState('general')
+  const [ocrNoteSaved, setOcrNoteSaved] = useState(false)
   const [quotaModal, setQuotaModal] = useState(null) // null | { quotaType, userTier }
   const [showOcrSheet, setShowOcrSheet] = useState(false)
   const [showHandwriting, setShowHandwriting] = useState(false)
@@ -272,6 +274,7 @@ export default function Search() {
     e.target.value = ''
     setOcrLoading(true)
     setOcrResult(null)
+    setOcrNoteSaved(false)
     try {
       const buf = await file.arrayBuffer()
       const bytes = new Uint8Array(buf)
@@ -502,6 +505,29 @@ export default function Search() {
                   </div>
                 ) : null
               })()}
+              {/* Save to note button */}
+              {(ocrResult.translation || ocrResult.translation_chat) && (
+                <button
+                  onClick={async () => {
+                    const text = ocrMode === 'chat' ? ocrResult.translation_chat : ocrResult.translation
+                    if (!text) return
+                    const wordsJson = ocrResult.words?.length > 0
+                      ? JSON.stringify(ocrResult.words.map(w => ({ id: w.id, chinese: w.chinese, pinyin: w.pinyin, thai_meaning: w.thai_meaning })))
+                      : null
+                    await saveOcrNoteOffline({ translationText: text, translationMode: ocrMode, wordsJson })
+                    setOcrNoteSaved(true)
+                    startOcrNotesSync(token)
+                  }}
+                  disabled={ocrNoteSaved}
+                  className={`w-full rounded-xl py-2.5 text-sm font-medium transition-colors ${
+                    ocrNoteSaved
+                      ? 'bg-green-100 text-green-600'
+                      : 'bg-chinese-red/10 text-chinese-red active:bg-chinese-red/20'
+                  }`}
+                >
+                  {ocrNoteSaved ? 'บันทึกแล้ว' : 'บันทึกไปโน้ต'}
+                </button>
+              )}
               {/* Chinese reference below */}
               {ocrResult.text && (
                 <div className="border-t border-gray-100 pt-2">
