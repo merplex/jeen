@@ -509,13 +509,17 @@ export default function Search() {
               {(ocrResult.translation || ocrResult.translation_chat) && (
                 <button
                   onClick={async () => {
+                    if (ocrNoteSaved) return
                     const text = ocrMode === 'chat' ? ocrResult.translation_chat : ocrResult.translation
                     if (!text) return
+                    setOcrNoteSaved(true)
+                    const linesJson = ocrResult.lines?.length > 0
+                      ? JSON.stringify(ocrResult.lines.map(l => ({ text: l.text })))
+                      : null
                     const wordsJson = ocrResult.words?.length > 0
                       ? JSON.stringify(ocrResult.words.map(w => ({ id: w.id, chinese: w.chinese, pinyin: w.pinyin, thai_meaning: w.thai_meaning })))
                       : null
-                    await saveOcrNoteOffline({ translationText: text, translationMode: ocrMode, wordsJson })
-                    setOcrNoteSaved(true)
+                    await saveOcrNoteOffline({ translationText: text, translationMode: ocrMode, linesJson, wordsJson })
                     startOcrNotesSync(token)
                   }}
                   disabled={ocrNoteSaved}

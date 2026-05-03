@@ -68,13 +68,18 @@ async function pullFromServer(token) {
   }
 }
 
+let _syncing = false
+
 export async function startOcrNotesSync(token) {
-  if (!navigator.onLine || !token) return
+  if (!navigator.onLine || !token || _syncing) return
+  _syncing = true
   try {
     await pushPending(token)
     await pullFromServer(token)
   } catch {
     // silent fail
+  } finally {
+    _syncing = false
   }
 }
 

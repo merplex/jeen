@@ -137,14 +137,15 @@ export default function OcrLive() {
   const speak = (text) => speakChinese(text, { onNoVoice: () => setShowTtsAlert(true) })
 
   const handleSaveNote = async () => {
+    if (noteSaved) return
     const text = translateMode === 'chat' ? translationChat : translation
     if (!text) return
+    setNoteSaved(true)
     const linesJson = lines.length > 0 ? JSON.stringify(lines.map(l => ({ text: l.text }))) : null
     const wordsJson = words.length > 0
       ? JSON.stringify(words.map(w => ({ id: w.id, chinese: w.chinese, pinyin: w.pinyin, thai_meaning: w.thai_meaning?.split('\n')[0] })))
       : null
     await saveOcrNoteOffline({ translationText: text, translationMode: translateMode, linesJson, wordsJson })
-    setNoteSaved(true)
     startOcrNotesSync(token)
   }
 
