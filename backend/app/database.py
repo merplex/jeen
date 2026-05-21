@@ -4,7 +4,13 @@ from .config import settings
 
 # Railway provides postgres:// but SQLAlchemy 2.x requires postgresql://
 db_url = settings.DATABASE_URL.replace("postgres://", "postgresql://", 1)
-engine = create_engine(db_url)
+engine = create_engine(
+    db_url,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    pool_size=5,
+    max_overflow=10,
+)
 
 
 @event.listens_for(engine, "connect")
