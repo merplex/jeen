@@ -33,38 +33,11 @@ def _migrate_columns():
                 conn.execute(text("ALTER TABLE ocr_notes ADD COLUMN lines_json text"))
 
 
-def _warmup_paddle():
-    """โหลด PaddleOCR models ตอน startup — ลบ cache เสียก่อนถ้า load ไม่ได้"""
-    import logging, shutil, pathlib
-    from .routers import ocr as ocr_mod
-    logger = logging.getLogger(__name__)
-    paddle_cache = pathlib.Path("/root/.paddleocr")
-
-    def _try_load():
-        ocr_mod._paddle_reader = None
-        ocr_mod._get_paddle_reader()
-
-    try:
-        _try_load()
-        logger.info("[startup] PaddleOCR warmed up")
-    except Exception as e:
-        logger.warning(f"[startup] PaddleOCR warmup failed (clearing cache): {e}")
-        try:
-            if paddle_cache.exists():
-                shutil.rmtree(paddle_cache)
-            _try_load()
-            logger.info("[startup] PaddleOCR warmed up after cache clear")
-        except Exception as e2:
-            logger.warning(f"[startup] PaddleOCR warmup failed after cache clear: {e2}")
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     _migrate_columns()
     scheduler = start_scheduler()
-    import asyncio, concurrent.futures
-    asyncio.get_event_loop().run_in_executor(concurrent.futures.ThreadPoolExecutor(max_workers=1), _warmup_paddle)
     yield
     scheduler.shutdown(wait=False)
 
