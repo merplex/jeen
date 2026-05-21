@@ -110,8 +110,14 @@ export async function startBackgroundSync(onProgress) {
 
   const p = getProgress()
 
-  // Delta sync (มี synced_at แล้ว)
+  // ถ้า localStorage บอกว่า synced แล้ว แต่ local DB ว่างเปล่า → reset แล้ว full sync ใหม่
   if (p.synced_at && !p.in_progress) {
+    const localCount = await db.words.count().catch(() => 0)
+    if (localCount === 0) {
+      saveProgress({})
+      fullSync(onProgress).catch(() => {})
+      return
+    }
     deltaSync(p.synced_at).catch(() => {})
     return
   }
