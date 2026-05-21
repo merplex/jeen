@@ -35,8 +35,13 @@ def _migrate_columns():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    _migrate_columns()
+    import logging
+    logger = logging.getLogger("uvicorn")
+    try:
+        Base.metadata.create_all(bind=engine)
+        _migrate_columns()
+    except Exception as exc:
+        logger.warning("DB not ready at startup, will retry on first request: %s", exc)
     scheduler = start_scheduler()
     yield
     scheduler.shutdown(wait=False)
