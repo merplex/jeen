@@ -74,8 +74,9 @@ export default function App() {
     if (path === '/login' || path === '/register' || path === '/line-callback') {
       // render routes ปกติด้านล่าง
     } else {
-      // ยังโหลดอยู่ (มี token แต่ยังไม่รู้ว่า admin ไหม) → รอก่อน
-      if (token && fetchingMe) {
+      // ยังโหลดอยู่ (ไม่มี cached user เลย) → รอก่อน
+      // ถ้ามี cached user อยู่แล้ว → render ได้เลย ไม่ต้องรอ API
+      if (token && fetchingMe && !user) {
         return (
           <div className="min-h-screen bg-chinese-cream flex items-center justify-center">
             <div className="text-gray-400 text-sm">กำลังโหลด...</div>

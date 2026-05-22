@@ -80,6 +80,18 @@ export async function deleteLocalHistory(id) {
   return db.search_history.delete(id)
 }
 
+export async function getLocalRandomWords(limit = 30) {
+  const count = await db.words.count()
+  if (count === 0) return []
+  const offset = Math.floor(Math.random() * Math.max(count - limit, 0))
+  return db.words.offset(offset).limit(limit).toArray()
+}
+
+export async function getLocalFavoriteIds() {
+  const favs = await db.favorites.toArray()
+  return new Set(favs.map(f => f.word_id))
+}
+
 export async function offlineSearch(query) {
   query = query.trim()
   if (!query) return { found: false, prefix_group: [], inner_group: [], total: 0, query }

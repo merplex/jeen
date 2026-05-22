@@ -35,22 +35,28 @@ const useAuthStore = create((set) => ({
   fetchMe: async () => {
     set({ fetchingMe: true })
     if (!navigator.onLine) {
-      // offline — ใช้ cached user ถ้ามี token อยู่
-      const cached = getCachedUser()
-      set({ user: cached, fetchingMe: false })
+      set({ user: getCachedUser(), fetchingMe: false })
       return
     }
+    // ถ้ามี cached user → render ได้เลยโดยไม่ต้องรอ, update ใน background
+    const cached = getCachedUser()
+    if (cached) set({ user: cached, fetchingMe: false })
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000)
     try {
-      const res = await getMe()
+      const res = await getMe({ signal: controller.signal })
+      clearTimeout(timeoutId)
       localStorage.setItem('user', JSON.stringify(res.data))
       set({ user: res.data, fetchingMe: false })
     } catch (e) {
-      // network error (ไม่ใช่ 401) → ใช้ cached user แทน ไม่ลบ token
+      clearTimeout(timeoutId)
       if (e?.response?.status === 401) {
         localStorage.removeItem('token')
         localStorage.removeItem('user')
         set({ user: null, token: null, fetchingMe: false })
       } else {
+        // network error / timeout / server down → ใช้ cached user ไม่ลบ token
         set({ user: getCachedUser(), fetchingMe: false })
       }
     }

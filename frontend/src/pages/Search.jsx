@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { searchWords, reportMissedSearch, recordSearchHistory, getRandomWords, scanOcrStructured, getFavorites, getPublicSettings } from '../services/api'
-import { offlineSearch, recordLocalHistory } from '../services/offlineDb'
+import { offlineSearch, recordLocalHistory, getLocalRandomWords, getLocalFavoriteIds } from '../services/offlineDb'
 import { startBackgroundSync, getSyncProgress } from '../services/syncService'
 import WordCard from '../components/WordCard'
 import MarqueeText from '../components/MarqueeText'
@@ -104,6 +104,10 @@ export default function Search() {
         if (e.response?.status === 429 && detail) {
           setQuotaModal({ quotaType: detail.quota_type, userTier: detail.user_tier })
         }
+        // server down → ใช้คำสุ่มจาก local IndexedDB แทน
+        getLocalRandomWords(30).then(words => {
+          if (words.length > 0) setRandomWords(words)
+        }).catch(() => {})
       })
   }, [])
 
@@ -128,7 +132,12 @@ export default function Search() {
   // โหลด favorites เพื่อแสดง ⭐ และเรียงก่อน
   useEffect(() => {
     if (!token) return
-    getFavorites().then((r) => setFavoriteIds(new Set(r.data.map((f) => f.word_id)))).catch(() => {})
+    getFavorites()
+      .then((r) => setFavoriteIds(new Set(r.data.map((f) => f.word_id))))
+      .catch(() => {
+        // server down → ใช้ favorites จาก local IndexedDB
+        getLocalFavoriteIds().then(ids => setFavoriteIds(ids)).catch(() => {})
+      })
   }, [token])
 
   // Background sync สำหรับ offline search
