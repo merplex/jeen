@@ -479,18 +479,19 @@ def _jieba_flush_loop():
 
 
 def _init_jieba():
+    """โหลด jieba dictionary (~350k คำ) เข้า memory — เรียกแบบ lazy ตอนใช้ครั้งแรกเท่านั้น
+    เพื่อไม่ให้ backend กิน RAM คงที่สูงตั้งแต่ startup ทั้งที่ยังไม่มีใครค้นหาคำที่ไม่เจอ"""
     global _jieba_ready
     try:
         import jieba
-        jieba.initialize()
+        jieba.initialize()  # jieba lock กันการ initialize ซ้ำจากหลาย thread เองอยู่แล้ว
         _jieba_ready = True
-        logger.info("[jieba] initialized")
+        logger.info("[jieba] initialized (lazy)")
         _load_jieba_stats_from_db()
     except Exception as e:
         logger.warning(f"[jieba] init failed: {e}")
 
 
-threading.Thread(target=_init_jieba, daemon=True).start()
 threading.Thread(target=_jieba_flush_loop, daemon=True).start()
 
 
@@ -499,6 +500,8 @@ def validate_chinese_jieba(word: str) -> bool:
     global _jieba_total, _jieba_not_found, _jieba_dirty
     try:
         import jieba
+        if not _jieba_ready:
+            _init_jieba()
         found = word in jieba.dt.FREQ
         with _jieba_lock:
             _jieba_total += 1
