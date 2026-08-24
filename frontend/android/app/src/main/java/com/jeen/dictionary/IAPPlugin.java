@@ -145,6 +145,9 @@ public class IAPPlugin extends Plugin implements PurchasesUpdatedListener {
                         if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
                             JSObject result = new JSObject();
                             result.put("receipt", purchase.getPurchaseToken());
+                            if (!purchase.getProducts().isEmpty()) {
+                                result.put("productId", purchase.getProducts().get(0));
+                            }
                             call.resolve(result);
                             return;
                         }

@@ -337,10 +337,17 @@ export default function Profile() {
           </button>
           <span className="text-gray-300 text-xs">|</span>
           <button
-            onClick={() => window.open('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/', '_system')}
+            onClick={() => navigate('/terms')}
             className="text-gray-400 text-xs underline"
           >
             Terms of Use
+          </button>
+          <span className="text-gray-300 text-xs">|</span>
+          <button
+            onClick={() => navigate('/eula')}
+            className="text-gray-400 text-xs underline"
+          >
+            EULA
           </button>
         </div>
       </div>

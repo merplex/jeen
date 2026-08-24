@@ -118,10 +118,16 @@ def verify_purchase(
     if not result["valid"]:
         raise HTTPException(status_code=400, detail=f"ยืนยันการซื้อไม่ผ่าน: {result.get('reason', '')}")
 
+    # Prefer the product_id the store itself verified over the client-supplied one —
+    # iOS restore doesn't decode the receipt client-side, so body.product_id is '' on
+    # restore there and would otherwise silently drop which plan (learner/superuser)
+    # the user is on.
+    product_id = result.get("product_id") or body.product_id
+
     sub = db.query(UserSubscription).filter(UserSubscription.user_id == current_user.id).first()
     if sub:
         sub.platform = body.platform
-        sub.product_id = body.product_id
+        sub.product_id = product_id
         sub.purchase_type = body.purchase_type
         sub.purchase_token = body.purchase_token
         sub.status = "active"
@@ -130,7 +136,7 @@ def verify_purchase(
         sub = UserSubscription(
             user_id=current_user.id,
             platform=body.platform,
-            product_id=body.product_id,
+            product_id=product_id,
             purchase_type=body.purchase_type,
             purchase_token=body.purchase_token,
             status="active",
@@ -180,9 +186,12 @@ def _verify_google(product_id: str, purchase_token: str, purchase_type: str) -> 
         if purchase_type == "subscription":
             expiry_ms = int(data.get("expiryTimeMillis", 0))
             expires_at = datetime.fromtimestamp(expiry_ms / 1000, tz=timezone.utc) if expiry_ms else None
-            cancel_reason = data.get("cancelReason")
-            if cancel_reason is not None:
-                return {"valid": False, "reason": f"cancelled (reason={cancel_reason})"}
+            # cancelReason is set the moment the user turns off auto-renew, but the
+            # subscription stays usable until expiryTimeMillis — only expiry should
+            # invalidate it, otherwise a cancelled-but-still-paid-for user loses
+            # access immediately instead of at their actual paid-through date.
+            if expires_at is not None and expires_at < datetime.now(timezone.utc):
+                return {"valid": False, "reason": "expired"}
             return {"valid": True, "expires_at": expires_at}
         else:
             purchase_state = data.get("purchaseState", 1)
@@ -257,7 +266,7 @@ def _verify_apple(receipt_data: str) -> dict:
         if cancel_date:
             return {"valid": False, "reason": "subscription cancelled"}
 
-        return {"valid": True, "expires_at": expires_at}
+        return {"valid": True, "expires_at": expires_at, "product_id": latest.get("product_id")}
 
     except Exception as e:
         logger.error(f"Apple verify error: {e}")

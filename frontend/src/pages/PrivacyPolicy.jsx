@@ -2,7 +2,7 @@ export default function PrivacyPolicy() {
   return (
     <div className="max-w-lg mx-auto min-h-screen bg-white px-6 py-10 text-gray-700">
       <h1 className="text-2xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
-      <p className="text-sm text-gray-400 mb-8">Last updated: March 10, 2026</p>
+      <p className="text-sm text-gray-400 mb-8">Last updated: August 24, 2026</p>
 
       <section className="mb-6">
         <p>
@@ -26,6 +26,16 @@ export default function PrivacyPolicy() {
             Microphone audio (only when you use Speaking Practice — processed for pronunciation
             scoring, then discarded)
           </li>
+          <li>
+            Sign-in data from third parties: if you choose to sign in with Google Sign-In or Apple
+            Sign-In (where offered), we receive your email and basic name from that provider, as
+            authorized by you, solely to create and link your account
+          </li>
+          <li>
+            Subscription/payment status: which plan you're subscribed to and its expiry date, as
+            reported to us by Google Play or the Apple App Store. We never receive or store your
+            card number or other payment details — those are handled entirely by Google/Apple
+          </li>
         </ul>
       </section>
 
@@ -35,8 +45,14 @@ export default function PrivacyPolicy() {
           <li>To provide and maintain the app's features</li>
           <li>To save your search history and learning progress</li>
           <li>To process pronunciation assessments</li>
-          <li>To manage subscriptions through Google Play or Apple App Store</li>
+          <li>To sign you in and authenticate you via Google/Apple Sign-In, if you choose to use it</li>
+          <li>To manage and verify subscriptions through Google Play or Apple App Store</li>
         </ul>
+        <p className="text-sm mt-2">
+          We do not sell or rent your personal data to third parties. Sign-in and subscription
+          data above is processed by the providers we use (Google, Apple) only to the extent
+          needed to provide those features.
+        </p>
       </section>
 
       <section className="mb-6">

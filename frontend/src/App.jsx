@@ -6,6 +6,8 @@ import { startFlashcardSync } from './services/flashcardSyncService'
 import { startFavoritesSync } from './services/favoritesSyncService'
 import { startNotesSync } from './services/notesSyncService'
 import { startOcrNotesSync } from './services/ocrNotesSyncService'
+import { restorePurchases, getStorePlatform } from './services/iap'
+import { verifyPurchase } from './services/api'
 import BottomNav from './components/BottomNav'
 import Search from './pages/Search'
 import WordDetail from './pages/WordDetail'
@@ -31,6 +33,8 @@ import MassTranslation from './pages/admin/MassTranslation'
 import OcrLive from './pages/OcrLive'
 import DownloadApp from './pages/DownloadApp'
 import PrivacyPolicy from './pages/PrivacyPolicy'
+import Eula from './pages/Eula'
+import TermsOfUse from './pages/TermsOfUse'
 import DeleteAccount from './pages/DeleteAccount'
 
 function AdminGuard({ children }) {
@@ -64,8 +68,24 @@ export default function App() {
     return () => window.removeEventListener('online', sync)
   }, [token])
 
-  // Privacy policy accessible to everyone (web + native, no login needed)
+  // Best-effort silent re-verify on launch — catches renewals/expiry updates
+  // without the user having to tap "Restore Purchase" manually. Only claims
+  // whatever purchase the device's current store account already grants to
+  // the logged-in user; never touches any other account's subscription.
+  useEffect(() => {
+    if (!isNative || !token) return
+    restorePurchases()
+      .then(({ receipt, productId }) => {
+        if (!receipt) return;
+        return verifyPurchase({ platform: getStorePlatform(), product_id: productId || '', purchase_token: receipt })
+      })
+      .catch(() => {})
+  }, [token])
+
+  // Privacy policy / EULA / Terms accessible to everyone (web + native, no login needed)
   if (window.location.pathname === '/privacy') return <PrivacyPolicy />
+  if (window.location.pathname === '/eula') return <Eula />
+  if (window.location.pathname === '/terms') return <TermsOfUse />
 
   // Web browser: รอโหลด user ก่อน แล้วเช็ค is_admin
   if (!isNative) {
@@ -106,6 +126,8 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/eula" element={<Eula />} />
+        <Route path="/terms" element={<TermsOfUse />} />
         <Route path="/delete-account" element={<DeleteAccount />} />
         <Route path="/line-callback" element={<LineCallback />} />
         <Route path="/profile" element={<Profile />} />
